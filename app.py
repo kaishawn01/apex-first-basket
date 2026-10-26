@@ -415,6 +415,23 @@ with st.expander('Build deeper history · prior-season import'):
             st.warning('Some games could not be imported. Games with a nonstarter first scorer remain excluded by this model.')
             st.dataframe(pd.DataFrame(report['skipped']),hide_index=True,use_container_width=True)
 
+with st.expander('Opening-shot conversion · enrich saved history'):
+    missing_results=sorted({r['game_id'] for r in hist if str(r.get('first_team_shot',''))=='1' and str(r.get('first_team_shot_made','')) not in ('0','1') and r.get('date','')<datetime.now(ZoneInfo('America/New_York')).date().isoformat()},reverse=True)
+    st.caption('New imports record the opening field-goal result when explicit. Older missing results stay unknown. Enrichment rechecks saved ESPN games and adds only missing shot outcomes; changed starters, dates or existing scoring facts block that game. A backup is created before writing. This uses public ESPN requests, not paid odds calls.')
+    enrich_ids=st.multiselect('Saved games to enrich with opening-shot results',missing_results,max_selections=20)
+    if st.button('Enrich selected opening-shot results',disabled=not enrich_ids):
+        try:
+            progress=st.empty()
+            with st.spinner('Rechecking opening attempts…'):
+                st.session_state['opening_enrichment']=research.enrich_opening_results(enrich_ids,progress.info)
+            st.rerun()
+        except (OSError,ValueError) as exc:st.error(str(exc))
+    enrichment=st.session_state.get('opening_enrichment')
+    if enrichment:
+        st.write(f"Added {enrichment['added_results']} opening-shot outcomes across {enrichment['enriched_games']} games.")
+        if enrichment['backup']:st.caption('Backup: '+enrichment['backup'])
+        if enrichment['errors']:st.dataframe(pd.DataFrame(enrichment['errors']),hide_index=True,use_container_width=True)
+
 with st.expander('Data quality & coverage'):
     valid,issues=research.audit(hist)
     if issues:
@@ -521,6 +538,24 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
         else:st.info('Not enough eligible history to compare decay settings.')
     elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
+    if st.button('Test opening-shot conversion model'):
+        with st.spinner('Comparing recent form with the conversion challenger…'):
+            st.session_state['conversion_comparison']=research.compare_opening_conversion(hist,warmup)
+    conversion=st.session_state.get('conversion_comparison')
+    if conversion and conversion['fingerprint']==research.fingerprint(hist) and conversion['min_training']==warmup:
+        st.markdown('**Opening-shot frequency × conversion**')
+        st.write(f"Known opening-attempt outcomes in valid saved history: {conversion['known_attempts']} · Made: {conversion['known_makes']}.")
+        st.caption('This compares against Recent form, regardless of the sidebar model. It multiplies opening-shot frequency by a player conversion factor, retaining the 65/35 blend with first-score history. Conversion uses a neutral prior of five makes and five misses, 90-day decay and a 400-day earlier-date window. Missing outcomes are not misses. With no conversion data, predictions reproduce Recent form.')
+        st.caption('The prior and blend are experimental choices. This can change player order; it is not a full possession simulation. Free throws remain represented by the first-score signal. Shot type, rebounds, turnovers and later attempts are not explicitly simulated. Historical lineup and nonstarter-scorer selection bias remain.')
+        if conversion['summary']:
+            st.dataframe(pd.DataFrame(conversion['summary']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(conversion['comparisons']),hide_index=True,use_container_width=True)
+            st.caption('Differences are challenger minus Recent form on identical games. Lower log loss/Brier and higher hit-rate differences are better. Approximate 95% date-bootstrap intervals and the newest-quarter diagnostic do not establish future accuracy or profit. Live defaults and journal forecasts are unchanged.')
+            if not any(r['Games with conversion training data'] for r in conversion['summary']):st.info('No evaluated games had conversion training data. Enrich earlier saved games before treating this as a test of conversion skill.')
+            st.download_button('Download opening-shot model summary CSV',pd.DataFrame(conversion['summary']).to_csv(index=False).encode(),'apex_conversion_summary.csv','text/csv')
+            st.download_button('Download opening-shot model predictions CSV',pd.DataFrame(conversion['details']).to_csv(index=False).encode(),'apex_conversion_predictions.csv','text/csv')
+        else:st.info('Not enough eligible history to evaluate the opening-shot model.')
+    elif conversion:st.info('History or training minimum changed. Run the opening-shot conversion test again.')
     if st.button('Test starting-lineup projections'):
         with st.spinner('Replaying starting-five forecasts using earlier games…'):
             st.session_state['lineup_validation']=research.evaluate_starting_fives(hist,day)

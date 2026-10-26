@@ -51,8 +51,8 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert any('12 indexed missing games have not been attempted yet' in x.value for x in at.caption)
  next(b for b in at.button if 'Load slate' in b.label).click().run()
  assert not at.exception,list(at.exception)
- assert len(at.multiselect)==2
- assert all(len(m.value)==5 for m in at.multiselect)
+ assert len([m for m in at.multiselect if 'select five starters' in m.label])==2
+ assert all(len(m.value)==5 for m in at.multiselect if 'select five starters' in m.label)
  for cb in at.checkbox:
   if cb.label.startswith('I verified'):cb.check()
  at.run()
@@ -344,3 +344,32 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
  assert not any(x.value=='NBA FEED CONFIRMED' for x in at.caption)
  assert any('Provider confirmations were cleared' in x.value for x in at.warning)
  print('NBA confirmed-lineup UI passed: load, automatic confirmation, journal provenance, edit and failure invalidation.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Conversion comparison must not fetch APIs')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(b for b in at.button if b.label=='Test opening-shot conversion model').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['conversion_comparison']
+ assert len(report['summary'])==4
+ assert report['known_attempts']==0
+ assert any('No evaluated games had conversion training data' in x.value for x in at.info)
+ assert any(d.label=='Download opening-shot model predictions CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
+ assert not any(d.label=='Download opening-shot model predictions CSV' for d in at.get('download_button'))
+ assert any('Run the opening-shot conversion test again' in x.value for x in at.info)
+ print('Opening conversion UI passed: comparison, missing-data fallback, export and staleness.')
+
+from test_research import OpeningResultEnrichmentTests
+fixture=OpeningResultEnrichmentTests();fixture.setUp()
+with tempfile.TemporaryDirectory() as folder:
+ path=Path(folder)/'history.csv';eng.write_csv(path,list(fixture.rows[0]),fixture.rows)
+ with patch.object(eng,'DATA',Path(folder)),patch.object(eng,'HISTORY',path),patch.object(core,'request',return_value=fixture.payload):
+  at=AppTest.from_file(str(root/'app.py')).run()
+  next(m for m in at.multiselect if m.label=='Saved games to enrich with opening-shot results').set_value(['espn_401809955']).run()
+  next(b for b in at.button if b.label=='Enrich selected opening-shot results').click().run()
+  assert not at.exception,list(at.exception)
+  assert at.session_state['opening_enrichment']['enriched_games']==1
+  assert list(Path(folder).glob('history_before_opening_results_*.csv'))
+  assert sum(str(r['first_team_shot_made']) in ('0','1') for r in eng.read_csv(path))==fixture.known
+  print('Opening enrichment UI passed: selected import, backup and saved outcomes.')

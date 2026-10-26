@@ -36,8 +36,12 @@ def audit(rows):
             for r in game:
                 if not r['player_id'].isdigit() or not r['player'].strip(): raise ValueError('Invalid player')
                 if r['opponent'] not in teams-{r['team']}: raise ValueError('Invalid opponent')
-                for f in (f for f in eng.FIELDS[6:] if f!='opening_shot_observed'):
+                for f in (f for f in eng.FIELDS[6:] if f not in ('opening_shot_observed','first_team_shot_made')):
                     if str(r[f]) not in ('0','1'): raise ValueError('Invalid binary outcome')
+                shot_result=str(r.get('first_team_shot_made',''))
+                if shot_result not in ('','None','0','1'):raise ValueError('Invalid opening-shot result')
+                if shot_result in ('0','1') and int(r['first_team_shot'])!=1:raise ValueError('Opening-shot result belongs to a non-opening shooter')
+                if shot_result=='1' and int(r['first_game_shot']) and not int(r['first_fg_scorer']):raise ValueError('Made game-opening shot contradicts first field-goal scorer')
             winners=[r for r in game if int(r['first_scorer'])==1]
             if len(winners)!=1: raise ValueError('Expected exactly one first scorer')
             winning_team=winners[0]['team']
@@ -290,7 +294,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
     temper_probabilities({str(i):.1 for i in range(10)},temperature)
     eng.validate_half_life(half_life)
     eng.validate_shot_weight(shot_weight)
-    if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
+    if model not in ("baseline","recent","lineup","conversion"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
     for r in valid: byday[r['date']][r['game_id']].append(r)
@@ -298,17 +302,22 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
     for day in sorted(byday):
         train=history_window(prior,day)
         training_games=len({r['game_id'] for r in train})
+        conversion_counts=defaultdict(int)
+        for r in train:
+            if int(r['first_team_shot'])==1 and str(r.get('first_team_shot_made','')) in ('0','1'):
+                conversion_counts[(r['team'],r['player_id'])]+=1
         if training_games>=min_training:
             matchups={gid:{t:[r for r in game if r['team']==t] for t in {r['team'] for r in game}} for gid,game in byday[day].items()}
             predictions=eng.predict_matchups(train,matchups,day,model,shot_weight=shot_weight,half_life=half_life)
             for gid,game in byday[day].items():
                 probs=temper_probabilities(predictions[gid],temperature)
+                conversion_attempts=sum(conversion_counts[(r['team'],r['player_id'])] for r in game)
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games,**scoring_stage_metrics(probs,{r['player_id']:r['team'] for r in game},winner['player_id'])})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games,'Known conversion training attempts':conversion_attempts,**scoring_stage_metrics(probs,{r['player_id']:r['team'] for r in game},winner['player_id'])})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
@@ -1035,3 +1044,77 @@ def evaluate_starting_fives(history,as_of):
                             'First scorer covered %':100*sum(r['First scorer covered'] for r in winning)/len(winning) if winning else None})
     return {'fingerprint':fingerprint(history),'as_of':as_of,'summary':summary,'details':details,
             'skipped_team_lineups':skipped,'excluded_games':len(issues),'evaluated_dates':len(dates),'latest_dates':len(latest_dates)}
+
+
+def compare_opening_conversion(history,min_training=100):
+    results={label:evaluate(history,min_training,model=model) for label,model in (('Recent form','recent'),('Opening-shot conversion','conversion'))}
+    dates=sorted({r['Date'] for r in results['Recent form']['games']})
+    latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[];details=[];comparisons=[]
+    for period in ('All evaluated dates','Newest quarter of dates'):
+        subsets={label:[r for r in result['games'] if period=='All evaluated dates' or r['Date'] in latest] for label,result in results.items()}
+        for label,games in subsets.items():
+            if games:summary.append({'Model':label,'Period':period,'Dates':len({r['Date'] for r in games}),
+                'Games with conversion training data':sum(r['Known conversion training attempts']>0 for r in games),
+                **evaluation_metrics(games),**scoring_stage_summary(games)})
+        paired=compare_evaluations({'games':subsets['Recent form']},{'games':subsets['Opening-shot conversion']})
+        comparisons.extend({'Period':period,'Games':paired['games'],'Dates':paired['dates'],**r} for r in paired['metrics'])
+    for label,result in results.items():details.extend({'Model':label,**r} for r in result['games'])
+    valid,_=audit(history)
+    known=[r for r in valid if int(r['first_team_shot'])==1 and str(r.get('first_team_shot_made','')) in ('0','1')]
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'comparisons':comparisons,'details':details,
+            'known_attempts':len(known),'known_makes':sum(int(r['first_team_shot_made']) for r in known),'latest_dates':len(latest)}
+
+
+def enrich_opening_results(game_ids,progress=lambda text:None):
+    """Add only missing opening-shot results after checking all existing outcome facts."""
+    import os,re,tempfile
+    selected=list(dict.fromkeys(game_ids))
+    if not selected or len(selected)>20:raise ValueError('Choose between 1 and 20 saved games.')
+    original=eng.HISTORY.read_bytes();history=eng.read_csv(eng.HISTORY)
+    valid,issues=audit(history)
+    if issues:raise ValueError('Repair invalid history before enriching opening shots.')
+    groups=defaultdict(list)
+    for row in valid:groups[row['game_id']].append(row)
+    if any(gid not in groups for gid in selected):raise ValueError('Selected game is not in saved history.')
+    updates={};errors=[]
+    for i,gid in enumerate(selected,1):
+        progress(f'Opening-shot results {i}/{len(selected)} · {gid}')
+        try:
+            if not re.fullmatch(r'espn_\d+',gid):raise ValueError('Only ESPN games can be enriched.')
+            old=groups[gid];day=old[0]['date']
+            if day>=datetime.now(ZoneInfo('America/New_York')).date().isoformat():raise ValueError('Only earlier completed dates can be enriched.')
+            payload=core.request(eng.ESPN_BASE+'/summary',{'event':gid.removeprefix('espn_')})
+            comp=payload['header']['competitions'][0];sides={c['homeAway']:eng.espn_team(c['team']) for c in comp['competitors']}
+            if set(sides.values())!={r['team'] for r in old}:raise ValueError('Stored matchup differs from provider.')
+            start=datetime.fromisoformat(comp['date'].replace('Z','+00:00'))
+            if start.tzinfo is None or start.astimezone(ZoneInfo('America/New_York')).date().isoformat()!=day:raise ValueError('Stored date differs from provider.')
+            game={'gameId':gid,'_date':day,'homeTeam':{'teamTricode':sides['home']},'awayTeam':{'teamTricode':sides['away']}}
+            eng.validate_espn_summary(game,payload);play,box=eng.espn_game_payloads(payload);fresh=eng.extract_game(game,play,box)
+            _,bad=audit(fresh)
+            if bad:raise ValueError(bad[0]['reason'])
+            indexed={r['player_id']:r for r in fresh}
+            if set(indexed)!={r['player_id'] for r in old}:raise ValueError('Stored starters differ from provider; no enrichment applied.')
+            patch={}
+            for row in old:
+                new=indexed[row['player_id']]
+                facts=('date','team','opponent','first_team_shot','first_game_shot','first_scorer','first_fg_scorer','team_scored_first','tip_first_action')
+                if any(str(row[f])!=str(new[f]) for f in facts):raise ValueError('Stored outcomes differ from provider; no enrichment applied.')
+                value=new.get('first_team_shot_made','');current=row.get('first_team_shot_made','')
+                if str(current) in ('0','1') and str(value)!=str(current):raise ValueError('Existing opening-shot result differs from provider.')
+                if str(current) not in ('0','1') and str(value) in ('0','1'):patch[row['player_id']]=value
+            if not patch:raise ValueError('No missing opening-shot outcomes could be resolved.')
+            updates[gid]=patch
+        except (RuntimeError,ValueError,KeyError,TypeError,IndexError) as exc:errors.append({'game_id':gid,'reason':str(exc)})
+    backup=None
+    if updates:
+        if eng.HISTORY.read_bytes()!=original:raise ValueError('History changed during enrichment; nothing was written.')
+        enriched=[{**r,'first_team_shot_made':updates.get(r['game_id'],{}).get(r['player_id'],r.get('first_team_shot_made',''))} for r in history]
+        _,bad=audit(enriched)
+        if bad:raise ValueError('Enriched history failed validation; nothing was written.')
+        fd,name=tempfile.mkstemp(prefix='history_before_opening_results_',suffix='.csv',dir=eng.DATA);backup=Path(name)
+        with os.fdopen(fd,'wb') as stream:stream.write(original);stream.flush();os.fsync(stream.fileno())
+        fields=list(history[0])
+        if 'first_team_shot_made' not in fields:fields.append('first_team_shot_made')
+        eng.write_csv(eng.HISTORY,fields,enriched)
+    return {'attempted':len(selected),'enriched_games':len(updates),'added_results':sum(len(v) for v in updates.values()),'errors':errors,'backup':backup.name if backup else None}

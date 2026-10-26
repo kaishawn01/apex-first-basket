@@ -1498,3 +1498,112 @@ class StartingFiveValidationTests(unittest.TestCase):
         self.assertEqual(report['evaluated_dates'],3);self.assertEqual(report['latest_dates'],1)
         recent=[r for r in report['summary'] if r['Period']=='Newest quarter of dates']
         self.assertEqual([r['Team lineups'] for r in recent],[4,4])
+
+class OpeningConversionModelTests(unittest.TestCase):
+    def setUp(self):
+        self.lineups={team:[{'player_id':str(offset+i),'player':f'{team} Player {i}'} for i in range(5)] for team,offset in [('BOS',10),('NYK',20)]}
+    def test_unknown_results_reproduce_recent_form(self):
+        history=game_rows('old','2026-10-20')
+        recent=eng.predict_first_score(history,self.lineups,'2026-10-25','recent')
+        challenger=eng.predict_first_score(history,self.lineups,'2026-10-25','conversion')
+        for pid in recent:self.assertAlmostEqual(recent[pid],challenger[pid])
+        self.assertAlmostEqual(sum(challenger.values()),1)
+        weights=eng.conversion_player_weights(history,self.lineups['BOS'],'BOS','2026-10-25')
+        self.assertTrue(all(r[8]==.5 and r[9]==0 for r in weights))
+    def test_conversion_can_change_player_order(self):
+        history=[]
+        for i in range(12):
+            rows=game_rows(str(i),'2026-10-20');shooter='10' if i%2 else '11'
+            for r in rows:
+                if r['team']=='BOS':
+                    r['first_team_shot']=int(r['player_id']==shooter)
+                    r['first_team_shot_made']=int(shooter=='11') if r['player_id']==shooter else ''
+            history.extend(rows)
+        base={r[0]['player_id']:r for r in eng.recent_player_weights(history,self.lineups['BOS'],'BOS','2026-10-25',shot_weight=1)}
+        changed={r[0]['player_id']:r for r in eng.conversion_player_weights(history,self.lineups['BOS'],'BOS','2026-10-25',shot_weight=1)}
+        self.assertAlmostEqual(base['10'][1],base['11'][1])
+        self.assertGreater(changed['11'][1],changed['10'][1])
+        self.assertGreater(changed['11'][8],.5);self.assertLess(changed['10'][8],.5)
+        self.assertAlmostEqual(sum(r[1] for r in changed.values()),1)
+    def test_prior_future_other_team_and_old_results_not_counted(self):
+        rows=[]
+        for gid,day in [('today','2026-10-25'),('future','2026-10-26'),('old','2024-01-01')]:
+            new=game_rows(gid,day)
+            new[0]['first_team_shot_made']=1;rows.extend(new)
+        weights=eng.conversion_player_weights(rows,self.lineups['BOS'],'BOS','2026-10-25')
+        self.assertTrue(all(r[8]==.5 and r[9]==0 for r in weights))
+        new=game_rows('new','2026-10-24');new[5]['player_id']='10';new[5]['first_team_shot_made']=1
+        self.assertTrue(all(r[9]==0 for r in eng.conversion_player_weights(new,self.lineups['BOS'],'BOS','2026-10-25')))
+    def test_explicit_miss_differs_from_unknown(self):
+        rows=game_rows('old','2026-10-24')
+        unknown=eng.conversion_player_weights(rows,self.lineups['BOS'],'BOS','2026-10-25')[0]
+        rows[0]['first_team_shot_made']=0
+        missed=eng.conversion_player_weights(rows,self.lineups['BOS'],'BOS','2026-10-25')[0]
+        self.assertEqual(unknown[9],0);self.assertGreater(missed[9],0)
+        self.assertLess(missed[8],unknown[8])
+        self.assertAlmostEqual(missed[8],5/(10+2**(-1/90)))
+    def test_audit_optional_result_rules(self):
+        rows=game_rows('old','2026-10-24');self.assertFalse(rt.audit(rows)[1])
+        rows[0]['first_team_shot_made']=1;self.assertFalse(rt.audit(rows)[1])
+        rows[1]['first_team_shot_made']=0;self.assertTrue(rt.audit(rows)[1])
+        rows[1].pop('first_team_shot_made');rows[0]['first_team_shot_made']='unknown';self.assertTrue(rt.audit(rows)[1])
+    def test_extraction_does_not_infer_missing_outcomes(self):
+        action={'personId':10,'shotResult':'Made'}
+        self.assertEqual(eng.opening_attempt_result(action,10),1)
+        self.assertEqual(eng.opening_attempt_result({**action,'shotResult':'Missed'},10),0)
+        self.assertEqual(eng.opening_attempt_result({**action,'shotResult':''},10),'')
+        self.assertEqual(eng.opening_attempt_result({**action,'shotOutcomeKnown':False},10),'')
+        self.assertEqual(eng.opening_attempt_result(action,11),'')
+    def test_report_coverage_and_same_games(self):
+        history=[r for i in range(8) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        empty=rt.compare_opening_conversion(history,2)
+        self.assertEqual(empty['known_attempts'],0)
+        self.assertTrue(all(r['Candidate minus baseline']==0 for r in empty['comparisons']))
+        for row in history:
+            if row['first_team_shot']:row['first_team_shot_made']=int(row['team']=='BOS')
+        result=rt.compare_opening_conversion(history,2)
+        self.assertEqual(result['known_attempts'],16)
+        self.assertEqual(result['known_makes'],8)
+        self.assertEqual(len(result['summary']),4)
+        self.assertEqual({r['Game'] for r in result['details'] if r['Model']=='Recent form'},
+                         {r['Game'] for r in result['details'] if r['Model']=='Opening-shot conversion'})
+        self.assertTrue(all(r['Known conversion training attempts']>=4 for r in result['details']))
+
+class OpeningResultEnrichmentTests(unittest.TestCase):
+    def setUp(self):
+        import json
+        self.payload=json.loads(Path('espn_test_fixture.json').read_text())
+        self.payload['header']['id']='401809955'
+        self.payload['header']['competitions'][0].update(id='401809955',date='2025-10-25T23:00:00Z',status={'type':{'completed':True}})
+        play,box=eng.espn_game_payloads(self.payload)
+        self.rows=eng.extract_game({'gameId':'espn_401809955','_date':'2025-10-25'},play,box)
+        self.known=sum(str(r['first_team_shot_made']) in ('0','1') for r in self.rows)
+        self.assertGreater(self.known,0)
+        for r in self.rows:r.pop('first_team_shot_made');r['User note']='Keep this'
+    def test_enrichment_only_adds_missing_results_and_backs_up(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'history.csv';eng.write_csv(path,list(self.rows[0]),self.rows);before=path.read_bytes()
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',return_value=self.payload):
+                report=rt.enrich_opening_results(['espn_401809955'])
+            self.assertEqual(report['enriched_games'],1);self.assertEqual(report['added_results'],self.known)
+            self.assertEqual((Path(tmp)/report['backup']).read_bytes(),before)
+            after=eng.read_csv(path)
+            for old,new in zip(self.rows,after):
+                for key,value in old.items():self.assertEqual(str(value),new[key])
+    def test_conflicting_existing_outcome_blocks_entire_game(self):
+        self.rows[0]['tip_first_action']=1-int(self.rows[0]['tip_first_action'])
+        # Keep team-uniform proxy valid while deliberately changing the saved fact.
+        for row in self.rows:row['tip_first_action']=0
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'history.csv';eng.write_csv(path,list(self.rows[0]),self.rows);before=path.read_bytes()
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',return_value=self.payload):
+                report=rt.enrich_opening_results(['espn_401809955'])
+            self.assertEqual(report['enriched_games'],0);self.assertTrue(report['errors'])
+            self.assertEqual(path.read_bytes(),before)
+    def test_concurrent_history_change_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'history.csv';eng.write_csv(path,list(self.rows[0]),self.rows)
+            def request(*args,**kwargs):path.write_text('Another writer');return self.payload
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=request):
+                with self.assertRaisesRegex(ValueError,'History changed'):rt.enrich_opening_results(['espn_401809955'])
+            self.assertEqual(path.read_text(),'Another writer')

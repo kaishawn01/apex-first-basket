@@ -56,7 +56,7 @@ TEAMS = {
     "TOR": "Toronto Raptors", "UTA": "Utah Jazz", "WAS": "Washington Wizards",
 }
 FIELDS = ["game_id", "date", "team", "opponent", "player_id", "player", "first_team_shot",
-          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action", "opening_shot_observed"]
+          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action", "opening_shot_observed", "first_team_shot_made"]
 
 
 def get_json(url, *, params=None):
@@ -263,7 +263,10 @@ def espn_game_payloads(payload):
         actions.append({"period": 1, "actionNumber": int(play["sequenceNumber"]),
                         "actionType": typ, "teamTricode": teams.get(str(play.get("team", {}).get("id")), ""),
                         "personId": int(people[0]["athlete"]["id"]) if people else 0,
-                        "description": desc, "isFieldGoal": int(shot), "shotResult": "Made" if made else "Missed"})
+                        "description": desc, "isFieldGoal": int(shot), "shotResult": "Made" if made else "Missed",
+                        "shotOutcomeKnown": shot and type(play.get('scoringPlay')) is bool and type(play.get('scoreValue')) is int and
+                        ((play['scoringPlay'] and play['scoreValue'] in (2,3) and not desc.strip().upper().startswith('MISS')) or
+                         (not play['scoringPlay'] and play['scoreValue']==0 and desc.strip().upper().startswith('MISS')))})
     return {"game": {"actions": actions}}, {"game": {"homeTeam": boxes[sides["home"]], "awayTeam": boxes[sides["away"]]}}
 
 
@@ -303,6 +306,14 @@ def first_offense_team(actions):
     return ""
 
 
+def opening_attempt_result(action,player_id):
+    if action.get('personId')!=player_id or action.get('shotOutcomeKnown',True) is not True:return ''
+    result=str(action.get('shotResult','')).lower()
+    if result=='made' and str(action.get('description','')).strip().upper().startswith('MISS'):return ''
+    if result=='missed' and norm(action.get('actionType',''))=='madeshot':return ''
+    return 1 if result=='made' else 0 if result=='missed' else ''
+
+
 def extract_game(game, play, box):
     actions = [a for a in sorted_actions(play) if int(a.get("period", 0)) == 1]
     if not actions:
@@ -336,6 +347,7 @@ def extract_game(game, play, box):
                 "player_id": str(pid),
                 "player": p.get("name") or (str(p.get("firstName", "")) + " " + str(p.get("familyName", ""))).strip(),
                 "first_team_shot": int(first_per_team.get(team, {}).get("personId", 0) == pid),
+                "first_team_shot_made": opening_attempt_result(first_per_team.get(team,{}),pid),
                 "opening_shot_observed": int(int(first_per_team.get(team, {}).get("personId", 0)) in {int(q["personId"]) for q in side.get("players", []) if int(q["personId"])>0}),
                 "first_game_shot": int(first_game_shot is not None and int(first_game_shot.get("personId", 0)) == pid),
                 "first_scorer": int(int(scorer.get("personId", 0)) == pid),
@@ -791,11 +803,32 @@ def lineup_player_weights(history, starters, team, target_day, shot_weight=.65, 
     return [(r[0],r[1]/total,*r[2:]) for r in raw]
 
 
+def conversion_player_weights(history,starters,team,target_day,half_life=90.0,shot_weight=.65):
+    """Experimental opening-shot frequency times a shrunk conversion factor."""
+    target=date.fromisoformat(target_day)
+    base=recent_player_weights(history,starters,team,target_day,half_life,shot_weight)
+    attempts=defaultdict(float);makes=defaultdict(float)
+    for row in history:
+        age=(target-date.fromisoformat(row['date'])).days
+        result=str(row.get('first_team_shot_made',''))
+        if row['team']==team and 0<age<=400 and int(row['first_team_shot'])==1 and result in ('0','1'):
+            weight=2**(-age/half_life)
+            attempts[row['player_id']]+=weight;makes[row['player_id']]+=weight*int(result)
+    raw=[]
+    for player,share,n,shots,scores,mass,shot,conditional in base:
+        pid=player['player_id'];conversion=(makes[pid]+5)/(attempts[pid]+10)
+        # Relative to the neutral 50% prior so absent conversion data reproduces recent form.
+        weight=shot_weight*shot*(conversion/.5)+(1-shot_weight)*conditional
+        raw.append((player,weight,n,shots,scores,mass,shot,conditional,conversion,attempts[pid]))
+    total=sum(r[1] for r in raw)
+    return [(r[0],r[1]/total,*r[2:]) for r in raw]
+
+
 def predict_matchups(history, matchups, target_day, model="baseline", shot_weight=.65, half_life=90.0):
     """Build date-specific statistics once, then score each matchup independently."""
     validate_half_life(half_life)
     validate_shot_weight(shot_weight)
-    if model not in ('baseline','recent','lineup'):raise ValueError('Unknown model.')
+    if model not in ('baseline','recent','lineup','conversion'):raise ValueError('Unknown model.')
     target=date.fromisoformat(target_day)
     for lineups in matchups.values():
         if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
@@ -814,7 +847,7 @@ def predict_matchups(history, matchups, target_day, model="baseline", shot_weigh
         probabilities={}
         for team,pt in ((a,pa),(b,1-pa)):
             team_history=by_team.get(team,[])
-            weights=(lineup_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='recent' else player_weights(team_history,lineups[team],team,shot_weight=shot_weight))
+            weights=(conversion_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='conversion' else lineup_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='recent' else player_weights(team_history,lineups[team],team,shot_weight=shot_weight))
             probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
         results[game_id]=probabilities
     return results
