@@ -1,3 +1,13 @@
+APEX V2.43.0 — Monthly model consistency
+
+After Compare all five scoring models, expand Monthly consistency · does the advantage hold? The report uses the scorecard's saved predictions for the selected period and compares each alternative with Baseline on identical games. Monthly rows include game/date counts and differences in log loss, Brier, top-1 and top-3 fractional hit rates. Summary rows count better, worse and tied months.
+
+Each month's row also reports the difference after excluding that month. Summary ranges and plain-language readings show whether the overall direction persists, changes or ties when any single month is removed. Overall and excluded-month differences weight games equally; month counts weight months equally. A single month has no excluded-month comparison. Empty periods have no report. Stable direction may mean consistently worse performance, so the direction and metric must be read together.
+
+These are descriptive sensitivity checks, not confidence intervals or independent validation. Excluding a month rescales metrics from existing forecasts; it does not retrain predictions or remove that month's games from later training histories. Sparse and partial months remain included with their counts. No model is promoted, no prediction formula changes, and no API requests or additional model evaluations are needed. Monthly and summary CSV exports follow the selected period and disappear with stale scorecard inputs.
+
+Validation: 279 unit tests passed. Dashboard smoke checks cover report display, period selection, CSV availability and hiding empty/stale results. Tests cover unequal month sizes, metric direction, percentage-point scaling, sensitivity reversals, stable worse results, ties, single-month/empty data, mismatched games, non-finite metrics and no mutation/network/retraining. Windows execution and real-user accuracy gains were not tested.
+
 APEX V2.42.0 — Plain-language scorecard interpretation
 
 The five-model scorecard now explains every paired metric for the selected period. Sample result describes the observed average; Evidence reading separately states whether the approximate date-bootstrap interval favors the model, favors Baseline, includes no difference, or cannot be estimated from the available dates. Lower-is-better probability errors and higher-is-better hit rates use their correct directions. Exact observed ties do not claim future equivalence. Invalid or incomplete numeric intervals are rejected.

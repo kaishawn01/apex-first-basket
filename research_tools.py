@@ -1295,3 +1295,58 @@ def scorecard_readings(scorecard, period):
         readings.append({**row,'Sample result':point,'Evidence reading':evidence,
                          'Date coverage':'Sparse: fewer than 30 dates' if row['Dates']<30 else '30+ dates; not a reliability guarantee'})
     return readings
+
+
+def scorecard_consistency(scorecard, period):
+    """Descriptive monthly and leave-one-month-out checks on saved predictions."""
+    if period not in ('All evaluated dates','Newest quarter of dates','Challenger-active games'):
+        raise ValueError('Unknown scorecard period.')
+    models=('baseline','recent','lineup','conversion','post_miss')
+    groups={model:[r for r in scorecard['details'] if r['Model']==model] for model in models}
+    reference=groups['baseline'];keys={(r['Date'],r['Game']) for r in reference}
+    for rows in groups.values():
+        if len({r['Game'] for r in rows})!=len(rows) or {(r['Date'],r['Game']) for r in rows}!=keys:
+            raise ValueError('Consistency report requires identical unique games and dates.')
+    dates=sorted({r['Date'] for r in reference});latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    selected={r['Game'] for r in reference if period=='All evaluated dates' or
+              (period=='Newest quarter of dates' and r['Date'] in latest) or
+              (period=='Challenger-active games' and r['Challenger-active'])}
+    base={r['Game']:r for r in reference if r['Game'] in selected}
+    monthly=[];summary=[]
+    for model in models[1:]:
+        rows=[r for r in groups[model] if r['Game'] in selected]
+        for metric in ('Log loss','Brier','Top-1 credit','Top-3 credit'):
+            scale=100 if 'credit' in metric else 1
+            direction='Higher' if scale==100 else 'Lower'
+            bymonth=defaultdict(list)
+            for row in rows:
+                day=date.fromisoformat(row['Date'])
+                diff=scale*(row[metric]-base[row['Game']][metric])
+                if not math.isfinite(diff):raise ValueError('Consistency metrics must be finite.')
+                bymonth[day.strftime('%Y-%m')].append((row['Date'],diff))
+            if not bymonth:continue
+            def clean(v):return 0.0 if abs(v)<1e-12 else v
+            def better(v):return v<0 if direction=='Lower' else v>0
+            means=[];omitted=[]
+            for month,values in sorted(bymonth.items()):
+                avg=clean(sum(v for _,v in values)/len(values));means.append(avg)
+                rest=[v for other,items in bymonth.items() if other!=month for _,v in items]
+                leave=clean(sum(rest)/len(rest)) if rest else None
+                if leave is not None:omitted.append(leave)
+                monthly.append({'Period':period,'Model':model,'Metric':metric.replace('credit','hit percentage points'),
+                                'Month':month,'Games':len(values),'Dates':len({d for d,_ in values}),
+                                'Candidate minus baseline':avg,'Better direction':direction,
+                                'Difference excluding this month':leave,'Games excluding this month':len(rest)})
+            count=len(rows);overall=clean(sum(v for items in bymonth.values() for _,v in items)/count)
+            if not omitted:reading='Only one month; sensitivity unavailable'
+            elif overall==0:reading='No overall difference; inspect monthly variation'
+            elif any(v==0 or better(v)!=better(overall) for v in omitted):reading='Overall direction changes or ties when one month is removed'
+            else:reading='Overall direction persists when each month is removed'
+            summary.append({'Period':period,'Model':model,'Metric':metric.replace('credit','hit percentage points'),
+                            'Games':count,'Months':len(means),'Better months':sum(better(v) for v in means),
+                            'Worse months':sum(v!=0 and not better(v) for v in means),'Tied months':sum(v==0 for v in means),
+                            'Candidate minus baseline':overall,'Better direction':direction,
+                            'Lowest difference excluding one month':min(omitted) if omitted else None,
+                            'Highest difference excluding one month':max(omitted) if omitted else None,
+                            'Sensitivity reading':reading})
+    return {'monthly':monthly,'summary':summary}

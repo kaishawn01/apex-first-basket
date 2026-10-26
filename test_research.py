@@ -1863,3 +1863,62 @@ class ScorecardReadingTests(unittest.TestCase):
         rows=rt.scorecard_readings(card,'All evaluated dates')
         self.assertEqual(len(rows),16);self.assertEqual(card,before)
         self.assertEqual(rt.scorecard_readings(card,'Challenger-active games'),[])
+
+class ScorecardConsistencyTests(unittest.TestCase):
+    def card(self):
+        rows=[]
+        for model in ('baseline','recent','lineup','conversion','post_miss'):
+            for i,day in enumerate(('2026-08-01','2026-09-01','2026-09-02')):
+                delta=0 if model=='baseline' else (-.6 if i==0 else .1)
+                rows.append({'Model':model,'Game':str(i),'Date':day,'Challenger-active':i==2,
+                             'Log loss':2+delta,'Brier':.9+delta/10,'Top-1 credit':.1-delta/10,'Top-3 credit':.3-delta/10})
+        return {'details':rows}
+    def test_weighted_average_and_month_counts(self):
+        result=rt.scorecard_consistency(self.card(),'All evaluated dates')
+        self.assertEqual(len(result['summary']),16);self.assertEqual(len(result['monthly']),32)
+        row=result['summary'][0]
+        self.assertAlmostEqual(row['Candidate minus baseline'],-.4/3)
+        self.assertEqual((row['Better months'],row['Worse months'],row['Tied months']),(1,1,0))
+        self.assertIn('changes or ties',row['Sensitivity reading'])
+        self.assertAlmostEqual(row['Lowest difference excluding one month'],-.6)
+        self.assertAlmostEqual(row['Highest difference excluding one month'],.1)
+    def test_higher_is_better_and_percentage_points(self):
+        result=rt.scorecard_consistency(self.card(),'All evaluated dates')
+        row=result['summary'][2]
+        self.assertEqual(row['Better direction'],'Higher')
+        self.assertAlmostEqual(row['Candidate minus baseline'],4/3)
+        self.assertEqual(row['Better months'],1)
+    def test_periods_and_single_month(self):
+        for period in ('Newest quarter of dates','Challenger-active games'):
+            result=rt.scorecard_consistency(self.card(),period)
+            self.assertTrue(all(r['Games']==1 and r['Months']==1 for r in result['summary']))
+            self.assertTrue(all(r['Difference excluding this month'] is None for r in result['monthly']))
+            self.assertTrue(all('unavailable' in r['Sensitivity reading'] for r in result['summary']))
+    def test_stable_worse_and_ties(self):
+        card=self.card()
+        for row in card['details']:
+            if row['Model']!='baseline':row['Log loss']=2.1;row['Brier']=.9
+        result=rt.scorecard_consistency(card,'All evaluated dates')
+        self.assertEqual(result['summary'][0]['Worse months'],2)
+        self.assertIn('persists',result['summary'][0]['Sensitivity reading'])
+        self.assertEqual(result['summary'][1]['Tied months'],2)
+        self.assertIn('No overall difference',result['summary'][1]['Sensitivity reading'])
+    def test_empty_and_no_active(self):
+        self.assertEqual(rt.scorecard_consistency({'details':[]},'All evaluated dates'),{'monthly':[],'summary':[]})
+        card=self.card()
+        for r in card['details']:r['Challenger-active']=False
+        self.assertEqual(rt.scorecard_consistency(card,'Challenger-active games')['summary'],[])
+    def test_mismatch_duplicate_invalid_period_and_nonfinite(self):
+        card=self.card();card['details'].pop()
+        with self.assertRaises(ValueError):rt.scorecard_consistency(card,'All evaluated dates')
+        card=self.card();card['details'].append(card['details'][0])
+        with self.assertRaises(ValueError):rt.scorecard_consistency(card,'All evaluated dates')
+        with self.assertRaises(ValueError):rt.scorecard_consistency(self.card(),'wrong')
+        card=self.card();card['details'][3]['Log loss']=float('inf')
+        with self.assertRaises(ValueError):rt.scorecard_consistency(card,'All evaluated dates')
+    def test_no_network_retraining_or_mutation(self):
+        import copy
+        card=self.card();before=copy.deepcopy(card)
+        with patch.object(rt.core,'request',side_effect=AssertionError('No API')),patch.object(rt,'evaluate',side_effect=AssertionError('No retraining')):
+            rt.scorecard_consistency(card,'All evaluated dates')
+        self.assertEqual(card,before)
