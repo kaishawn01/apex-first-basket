@@ -172,3 +172,35 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
                          'Injury':report['status'] if report else 'Not flagged / not verified',
                          'Status':status,'Odds updated':price[3] if price else ''})
     return sorted(rows,key=lambda r:r['_probability'],reverse=True)
+
+
+def compare_lineup_swap(history, game, lineups, team, outgoing_id, replacement_id, roster_players, reports, model='baseline'):
+    """Hypothetical comparison only: never mutate selections or produce market EV."""
+    teams={game[s]['teamTricode'] for s in ('awayTeam','homeTeam')}
+    if set(lineups)!=teams or team not in teams:raise ValueError('Choose a team in this matchup.')
+    if outgoing_id not in {p['player_id'] for p in lineups[team]}:raise ValueError('Outgoing player must be a selected starter.')
+    all_ids={p['player_id'] for players in lineups.values() for p in players}
+    if replacement_id in all_ids:raise ValueError('Replacement must not already be selected.')
+    roster={p['player_id']:p for p in roster_players}
+    if replacement_id not in roster:raise ValueError('Replacement is not in the loaded team roster.')
+    alternate={t:[dict(p) for p in players] for t,players in lineups.items()}
+    alternate[team]=[dict(roster[replacement_id]) if p['player_id']==outgoing_id else p for p in alternate[team]]
+    hypothetical={**game,'research_only':True}
+    before=rank_game(history,hypothetical,lineups,{}, {},reports,model)
+    after=rank_game(history,hypothetical,alternate,{}, {},reports,model)
+    old={r['_player_id']:r for r in before};new={r['_player_id']:r for r in after}
+    table=[]
+    for pid in sorted(set(old)|set(new)):
+        r=new.get(pid) or old[pid]
+        p0=old[pid]['_probability'] if pid in old else None
+        p1=new[pid]['_probability'] if pid in new else None
+        table.append({'Player':r['Player'],'Team':r['Team'],'Scenario role':'Replacement' if pid not in old else 'Removed starter' if pid not in new else 'Unchanged starter',
+                      'Before %':100*p0 if p0 is not None else None,'After %':100*p1 if p1 is not None else None,
+                      'Change (percentage points)':100*(p1-p0) if p0 is not None and p1 is not None else None,
+                      'After starts':new[pid]['Starts'] if pid in new else None,
+                      'After similar-lineup starts':new[pid]['Similar-lineup starts'] if pid in new else None,
+                      'Injury':r['Injury']})
+    def leaders(rows):
+        best=max(r['_probability'] for r in rows)
+        return [r['Player'] for r in rows if abs(r['_probability']-best)<1e-12]
+    return {'research_only':True,'model':model,'rows':table,'before_top':leaders(before),'after_top':leaders(after)}

@@ -1,3 +1,9 @@
+APEX V2.7.0 — Lineup what-if comparisons
+
+Run rankings, then open Lineup what-if > compare one starter change. Choose a matchup, team, outgoing starter and an alternative from the loaded team roster. Compare starter change shows all players before/after, probability-point changes for retained starters, top estimates, sample counts and injury flags. Export a scenario CSV if needed. It works with baseline, recent form and lineup context.
+
+Scenarios are hypothetical, use no market prices or paid API calls, and do not modify main selections, confirmations, ranking results or the forward journal. A changed input hides the old scenario. Removed/incoming players have blank probabilities outside their respective five, not zero probabilities. Team-first probability stays fixed; this is a model sensitivity calculation, not a causal injury/absence estimate. Roster and injury reports are only as fresh as the last refresh. Predictive improvement remains unproven.
+
 APEX V2.6.0 — Experimental lineup-context scoring
 
 Select Scoring model > Lineup context (experimental), review the five starters, then Run rankings. The default remains baseline. Backtest lab > Compare baseline vs lineup context evaluates the candidate on the same historical games and displays paired uncertainty intervals. No paid API is needed for research rankings using saved history.

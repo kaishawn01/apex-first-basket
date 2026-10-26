@@ -224,6 +224,38 @@ else:
         if selected_model=='lineup':st.caption('Similar-lineup starts include past games with at least four selected starters. Exact fives receive full weight; four-player matches receive half, with a 90-day recency half-life. Zero context uses recent-form rates. These are historical counts, not confidence guarantees.')
         st.caption('First-score probability combines team-first probability and within-team share. These are model estimates, not verified opening plays. A top-three hit is a coverage measure, not betting profit.')
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
+        with st.expander('Lineup what-if · compare one starter change'):
+            st.caption('Hypothetical research only. This does not change your selected five, confirmations, rankings or journal. The model holds team-first probability fixed; this is not an estimate of the full causal impact of an absence.')
+            eligible=[g for g in games if g['gameId'] in {r['_game_id'] for r in result['rows']}]
+            if eligible:
+                by_game={g['gameId']:g for g in eligible}
+                scenario_gid=st.selectbox('Scenario matchup',list(by_game),format_func=lambda gid:by_game[gid]['awayTeam']['teamTricode']+' vs '+by_game[gid]['homeTeam']['teamTricode'])
+                scenario_game=by_game[scenario_gid]
+                scenario_team=st.selectbox('Scenario team',sorted(choices[scenario_gid]))
+                original={p['player_id']:p for p in choices[scenario_gid][scenario_team]}
+                outgoing=st.selectbox('Replace starter',list(original),format_func=lambda pid:original[pid]['player'])
+                chosen_ids={p['player_id'] for players in choices[scenario_gid].values() for p in players}
+                alternatives={p['player_id']:p for p in slate['rosters'][scenario_team] if p['player_id'] not in chosen_ids}
+                if alternatives:
+                    incoming=st.selectbox('Alternative starter',list(alternatives),format_func=lambda pid:alternatives[pid]['player'])
+                    scenario_signature=json.dumps([signature,scenario_gid,scenario_team,outgoing,incoming],sort_keys=True)
+                    if st.button('Compare starter change'):
+                        st.session_state.pop('lineup_scenario',None)
+                        try:
+                            comparison=core.compare_lineup_swap(hist,scenario_game,choices[scenario_gid],scenario_team,outgoing,incoming,slate['rosters'][scenario_team],reports,selected_model)
+                            st.session_state['lineup_scenario']={'signature':scenario_signature,'comparison':comparison}
+                        except (ValueError,KeyError) as exc:st.error(str(exc))
+                    scenario=st.session_state.get('lineup_scenario')
+                    if scenario and scenario['signature']==scenario_signature:
+                        comparison=scenario['comparison']
+                        st.write('Top estimate before: '+', '.join(comparison['before_top']))
+                        st.write('Top estimate after: '+', '.join(comparison['after_top']))
+                        scenario_frame=pd.DataFrame(comparison['rows'])
+                        st.dataframe(scenario_frame,hide_index=True,use_container_width=True)
+                        st.caption('Blank values mean the player is outside that selected five, not a predicted zero chance of scoring. Changes are shown only for players in both scenarios. Injury flags do not confirm availability.')
+                        st.download_button('Download lineup scenario CSV',scenario_frame.to_csv(index=False).encode(),'apex_lineup_scenario.csv','text/csv')
+                    elif scenario:st.info('Scenario inputs changed. Compare starter change again.')
+                else:st.info('No unselected players are available in the loaded roster. Refresh the roster or choose another team.')
         st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
         if st.button('Save confirmed forecasts to journal',disabled=analysis_mode=='Research matchup'):
             try:

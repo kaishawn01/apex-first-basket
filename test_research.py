@@ -260,3 +260,37 @@ class LineupContextTests(unittest.TestCase):
         a=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
         b=eng.lineup_player_weights(list(reversed(self.rows)),list(reversed(self.players)),'BOS','2026-10-21')
         self.assertEqual({r[0]['player_id']:r[1] for r in a},{r[0]['player_id']:r[1] for r in b})
+
+class LineupScenarioTests(unittest.TestCase):
+    def setUp(self):
+        self.history=game_rows('old','2026-10-20')
+        self.lineups={t:[r.copy() for r in self.history if r['team']==t] for t in ('BOS','NYK')}
+        self.roster=self.lineups['BOS']+[{'player_id':'99','player':'Replacement'}]
+        self.game={'gameId':'test','_date':'2026-10-21','awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+    def test_scenario_normalization_immutability_and_model_parity(self):
+        import copy
+        saved=copy.deepcopy(self.lineups)
+        for model in ('baseline','recent','lineup'):
+            result=rt.core.compare_lineup_swap(self.history,self.game,self.lineups,'BOS','10','99',self.roster,[],model)
+            self.assertTrue(result['research_only'])
+            self.assertEqual(len(result['rows']),11)
+            self.assertAlmostEqual(sum(r['Before %'] or 0 for r in result['rows']),100)
+            self.assertAlmostEqual(sum(r['After %'] or 0 for r in result['rows']),100)
+            self.assertEqual(self.lineups,saved)
+            removed=next(r for r in result['rows'] if r['Scenario role']=='Removed starter')
+            incoming=next(r for r in result['rows'] if r['Scenario role']=='Replacement')
+            self.assertIsNone(removed['After %']);self.assertIsNone(incoming['Before %'])
+            self.assertIsNone(incoming['Change (percentage points)'])
+            self.assertFalse(any('odds' in k.lower() or 'ev' in k.lower() for r in result['rows'] for k in r))
+            alternate=copy.deepcopy(self.lineups);alternate['BOS'][0]=self.roster[-1]
+            expected=eng.predict_first_score(self.history,alternate,'2026-10-21',model)
+            self.assertAlmostEqual(incoming['After %'],100*expected['99'])
+    def test_invalid_swap_rejected(self):
+        for outgoing,incoming in [('missing','99'),('10','20'),('10','11'),('10','unknown')]:
+            with self.assertRaises(ValueError):rt.core.compare_lineup_swap(self.history,self.game,self.lineups,'BOS',outgoing,incoming,self.roster,[])
+    def test_opponent_unchanged_and_injury_flag_retained(self):
+        reports=[{'team':'BOS','player':'Replacement','status':'Out','description':'Test report'}]
+        result=rt.core.compare_lineup_swap(self.history,self.game,self.lineups,'BOS','10','99',self.roster,reports,'lineup')
+        for r in result['rows']:
+            if r['Team']=='NYK':self.assertAlmostEqual(r['Change (percentage points)'],0)
+        self.assertEqual(next(r['Injury'] for r in result['rows'] if r['Player']=='Replacement'),'Out')

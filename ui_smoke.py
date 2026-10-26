@@ -92,3 +92,17 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert ranking['Similar-lineup starts'].min()==1
  assert next(b for b in at.button if b.label=='Save confirmed forecasts to journal').disabled
  print('Lineup context UI passed: research rankings, context counts, no forward saving.')
+
+ original_results=at.session_state['results']['rows']
+ next(b for b in at.button if b.label=='Compare starter change').click().run()
+ assert not at.exception,list(at.exception)
+ scenario=next(d.value for d in at.dataframe if 'Scenario role' in d.value.columns)
+ assert len(scenario)==11
+ assert abs(scenario['After %'].sum()-100)<1e-8
+ assert any(d.label=='Download lineup scenario CSV' for d in at.get('download_button'))
+ assert at.session_state['results']['rows']==original_results
+ assert research.journal_records()==[]
+ next(s for s in at.selectbox if s.label=='Replace starter').set_value('11').run()
+ assert any('Scenario inputs changed' in x.value for x in at.info)
+ assert not any('Scenario role' in d.value.columns for d in at.dataframe)
+ print('Scenario UI passed: comparison, export, unchanged rankings, no journal writes, stale scenario hidden.')
