@@ -684,9 +684,41 @@ def recent_player_weights(history,starters,team,target_day,half_life=90.0):
     total=sum(r[1] for r in raw)
     return [(p,w/total,n,shots,scores,mass,shot,conditional) for p,w,n,shots,scores,mass,shot,conditional in raw]
 
+def lineup_player_weights(history, starters, team, target_day):
+    """Similar-lineup evidence shrunk toward recent-form rates; experimental."""
+    target=date.fromisoformat(target_day)
+    selected={p['player_id'] for p in starters}
+    games=defaultdict(list)
+    for row in history:
+        age=(target-date.fromisoformat(row['date'])).days
+        if row['team']==team and 0<age<=400:games[row['game_id']].append(row)
+    contexts=defaultdict(list)
+    for rows in games.values():
+        ids={r['player_id'] for r in rows}
+        if len(rows)!=5 or len(ids)!=5:continue
+        overlap=len(ids & selected)
+        if overlap<4:continue
+        age=(target-date.fromisoformat(rows[0]['date'])).days
+        # Exact five gets full weight; four-of-five gets half weight.
+        weight=2**(-age/90.0)*(1.0 if overlap==5 else .5)
+        for row in rows:
+            if row['player_id'] in selected:contexts[row['player_id']].append((row,weight))
+    raw=[]
+    for player,share,n,shots,scores,mass,shot,conditional in recent_player_weights(history,starters,team,target_day):
+        context=contexts[player['player_id']]
+        context_mass=sum(w for r,w in context)
+        opportunities=sum(w*int(r['team_scored_first']) for r,w in context)
+        context_shot=(sum(w*int(r['first_team_shot']) for r,w in context)+10*shot)/(context_mass+10)
+        context_score=(sum(w*int(r['first_scorer']) for r,w in context)+5*conditional)/(opportunities+5)
+        weight=.65*context_shot+.35*context_score
+        raw.append((player,weight,n,shots,scores,mass,context_shot,context_score,len(context),context_mass))
+    total=sum(r[1] for r in raw)
+    return [(r[0],r[1]/total,*r[2:]) for r in raw]
+
+
 def predict_first_score(history, lineups, target_day, model="baseline"):
     """Shared dashboard/backtest probabilities; never train on the target date."""
-    if model not in ('baseline','recent'):raise ValueError('Unknown model.')
+    if model not in ('baseline','recent','lineup'):raise ValueError('Unknown model.')
     if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
         raise ValueError('Two teams with five starters each are required.')
     ids=[p['player_id'] for players in lineups.values() for p in players]
@@ -694,11 +726,11 @@ def predict_first_score(history, lineups, target_day, model="baseline"):
     target=date.fromisoformat(target_day)
     prior=[r for r in history if 0<(target-date.fromisoformat(r['date'])).days<=400]
     a,b=sorted(lineups)
-    stats=recent_team_stats(prior,target_day) if model=='recent' else team_stats(prior)
-    pa=recent_first_team_probability(a,b,stats) if model=='recent' else first_team_probability(a,b,stats)
+    stats=recent_team_stats(prior,target_day) if model!='baseline' else team_stats(prior)
+    pa=recent_first_team_probability(a,b,stats) if model!='baseline' else first_team_probability(a,b,stats)
     probabilities={}
     for team,pt in ((a,pa),(b,1-pa)):
-        weights=recent_player_weights(prior,lineups[team],team,target_day) if model=='recent' else player_weights(prior,lineups[team],team)
+        weights=(lineup_player_weights(prior,lineups[team],team,target_day) if model=='lineup' else recent_player_weights(prior,lineups[team],team,target_day) if model=='recent' else player_weights(prior,lineups[team],team))
         probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
     return probabilities
 

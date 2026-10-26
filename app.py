@@ -75,13 +75,14 @@ with st.sidebar:
     st.caption('API calls happen when you press a refresh button. Fetching odds can consume your API credits.')
     day=st.date_input('Game date • Eastern time',datetime.now(ZoneInfo('America/New_York')).date(),key='slate_date').isoformat()
     st.caption('Confirmations are specific to this session, date, game, and selected five. Changing players clears confirmation.')
-    selected_model=st.selectbox('Scoring model',['baseline','recent'],format_func=lambda m:'Baseline (current default)' if m=='baseline' else 'Recent form (experimental)',key='scoring_model')
+    selected_model=st.selectbox('Scoring model',['baseline','recent','lineup'],format_func=lambda m:{'baseline':'Baseline (current default)','recent':'Recent form (experimental)','lineup':'Lineup context (experimental)'}[m],key='scoring_model')
     analysis_mode=st.radio('Workspace',['Upcoming slate','Research matchup'],key='workspace_mode')
     research_away=research_home=None
     if analysis_mode=='Research matchup':
         research_away=st.selectbox('Research team A',sorted(eng.TEAMS),key='research_a')
         research_home=st.selectbox('Research team B',[t for t in sorted(eng.TEAMS) if t!=research_away],key='research_b')
         st.caption('Compare hypothetical starting fives at any time. No odds or forward-journal saves. Current rosters are used; this is not a historical replay.')
+    if selected_model=='lineup':st.caption('Lineup context emphasizes past starts with four or five of the selected teammates. Sparse context falls back toward recent form; it does not infer injury replacements or opening plays.')
     st.caption('Recent form uses a 90-day half-life, smoothed first-shot involvement, and scoring share conditional on the team scoring first. These settings have not been fitted or validated as better.')
 
 
@@ -220,6 +221,7 @@ else:
         st.caption('Rankings generated: '+result['time']+' • Model EV uses uncalibrated estimates, not proven value.')
         frame=pd.DataFrame([{k:v for k,v in r.items() if not k.startswith('_')} for r in result['rows']])
         st.dataframe(frame,hide_index=True,use_container_width=True)
+        if selected_model=='lineup':st.caption('Similar-lineup starts include past games with at least four selected starters. Exact fives receive full weight; four-player matches receive half, with a 90-day recency half-life. Zero context uses recent-form rates. These are historical counts, not confidence guarantees.')
         st.caption('First-score probability combines team-first probability and within-team share. These are model estimates, not verified opening plays. A top-three hit is a coverage measure, not betting profit.')
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
         st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
@@ -293,6 +295,10 @@ with st.expander('Backtest lab · test the model before trusting it'):
         with st.spinner('Testing both models on identical chronological holdouts…'):
             compared={name:research.evaluate(hist,warmup,model=name) for name in ('baseline','recent')}
             st.session_state['model_comparison']={'fingerprint':research.fingerprint(hist),'warmup':warmup,'results':compared,'paired':research.compare_evaluations(compared['baseline'],compared['recent'])}
+    if st.button('Compare baseline vs lineup context'):
+        with st.spinner('Testing lineup context on identical chronological holdouts…'):
+            compared={name:research.evaluate(hist,warmup,model=name) for name in ('baseline','lineup')}
+            st.session_state['model_comparison']={'fingerprint':research.fingerprint(hist),'warmup':warmup,'results':compared,'paired':research.compare_evaluations(compared['baseline'],compared['lineup'])}
     comparison=st.session_state.get('model_comparison')
     if comparison and comparison['fingerprint']==research.fingerprint(hist) and comparison['warmup']==warmup:
         st.dataframe(pd.DataFrame([{'Model':name,**result['metrics']} for name,result in comparison['results'].items()]),hide_index=True,use_container_width=True)
@@ -339,7 +345,7 @@ with st.expander('Forward-testing journal · actual future results'):
             versions=sorted({r['snapshot']['model_version'] for r in records})
             chosen=st.selectbox('Journal model version',['All versions']+versions)
             selected=records if chosen=='All versions' else [r for r in records if r['snapshot']['model_version']==chosen]
-            journal_model=st.selectbox('Journal scoring model',['All models','baseline','recent'])
+            journal_model=st.selectbox('Journal scoring model',['All models','baseline','recent','lineup'])
             if journal_model!='All models':selected=[r for r in selected if r['snapshot'].get('model','baseline')==journal_model]
             metrics=research.journal_summary(selected)
             j1,j2,j3=st.columns(3)

@@ -1,3 +1,11 @@
+APEX V2.6.0 — Experimental lineup-context scoring
+
+Select Scoring model > Lineup context (experimental), review the five starters, then Run rankings. The default remains baseline. Backtest lab > Compare baseline vs lineup context evaluates the candidate on the same historical games and displays paired uncertainty intervals. No paid API is needed for research rankings using saved history.
+
+The candidate uses recent-form team-first probabilities. Player opening-shot and conditional first-score rates emphasize past same-team starts with at least four of the selected five. Exact fives get weight 1, four-player matches weight 0.5, multiplied by a 90-day recency half-life. A player must have started in the matched game. Shot rates shrink toward recent-form rates with strength 10; conditional scoring rates use strength 5 and team-first opportunities. Their 65/35 mixture is normalized across the selected five. Zero context falls back to recent form. Context counts and weighted counts appear in rankings.
+
+This is a hand-specified heuristic, not a trained or validated improvement. Similar-lineup observations also appear in the recent-form anchor, so the weighting intentionally reuses them; it is not an independent Bayesian posterior or a confidence interval. No causal teammate/injury effect or opening-play knowledge is claimed. Same-day, future and more-than-400-day-old observations are excluded. Starter-selection bias in historical data remains. Forward journal identifies this model separately as lineup.
+
 APEX V2.4.1 — Automatic startup updates
 
 Launch with START_APEX.bat. Published updates are checked, verified, backed up and installed before the dashboard opens. The startup download has a 90-second timeout; network failures leave the installed app available. Disable this in App updates if desired. RESTORE_APEX.bat restores the previous programs and pauses automatic updates. Direct streamlit launches do not run the startup updater.

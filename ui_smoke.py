@@ -58,7 +58,11 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert 'Top-3 hit %' in comparison.columns
  assert any('95% lower' in d.value.columns for d in at.dataframe)
  assert any(d.label=='Download paired model comparison' for d in at.get('download_button'))
- print('Backtest UI passed: evaluation, model comparison on matching games, CSV export.')
+ next(b for b in at.button if b.label=='Compare baseline vs lineup context').click().run()
+ assert not at.exception,list(at.exception)
+ comparison=next(d.value for d in at.dataframe if 'Model' in d.value.columns and set(d.value['Model'])=={'baseline','lineup'})
+ assert list(comparison['Evaluated games'])==[10,10]
+ print('Backtest UI passed: evaluation, both model comparisons, CSV export.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
  at=AppTest.from_file(str(root/'app.py')).run()
@@ -78,3 +82,13 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert next(b for b in at.button if b.label=='Save confirmed forecasts to journal').disabled
  assert research.journal_records()==[]
  print('Research mode UI passed: after-hours ranking, candidate model, no live slate request, odds and journal disabled.')
+
+ next(s for s in at.selectbox if s.label=='Scoring model').set_value('lineup').run()
+ next(b for b in at.button if 'Run rankings' in b.label).click().run()
+ assert not at.exception,list(at.exception)
+ ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
+ assert set(ranking['Model'])=={'lineup'}
+ assert 'Similar-lineup starts' in ranking.columns
+ assert ranking['Similar-lineup starts'].min()==1
+ assert next(b for b in at.button if b.label=='Save confirmed forecasts to journal').disabled
+ print('Lineup context UI passed: research rankings, context counts, no forward saving.')

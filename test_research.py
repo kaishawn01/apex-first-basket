@@ -188,7 +188,7 @@ class SharedPredictionTests(unittest.TestCase):
         rows=game_rows('one','2026-10-20')
         lineups={t:[r for r in rows if r['team']==t] for t in ('NYK','BOS')}
         game={'gameId':'future','_date':'2026-10-21','awayTeam':{'teamTricode':'NYK'},'homeTeam':{'teamTricode':'BOS'}}
-        for model in ('baseline','recent'):
+        for model in ('baseline','recent','lineup'):
             probs=eng.predict_first_score(rows,lineups,'2026-10-21',model)
             ranked=rt.core.rank_game(rows,game,lineups,{}, {},[],model)
             self.assertAlmostEqual(sum(probs.values()),1)
@@ -197,12 +197,12 @@ class SharedPredictionTests(unittest.TestCase):
         history=game_rows('one','2026-10-20')
         lineups={t:[r for r in history if r['team']==t] for t in ('BOS','NYK')}
         contaminated=history+game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
-        for model in ('baseline','recent'):
+        for model in ('baseline','recent','lineup'):
             self.assertEqual(eng.predict_first_score(history,lineups,'2026-10-21',model),eng.predict_first_score(contaminated,lineups,'2026-10-21',model))
     def test_backtest_probability_matches_shared_engine(self):
         history=game_rows('one','2026-10-20');next_game=game_rows('two','2026-10-21')
         lineups={t:[r for r in next_game if r['team']==t] for t in ('BOS','NYK')}
-        for model in ('baseline','recent'):
+        for model in ('baseline','recent','lineup'):
             result=rt.evaluate(history+next_game,1,model)
             self.assertAlmostEqual(result['games'][0]['Winner probability'],eng.predict_first_score(history,lineups,'2026-10-21',model)['10'])
     def test_top_three_ties(self):
@@ -217,7 +217,7 @@ class SharedPredictionTests(unittest.TestCase):
         self.assertTrue(all(m['95% lower']==m['95% upper']==0 for m in same['metrics']))
         b={'games':[{**r,'Log loss':1.5} for r in rows]}
         diff=rt.compare_evaluations(a,b,100)['metrics'][0]
-        self.assertEqual(diff['Recent minus baseline'],-.5)
+        self.assertEqual(diff['Candidate minus baseline'],-.5)
         self.assertEqual(diff['95% lower'],-.5)
         self.assertEqual(diff['95% upper'],-.5)
         with self.assertRaises(ValueError):rt.compare_evaluations(a,{'games':rows[:-1]})
@@ -225,3 +225,38 @@ class SharedPredictionTests(unittest.TestCase):
         r={'Game':'x','Date':'2026-10-20','Log loss':2.,'Brier':.9,'Top-1 credit':0.,'Top-3 credit':0.}
         result=rt.compare_evaluations({'games':[r]},{'games':[r]},100)
         self.assertTrue(all(m['95% lower'] is None for m in result['metrics']))
+
+class LineupContextTests(unittest.TestCase):
+    def setUp(self):
+        self.rows=game_rows('one','2026-10-20')
+        self.players=[r.copy() for r in self.rows if r['team']=='BOS']
+    def test_exact_five_and_four_player_context_weights(self):
+        exact=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
+        self.assertTrue(all(r[8]==1 for r in exact))
+        expected=2**(-1/90)
+        self.assertAlmostEqual(exact[0][9],expected)
+        changed=[dict(p) for p in self.players];changed[-1]['player_id']='new'
+        four=eng.lineup_player_weights(self.rows,changed,'BOS','2026-10-21')
+        self.assertAlmostEqual(four[0][9],expected/2)
+        self.assertEqual(four[-1][8],0)
+        self.assertEqual(four[-1][9],0)
+    def test_unfamiliar_five_falls_back_to_recent(self):
+        changed=[dict(p) for p in self.players]
+        for i in (3,4):changed[i]['player_id']='new'+str(i)
+        context=eng.lineup_player_weights(self.rows,changed,'BOS','2026-10-21')
+        recent=eng.recent_player_weights(self.rows,changed,'BOS','2026-10-21')
+        for a,b in zip(context,recent):
+            self.assertAlmostEqual(a[1],b[1]);self.assertEqual(a[8],0)
+    def test_context_favors_observed_opening_shooter(self):
+        recent=eng.recent_player_weights(self.rows,self.players,'BOS','2026-10-21')
+        context=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
+        self.assertGreater(context[0][1],recent[0][1])
+        self.assertAlmostEqual(sum(r[1] for r in context),1)
+    def test_new_lineup_context_excludes_same_day_future_other_team(self):
+        expected=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
+        added=self.rows+game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
+        self.assertEqual(expected,eng.lineup_player_weights(added,self.players,'BOS','2026-10-21'))
+    def test_order_independence(self):
+        a=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
+        b=eng.lineup_player_weights(list(reversed(self.rows)),list(reversed(self.players)),'BOS','2026-10-21')
+        self.assertEqual({r[0]['player_id']:r[1] for r in a},{r[0]['player_id']:r[1] for r in b})

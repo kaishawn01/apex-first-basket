@@ -147,7 +147,7 @@ def compare_evaluations(baseline, candidate, draws=1000):
     for metric in samples:
         values=sorted(samples[metric]);scale=100 if 'credit' in metric else 1
         report.append({'Metric':metric.replace('credit','hit percentage points'),
-                       'Recent minus baseline':scale*sum(r[metric] for rows in byday.values() for r in rows)/n,
+                       'Candidate minus baseline':scale*sum(r[metric] for rows in byday.values() for r in rows)/n,
                        '95% lower':scale*values[int(.025*(len(values)-1))] if values else None,
                        '95% upper':scale*values[int(.975*(len(values)-1))] if values else None,
                        'Better direction':'Higher' if 'credit' in metric else 'Lower'})
@@ -155,7 +155,7 @@ def compare_evaluations(baseline, candidate, draws=1000):
 
 
 def evaluate(rows,min_training=100,model="baseline"):
-    if model not in ("baseline","recent"):raise ValueError("Unknown model.")
+    if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
     for r in valid: byday[r['date']][r['game_id']].append(r)
