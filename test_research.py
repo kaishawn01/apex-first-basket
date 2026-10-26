@@ -36,7 +36,7 @@ class ResearchTests(unittest.TestCase):
             seen.append({r['date'] for r in train});return original(train)
         with patch.object(eng,'team_stats',side_effect=spy): result=rt.evaluate(rows,1)
         self.assertEqual(result['metrics']['Evaluated games'],2)
-        self.assertEqual(seen,[{'2026-10-20'}])
+        self.assertEqual(seen,[{'2026-10-20'},{'2026-10-20'}])
     def test_equal_model_baseline_and_ties(self):
         rows=game_rows('a','2026-10-20')+game_rows('b','2026-10-21')
         def equal(history,players,team):return [(p,.2,0,0,0) for p in players]
@@ -181,3 +181,47 @@ class RecentModelTests(unittest.TestCase):
                 rt.save_forecast(game,rows,{'BOS':True,'NYK':True},'2.4.0','hash',path=Path(tmp)/'j',now=datetime(2026,10,25,22,tzinfo=timezone.utc))
 
 if __name__=='__main__':unittest.main()
+
+
+class SharedPredictionTests(unittest.TestCase):
+    def test_dashboard_matches_shared_engine_both_models(self):
+        rows=game_rows('one','2026-10-20')
+        lineups={t:[r for r in rows if r['team']==t] for t in ('NYK','BOS')}
+        game={'gameId':'future','_date':'2026-10-21','awayTeam':{'teamTricode':'NYK'},'homeTeam':{'teamTricode':'BOS'}}
+        for model in ('baseline','recent'):
+            probs=eng.predict_first_score(rows,lineups,'2026-10-21',model)
+            ranked=rt.core.rank_game(rows,game,lineups,{}, {},[],model)
+            self.assertAlmostEqual(sum(probs.values()),1)
+            for r in ranked:self.assertAlmostEqual(r['_probability'],probs[r['_player_id']])
+    def test_shared_engine_ignores_same_day_future_and_old(self):
+        history=game_rows('one','2026-10-20')
+        lineups={t:[r for r in history if r['team']==t] for t in ('BOS','NYK')}
+        contaminated=history+game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
+        for model in ('baseline','recent'):
+            self.assertEqual(eng.predict_first_score(history,lineups,'2026-10-21',model),eng.predict_first_score(contaminated,lineups,'2026-10-21',model))
+    def test_backtest_probability_matches_shared_engine(self):
+        history=game_rows('one','2026-10-20');next_game=game_rows('two','2026-10-21')
+        lineups={t:[r for r in next_game if r['team']==t] for t in ('BOS','NYK')}
+        for model in ('baseline','recent'):
+            result=rt.evaluate(history+next_game,1,model)
+            self.assertAlmostEqual(result['games'][0]['Winner probability'],eng.predict_first_score(history,lineups,'2026-10-21',model)['10'])
+    def test_top_three_ties(self):
+        self.assertAlmostEqual(rt.top_k_credit({str(i):.1 for i in range(10)},'0',3),.3)
+        self.assertAlmostEqual(rt.top_k_credit({'a':.5,'b':.2,'c':.1,'d':.1,'e':.1},'c',3),1/3)
+        self.assertEqual(rt.top_k_credit({'a':.5},'absent',3),0)
+    def test_paired_intervals_identical_and_constant_difference(self):
+        rows=[{'Game':str(i),'Date':f'2026-10-{20+i//2}','Log loss':2.,'Brier':.9,'Top-1 credit':0.,'Top-3 credit':0.} for i in range(6)]
+        a={'games':rows}
+        same=rt.compare_evaluations(a,a,100)
+        self.assertEqual(same['dates'],3)
+        self.assertTrue(all(m['95% lower']==m['95% upper']==0 for m in same['metrics']))
+        b={'games':[{**r,'Log loss':1.5} for r in rows]}
+        diff=rt.compare_evaluations(a,b,100)['metrics'][0]
+        self.assertEqual(diff['Recent minus baseline'],-.5)
+        self.assertEqual(diff['95% lower'],-.5)
+        self.assertEqual(diff['95% upper'],-.5)
+        with self.assertRaises(ValueError):rt.compare_evaluations(a,{'games':rows[:-1]})
+    def test_paired_one_date_has_no_interval(self):
+        r={'Game':'x','Date':'2026-10-20','Log loss':2.,'Brier':.9,'Top-1 credit':0.,'Top-3 credit':0.}
+        result=rt.compare_evaluations({'games':[r]},{'games':[r]},100)
+        self.assertTrue(all(m['95% lower'] is None for m in result['metrics']))

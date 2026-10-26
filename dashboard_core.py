@@ -136,6 +136,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
             raise ValueError(f"Choose exactly five distinct players for {t}.")
     if {p['player_id'] for p in lineups[away]} & {p['player_id'] for p in lineups[home]}:
         raise ValueError("A player cannot appear on both teams.")
+    predictions=eng.predict_first_score(hist,lineups,game["_date"],model)
     stats = eng.team_stats(hist)
     pa = eng.first_team_probability(away, home, stats)
     baseline_pa = pa
@@ -152,7 +153,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
         recent={r[0]['player_id']:r for r in eng.recent_player_weights(hist,lineups[team],team,game['_date'])}
         weights=eng.recent_player_weights(hist,lineups[team],team,game['_date']) if model=='recent' else eng.player_weights(hist,lineups[team],team)
         for player, share, starts, *_ in weights:
-            p=team_p*share
+            p=predictions[player["player_id"]]
             price=prices.get((game['gameId'],eng.norm(player['player'])))
             report=injury_for(reports,team,player['player'])
             enough=all(stats.get(t,{}).get('n',0)>=10 for t in (away,home)) and starts>=8
@@ -163,10 +164,10 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
                 status='RESEARCH MATCHUP';price=None;prices={}
             fair=100*(1-p)/p if p<=.5 else -100*p/(1-p)
             rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'_research_only':bool(game.get('research_only')),'Model':model,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
-                         'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
+                         'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Within-team share %':round(share*100,2),'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
                          'Model EV %':round((p*price[0]-1)*100,2) if price else None,
                          'Starts':starts,'Team games':stats.get(team,{}).get('n',0),
                          'Current-season starts':sum(r['team']==team and r['player_id']==player['player_id'] for r in current),
                          'Injury':report['status'] if report else 'Not flagged / not verified',
                          'Status':status,'Odds updated':price[3] if price else ''})
-    return sorted(rows,key=lambda r:r['Model %'],reverse=True)
+    return sorted(rows,key=lambda r:r['_probability'],reverse=True)

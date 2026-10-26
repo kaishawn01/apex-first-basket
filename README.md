@@ -1,3 +1,9 @@
+APEX V2.5.0 — Shared scoring engine and paired validation
+
+Dashboard and backtests now use one prediction function, with a 400-day window and same-day/future exclusion. Rankings show within-team share and sort on full-precision probabilities. Model formulas and default baseline are unchanged; this release does not claim better prediction accuracy.
+
+In Backtest lab, Compare baseline vs recent form now shows top-three coverage (fractional tie credit) and paired differences in log loss, Brier, top-one and top-three accuracy. Approximate 95% intervals use 1,000 bootstrap resamples of whole dates, retaining all games on each sampled date. The same games must appear in both models. Fewer than two dates produces no interval; fewer than 30 dates displays a caution. These intervals do not account for all across-date dependence or repeated model selection. Historical starter-selection bias still applies. Import more history for useful evaluation, and validate changes with the forward journal.
+
 APEX V2.4.1 — Automatic startup updates
 
 Launch with START_APEX.bat. Published updates are checked, verified, backed up and installed before the dashboard opens. The startup download has a 90-second timeout; network failures leave the installed app available. Disable this in App updates if desired. RESTORE_APEX.bat restores the previous programs and pauses automatic updates. Direct streamlit launches do not run the startup updater.

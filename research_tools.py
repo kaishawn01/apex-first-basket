@@ -113,6 +113,47 @@ def import_season(season_end,limit=250,progress=lambda msg:None):
     return summary
 
 
+def top_k_credit(probabilities, winner, k):
+    """Fractional credit for a tie crossing the top-k boundary."""
+    if winner not in probabilities:return 0.0
+    score=probabilities[winner]
+    ahead=sum(p>score+1e-12 for p in probabilities.values())
+    tied=sum(abs(p-score)<=1e-12 for p in probabilities.values())
+    return max(0.0,min(1.0,(k-ahead)/tied))
+
+
+def compare_evaluations(baseline, candidate, draws=1000):
+    """Paired date-cluster bootstrap: candidate minus baseline, per-game mean."""
+    import random
+    def indexed(result):
+        games=result['games'];index={r['Game']:r for r in games}
+        if len(index)!=len(games):raise ValueError('Duplicate evaluation games.')
+        return index
+    a,b=indexed(baseline),indexed(candidate)
+    if set(a)!=set(b):raise ValueError('Models must evaluate identical games.')
+    byday=defaultdict(list)
+    for gid in sorted(a):
+        if a[gid]['Date']!=b[gid]['Date']:raise ValueError('Evaluation dates do not match.')
+        byday[a[gid]['Date']].append({metric:b[gid][metric]-a[gid][metric] for metric in ('Log loss','Brier','Top-1 credit','Top-3 credit')})
+    days=sorted(byday);n=len(a);report=[]
+    if not n:return {'games':0,'dates':0,'metrics':[]}
+    if draws<100:raise ValueError('Use at least 100 bootstrap draws.')
+    rng=random.Random(250)
+    samples={m:[] for m in ('Log loss','Brier','Top-1 credit','Top-3 credit')}
+    if len(days)>=2:
+        for _ in range(draws):
+            selected=[r for day in rng.choices(days,k=len(days)) for r in byday[day]]
+            for metric in samples:samples[metric].append(sum(r[metric] for r in selected)/len(selected))
+    for metric in samples:
+        values=sorted(samples[metric]);scale=100 if 'credit' in metric else 1
+        report.append({'Metric':metric.replace('credit','hit percentage points'),
+                       'Recent minus baseline':scale*sum(r[metric] for rows in byday.values() for r in rows)/n,
+                       '95% lower':scale*values[int(.025*(len(values)-1))] if values else None,
+                       '95% upper':scale*values[int(.975*(len(values)-1))] if values else None,
+                       'Better direction':'Higher' if 'credit' in metric else 'Lower'})
+    return {'games':n,'dates':len(days),'metrics':report}
+
+
 def evaluate(rows,min_training=100,model="baseline"):
     if model not in ("baseline","recent"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
@@ -122,22 +163,16 @@ def evaluate(rows,min_training=100,model="baseline"):
     for day in sorted(byday):
         train=history_window(prior,day)
         if len({r['game_id'] for r in train})>=min_training:
-            stats=eng.recent_team_stats(train,day) if model=="recent" else eng.team_stats(train)
             for gid,game in byday[day].items():
-                a,b=sorted({r['team'] for r in game})
-                pa=eng.recent_first_team_probability(a,b,stats) if model=="recent" else eng.first_team_probability(a,b,stats)
-                probs={}
-                for team,pt in ((a,pa),(b,1-pa)):
-                    players=[r for r in game if r['team']==team]
-                    weights=eng.recent_player_weights(train,players,team,day) if model=='recent' else eng.player_weights(train,players,team)
-                    for p,w,*_ in weights:
-                        probs[p['player_id']]=pt*w
+                teams=sorted({r['team'] for r in game})
+                lineups={t:[r for r in game if r['team']==t] for t in teams}
+                probs=eng.predict_first_score(train,lineups,day,model)
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top-1 credit':hit,'Log loss':-math.log(wp),'Brier':brier,'Training games':len({r['game_id'] for r in train})})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':len({r['game_id'] for r in train})})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
@@ -146,7 +181,7 @@ def evaluate(rows,min_training=100,model="baseline"):
         subset=[(p,y) for p,y in calibration if lo<=p<hi]
         if subset: bins.append({'Probability band':f'{lo:.0%}–{min(hi,1):.0%}','Player predictions':len(subset),'Mean predicted %':100*sum(p for p,y in subset)/len(subset),'Observed first-score %':100*sum(y for p,y in subset)/len(subset)})
     n=len(results)
-    metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
+    metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Top-3 hit %':100*sum(r['Top-3 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
     return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model}
 
 # Forward journal: local, immutable pregame forecasts; outcomes are stored separately.

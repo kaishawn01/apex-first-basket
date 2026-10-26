@@ -220,6 +220,7 @@ else:
         st.caption('Rankings generated: '+result['time']+' • Model EV uses uncalibrated estimates, not proven value.')
         frame=pd.DataFrame([{k:v for k,v in r.items() if not k.startswith('_')} for r in result['rows']])
         st.dataframe(frame,hide_index=True,use_container_width=True)
+        st.caption('First-score probability combines team-first probability and within-team share. These are model estimates, not verified opening plays. A top-three hit is a coverage measure, not betting profit.')
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
         st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
         if st.button('Save confirmed forecasts to journal',disabled=analysis_mode=='Research matchup'):
@@ -291,10 +292,17 @@ with st.expander('Backtest lab · test the model before trusting it'):
     if st.button('Compare baseline vs recent form'):
         with st.spinner('Testing both models on identical chronological holdouts…'):
             compared={name:research.evaluate(hist,warmup,model=name) for name in ('baseline','recent')}
-            st.session_state['model_comparison']={'fingerprint':research.fingerprint(hist),'warmup':warmup,'results':compared}
+            st.session_state['model_comparison']={'fingerprint':research.fingerprint(hist),'warmup':warmup,'results':compared,'paired':research.compare_evaluations(compared['baseline'],compared['recent'])}
     comparison=st.session_state.get('model_comparison')
     if comparison and comparison['fingerprint']==research.fingerprint(hist) and comparison['warmup']==warmup:
         st.dataframe(pd.DataFrame([{'Model':name,**result['metrics']} for name,result in comparison['results'].items()]),hide_index=True,use_container_width=True)
+        paired=comparison.get('paired')
+        if paired and paired['games']:
+            st.markdown('**How certain is the difference?**')
+            st.dataframe(pd.DataFrame(paired['metrics']),hide_index=True,use_container_width=True)
+            st.caption(f"{paired['games']} paired games across {paired['dates']} dates. Approximate 95% intervals resample whole dates. An interval crossing zero does not distinguish the models on that metric. Dates can still be correlated across a season; this is not proof of future performance.")
+            if paired['dates']<30:st.warning('Fewer than 30 evaluation dates: uncertainty estimates are especially unstable. Import more history.')
+            st.download_button('Download paired model comparison',pd.DataFrame(paired['metrics']).to_csv(index=False).encode(),'apex_model_comparison.csv','text/csv')
         st.caption('Same saved games and training dates for both models. This comparison does not select or tune a winner automatically. Use the forward journal for new-game validation.')
     evaluation=st.session_state.get('evaluation')
     if evaluation and evaluation['fingerprint']==research.fingerprint(hist) and evaluation['min_training']==warmup and evaluation.get('model','baseline')==selected_model:
@@ -302,7 +310,7 @@ with st.expander('Backtest lab · test the model before trusting it'):
         if not n: st.info('Not enough eligible dates after the training period. Import more history or lower the minimum training size.')
         else:
             st.caption(f'{n} games evaluated. Lower log loss and Brier score are better. Top-1 credit is split equally when model probabilities tie.')
-            compare=pd.DataFrame([{'Model':'APEX',**m},{'Model':'Equal 10-player baseline','Evaluated games':n,'Top-1 hit %':10.0,'Log loss':2.302585093,'Brier':0.9}])
+            compare=pd.DataFrame([{'Model':'APEX',**m},{'Model':'Equal 10-player baseline','Evaluated games':n,'Top-1 hit %':10.0,'Top-3 hit %':30.0,'Log loss':2.302585093,'Brier':0.9}])
             st.dataframe(compare,hide_index=True,use_container_width=True)
             if m['Log loss']>=2.302585093:
                 st.warning('On this sample, the model does not beat equal probabilities on log loss.')

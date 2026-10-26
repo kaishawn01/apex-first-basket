@@ -55,6 +55,9 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert not at.exception,list(at.exception)
  comparison=next(d.value for d in at.dataframe if 'Model' in d.value.columns and set(d.value['Model'])=={'baseline','recent'})
  assert list(comparison['Evaluated games'])==[10,10]
+ assert 'Top-3 hit %' in comparison.columns
+ assert any('95% lower' in d.value.columns for d in at.dataframe)
+ assert any(d.label=='Download paired model comparison' for d in at.get('download_button'))
  print('Backtest UI passed: evaluation, model comparison on matching games, CSV export.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
