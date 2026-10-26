@@ -1222,3 +1222,47 @@ def enrich_opening_batch(limit=20,progress=lambda text:None):
     report['remaining']=len(remaining)
     report['never_attempted_remaining']=sum(attempts.get(r['game_id'],0)==0 for r in remaining)
     return report
+
+
+def scoring_model_scorecard(history,min_training=100,progress=lambda text:None):
+    """Same-game assessment of live models and challengers, without selecting a winner."""
+    models=('baseline','recent','lineup','conversion','post_miss')
+    results={}
+    for model in models:
+        progress('Evaluating '+model.replace('_',' ')+'…')
+        results[model]=evaluate(history,min_training,model=model)
+    reference=results['baseline']['games']
+    expected={(r['Date'],r['Game']) for r in reference}
+    if len({r['Game'] for r in reference})!=len(reference):raise ValueError('Duplicate scorecard games.')
+    for result in results.values():
+        if len(result['games'])!=len(expected) or {(r['Date'],r['Game']) for r in result['games']}!=expected:
+            raise ValueError('Scorecard models must evaluate identical games and dates.')
+    dates=sorted({day for day,gid in expected})
+    latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    active={(r['Date'],r['Game']) for r in reference if r['Known conversion training attempts']>0 and r['Minimum team sequence games']>=10}
+    periods=(('All evaluated dates',lambda r:True),('Newest quarter of dates',lambda r:r['Date'] in latest),
+             ('Challenger-active games',lambda r:(r['Date'],r['Game']) in active))
+    summaries=[];paired=[];details=[];coverage=[]
+    for period,include in periods:
+        subsets={model:[r for r in result['games'] if include(r)] for model,result in results.items()}
+        base=evaluation_metrics(subsets['baseline'])
+        selected=subsets['baseline']
+        coverage.append({'Period':period,'Games':len(selected),'Dates':len({r['Date'] for r in selected}),
+                         'Conversion-data games':sum(r['Known conversion training attempts']>0 for r in selected),
+                         'Sequence-eligible games':sum(r['Minimum team sequence games']>=10 for r in selected)})
+        for model,rows in subsets.items():
+            if not rows:continue
+            metrics=evaluation_metrics(rows)
+            summaries.append({'Period':period,'Model':model,'Dates':len({r['Date'] for r in rows}),
+                              'First date':min(r['Date'] for r in rows),'Last date':max(r['Date'] for r in rows),**metrics,
+                              'Log loss minus baseline':metrics['Log loss']-base['Log loss'],
+                              'Brier minus baseline':metrics['Brier']-base['Brier'],
+                              'Top-1 difference pp':metrics['Top-1 hit %']-base['Top-1 hit %'],
+                              **scoring_stage_summary(rows)})
+            if model!='baseline':
+                comparison=compare_evaluations({'games':selected},{'games':rows})
+                paired.extend({'Period':period,'Model':model,'Games':comparison['games'],'Dates':comparison['dates'],**r} for r in comparison['metrics'])
+    for model,result in results.items():
+        details.extend({'Model':model,'Challenger-active':(r['Date'],r['Game']) in active,**r} for r in result['games'])
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summaries,'paired':paired,'details':details,
+            'coverage':coverage,'active_games':len(active),'excluded_games':len(results['baseline']['excluded'])}

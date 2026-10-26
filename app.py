@@ -551,6 +551,31 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
         else:st.info('Not enough eligible history to compare decay settings.')
     elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
+    if st.button('Compare all five scoring models'):
+        progress=st.empty()
+        with st.spinner('Comparing live models and challengers on identical games…'):
+            st.session_state['scoring_scorecard']=research.scoring_model_scorecard(hist,warmup,progress.info)
+    scorecard=st.session_state.get('scoring_scorecard')
+    if scorecard and scorecard['fingerprint']==research.fingerprint(hist) and scorecard['min_training']==warmup:
+        st.markdown('**Scoring model scorecard**')
+        st.caption('Baseline is the current default. Recent and Lineup are existing alternatives; Conversion and Post-miss are experimental challengers. This comparison runs all five regardless of the sidebar model.')
+        st.dataframe(pd.DataFrame(scorecard['coverage']),hide_index=True,use_container_width=True)
+        if scorecard['summary']:
+            scorecard_period=st.selectbox('Scorecard evaluation period',['All evaluated dates','Newest quarter of dates','Challenger-active games'])
+            selected_summary=[r for r in scorecard['summary'] if r['Period']==scorecard_period]
+            if selected_summary:
+                st.dataframe(pd.DataFrame(selected_summary),hide_index=True,use_container_width=True)
+                st.dataframe(pd.DataFrame([r for r in scorecard['paired'] if r['Period']==scorecard_period]),hide_index=True,use_container_width=True)
+                if selected_summary[0]['Dates']<30:st.warning('Fewer than 30 dates in this comparison. Estimates and intervals can be unstable.')
+            else:st.info('No games satisfy this period yet. Enrich earlier opening-shot and sequence data, then rerun the scorecard.')
+            st.caption('Challenger-active means at least one known earlier conversion attempt among the selected players and at least ten known sequence games for each team. It does not establish adequate samples for every player or model reliability. All five models use the same selected games in each period; other periods retain fallback games.')
+            st.caption('Lower log loss and Brier mean better probability estimates on this sample. Higher hit rates mean more correct selections, with fractional credit for ties. Differences and approximate 95% date-bootstrap intervals compare each model with Baseline. The newest quarter is a diagnostic, not an untouched test set. Repeated comparisons, date dependence and historical lineup-selection bias remain. No model is promoted automatically and these results do not establish profit.')
+            st.download_button('Download scoring scorecard CSV',pd.DataFrame(scorecard['summary']).to_csv(index=False).encode(),'apex_scoring_scorecard.csv','text/csv')
+            st.download_button('Download scorecard comparisons CSV',pd.DataFrame(scorecard['paired']).to_csv(index=False).encode(),'apex_scorecard_comparisons.csv','text/csv')
+            st.download_button('Download scorecard predictions CSV',pd.DataFrame(scorecard['details']).to_csv(index=False).encode(),'apex_scorecard_predictions.csv','text/csv')
+        else:st.info('Not enough eligible history to compare the scoring models. Import more history or review the training minimum.')
+        st.caption(f"Invalid historical games excluded: {scorecard['excluded_games']}.")
+    elif scorecard:st.info('History or training minimum changed. Compare all five scoring models again.')
     if st.button('Test post-miss scoring model'):
         with st.spinner('Comparing opening makes and post-miss recovery…'):
             st.session_state['post_miss_comparison']=research.compare_post_miss(hist,warmup)

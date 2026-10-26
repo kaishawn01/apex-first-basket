@@ -1778,3 +1778,57 @@ class OpeningEnrichmentBatchTests(unittest.TestCase):
                     with self.assertRaises(ValueError):rt.enrich_opening_batch(limit)
                 request.assert_not_called()
             self.assertEqual(list(Path(tmp).iterdir()),[])
+
+class ScoringScorecardTests(unittest.TestCase):
+    def history(self):
+        fixture=PostMissModelTests();fixture.setUp();return fixture.history()
+    def test_all_models_have_identical_period_samples(self):
+        result=rt.scoring_model_scorecard(self.history(),2)
+        self.assertEqual(len(result['summary']),15)
+        self.assertEqual(result['active_games'],2)
+        expected={'All evaluated dates':10,'Newest quarter of dates':3,'Challenger-active games':2}
+        for period,count in expected.items():
+            selected=[r for r in result['summary'] if r['Period']==period]
+            self.assertEqual(len(selected),5)
+            self.assertEqual({r['Evaluated games'] for r in selected},{count})
+        ids=[{(r['Date'],r['Game']) for r in result['details'] if r['Model']==model} for model in ('baseline','recent','lineup','conversion','post_miss')]
+        self.assertTrue(all(group==ids[0] for group in ids))
+    def test_baseline_reference_and_signed_differences(self):
+        history=self.history();result=rt.scoring_model_scorecard(history,2)
+        metrics=rt.evaluate(history,2,'baseline')['metrics']
+        summary=[r for r in result['summary'] if r['Period']=='All evaluated dates']
+        base=next(r for r in summary if r['Model']=='baseline')
+        self.assertAlmostEqual(base['Log loss'],metrics['Log loss'])
+        self.assertEqual(base['Log loss minus baseline'],0)
+        for row in summary:
+            self.assertAlmostEqual(row['Log loss minus baseline'],row['Log loss']-base['Log loss'])
+            if row['Model']!='baseline':
+                paired=next(r for r in result['paired'] if r['Period']=='All evaluated dates' and r['Model']==row['Model'] and r['Metric']=='Log loss')
+                self.assertAlmostEqual(paired['Candidate minus baseline'],row['Log loss minus baseline'])
+    def test_missing_data_and_empty_history_are_explicit(self):
+        legacy=[r for i in range(4) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        result=rt.scoring_model_scorecard(legacy,1)
+        self.assertEqual(result['active_games'],0)
+        self.assertEqual(len(result['summary']),10)
+        self.assertTrue(all(r['Conversion-data games']==0 for r in result['coverage']))
+        self.assertEqual(result['coverage'][-1]['Games'],0)
+        self.assertEqual(rt.scoring_model_scorecard([],1)['summary'],[])
+    def test_no_api_no_mutation_and_progress(self):
+        import copy
+        history=self.history();before=copy.deepcopy(history);messages=[]
+        with patch.object(rt.core,'request',side_effect=AssertionError('No network')):
+            rt.scoring_model_scorecard(history,2,messages.append)
+        self.assertEqual(history,before);self.assertEqual(len(messages),5)
+    def test_mismatched_or_duplicate_games_rejected(self):
+        first={'games':[{'Date':'2026-08-01','Game':'a'}]}
+        other={'games':[{'Date':'2026-08-02','Game':'a'}]}
+        with patch.object(rt,'evaluate',side_effect=[first,other,first,first,first]):
+            with self.assertRaisesRegex(ValueError,'identical'):rt.scoring_model_scorecard([],1)
+        duplicate={'games':[{'Date':'2026-08-01','Game':'a'},{'Date':'2026-08-02','Game':'a'}]}
+        with patch.object(rt,'evaluate',return_value=duplicate):
+            with self.assertRaisesRegex(ValueError,'Duplicate'):rt.scoring_model_scorecard([],1)
+    def test_one_date_comparisons_have_no_interval(self):
+        history=game_rows('a','2026-08-01')+game_rows('b','2026-08-02')
+        result=rt.scoring_model_scorecard(history,1)
+        self.assertTrue(result['paired'])
+        self.assertTrue(all(r['Dates']==1 and r['95% lower'] is None and r['95% upper'] is None for r in result['paired']))

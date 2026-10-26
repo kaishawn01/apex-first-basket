@@ -1,3 +1,13 @@
+APEX V2.41.0 — Five-model scoring scorecard
+
+Backtest lab now includes Compare all five scoring models: Baseline, Recent form, Lineup context, Opening-shot conversion and Post-miss. Each model must evaluate identical games and dates. The report includes top-1/top-3 fractional hit rates, log loss, Brier score, scoring-stage diagnostics and differences against Baseline, with approximate paired date-bootstrap intervals.
+
+Choose All evaluated dates, Newest quarter of dates (whole dates), or Challenger-active games. The active subset requires known earlier conversion attempts for the selected players and at least ten earlier known sequence games for each team. This gate separates available challenger evidence from fallback behavior; it is not a validated sample-sufficiency threshold. Coverage counts remain visible even when no active games qualify. Three CSV downloads provide summaries, paired comparisons and per-game predictions. History or training-minimum changes hide stale results.
+
+No API requests are made by the scorecard. Live defaults are unchanged and no winner is automatically promoted. Newest-quarter results are not an untouched holdout; repeated comparisons, dependent dates, observed historical starters and exclusion of nonstarter first scorers limit conclusions. Enrich earlier opening data when coverage is missing.
+
+Validation: 266 unit tests and all Streamlit smoke checks passed, including matched game/date sets, duplicate rejection, metric agreement, empty and legacy data, one-date uncertainty, no API calls, exports and stale-settings handling. Windows execution and real-user accuracy improvement were not tested here.
+
 APEX V2.40.0 — Resumable batches for opening-shot and scoring-path history
 
 Opening-shot conversion · enrich saved history now includes Enrich next batch of saved games with 10, 20 or 50 games per click (default 20). Eligible games are valid saved ESPN games from earlier Eastern dates with unresolved opening-attempt results or scoring paths. Complete records are skipped. The batch prioritizes unattempted games, newest first, then fewer-attempted retries, with date/ID tie-breaks. Failed or unresolved records stay retryable without preventing unattempted games from being reached.

@@ -413,3 +413,22 @@ with tempfile.TemporaryDirectory() as folder:
   assert not at.exception,list(at.exception)
   assert at.session_state['opening_enrichment']['attempted']==0
   print('Opening batch UI passed: defaults, automatic selection, checkpointing, shared backup and completed queue.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Scorecard must not fetch APIs')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(b for b in at.button if b.label=='Compare all five scoring models').click().run()
+ assert not at.exception,list(at.exception)
+ card=at.session_state['scoring_scorecard']
+ assert len(card['summary'])==10 and card['active_games']==0
+ assert {r['Model'] for r in card['summary']}=={'baseline','recent','lineup','conversion','post_miss'}
+ assert any(d.label=='Download scorecard predictions CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Scorecard evaluation period').set_value('Challenger-active games').run()
+ assert any('No games satisfy this period yet' in x.value for x in at.info)
+ next(s for s in at.selectbox if s.label=='Scorecard evaluation period').set_value('Newest quarter of dates').run()
+ summary=next(d.value for d in at.dataframe if 'Top-1 difference pp' in d.value.columns)
+ assert len(summary)==5 and set(summary['Evaluated games'])=={3}
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
+ assert not any(d.label=='Download scorecard predictions CSV' for d in at.get('download_button'))
+ assert any('Compare all five scoring models again' in x.value for x in at.info)
+ print('Scoring scorecard UI passed: five models, shared dates, active-data warning, exports and stale settings.')
