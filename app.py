@@ -328,14 +328,16 @@ with st.expander('Data quality & coverage'):
         st.error(f'{len(issues)} game(s) failed data checks. They are excluded from backtests and block affected rankings/imports. No rows were deleted.')
         st.dataframe(pd.DataFrame(issues),hide_index=True,use_container_width=True)
     elif hist:
-        st.success('All saved games passed starter-count, ID, date, opponent, and scoring-consistency checks.')
+        st.success('All saved games passed starter-count, ID, date, opponent, opening-shot, possession-proxy and scoring-consistency checks.')
         st.caption(f"History: {min(r['date'] for r in valid)} through {max(r['date'] for r in valid)}")
     else: st.info('Sync or import history to see coverage.')
     active=research.history_window(valid,day)
+    proxy_coverage=eng.team_stats(active)
+    st.caption('Opening-action proxy coverage is shown separately. Unknown proxies do not count as possession losses. The proxy is not a verified jump-ball winner.')
     coverage=[]
     for team in sorted(eng.TEAMS):
         rows=[r for r in active if r['team']==team]
-        coverage.append({'Team':team,'Games in 400-day window':len({r['game_id'] for r in rows}),'Latest game':max((r['date'] for r in rows),default='None')})
+        coverage.append({'Team':team,'Games in 400-day window':len({r['game_id'] for r in rows}),'Games with opening-action proxy':proxy_coverage.get(team,{}).get('proxy_games',0),'Latest game':max((r['date'] for r in rows),default='None')})
     st.dataframe(pd.DataFrame(coverage),hide_index=True,use_container_width=True)
 
 with st.expander('Backtest lab · test the model before trusting it'):

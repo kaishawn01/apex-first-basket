@@ -1,3 +1,11 @@
+APEX V2.10.0 — Opening-data integrity and neutral unknown possessions
+
+Historical validation now rejects multiple team-opening shooters, conflicting game-opening shooters or first field-goal scorers, a game-opening shooter lacking their team-opening flag, inconsistent within-team possession-proxy flags, and both teams marked as the first opening action. Zero flags remain valid when a nonstarter was involved or the proxy is unknown. Existing rows are never silently deleted; issues appear in Data quality. Invalid games are excluded from backtests and block affected rankings.
+
+The baseline possession-proxy denominator now uses only games with a known opening-action proxy. Missing proxy data no longer counts as a loss. Team first-score rates still use all valid games. Recent-form and lineup-context formulas are unchanged. The proxy remains an opening-action approximation, not a verified jump-ball outcome. Data quality displays proxy coverage separately.
+
+Both current-season sync and prior-season import verify the requested ESPN event ID, completed status, and home/away matchup before accepting rows. Current-season sync also audits extracted rows before checkpointing. Mismatched or invalid downloads leave saved history intact and remain retryable. Stored old forecasts are not recomputed; use the version filter for comparisons. Live Windows and provider availability remain user-environment checks.
+
 APEX V2.9.0 — Player evidence explorer
 
 After Run rankings, open Player evidence and choose a ranked player. Inspect the last 10 and 30 recorded starts and the full 400-day model window: team opening-shot attempts, game first scores, conditional share when the team scores first, similar-lineup counts, and a game-by-game CSV. The view shows the last recorded same-team start and how many other-team starts were excluded.

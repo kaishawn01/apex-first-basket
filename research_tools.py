@@ -41,6 +41,22 @@ def audit(rows):
             if len(winners)!=1: raise ValueError('Expected exactly one first scorer')
             winning_team=winners[0]['team']
             if any(int(r['team_scored_first'])!=int(r['team']==winning_team) for r in game): raise ValueError('Inconsistent first-scoring team')
+            for team in teams:
+                team_rows=[r for r in game if r['team']==team]
+                if sum(int(r['first_team_shot']) for r in team_rows)>1:
+                    raise ValueError('Multiple opening shooters recorded for one team')
+                if len({int(r['tip_first_action']) for r in team_rows})!=1:
+                    raise ValueError('Opening-possession proxy disagrees within a team')
+            if sum(int(next(r for r in game if r['team']==t)['tip_first_action']) for t in teams)>1:
+                raise ValueError('Both teams marked as first opening action')
+            if sum(int(r['first_game_shot']) for r in game)>1:
+                raise ValueError('Multiple game-opening shooters')
+            if any(int(r['first_game_shot']) and not int(r['first_team_shot']) for r in game):
+                raise ValueError('Game-opening shooter is not their team-opening shooter')
+            if sum(int(r['first_fg_scorer']) for r in game)>1:
+                raise ValueError('Multiple first field-goal scorers')
+            # Zero flags can be legitimate: the relevant event involved a nonstarter,
+            # or the possession proxy is unknown. Do not invent a starter event.
             valid.extend(game)
         except (KeyError,TypeError,ValueError) as exc:
             issues.append({'game_id':gid,'reason':str(exc)})
@@ -99,6 +115,7 @@ def import_season(season_end,limit=250,progress=lambda msg:None):
         progress(f'Game {i}/{len(selected)} · {g["_date"]} · {g["gameId"]}')
         try:
             summary=core.request(eng.ESPN_BASE+'/summary',{'event':g['gameId'].removeprefix('espn_')})
+            eng.validate_espn_summary(g,summary)
             play,box=eng.espn_game_payloads(summary)
             rows=eng.extract_game(g,play,box)
             _,bad=audit(rows)

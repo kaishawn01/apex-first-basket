@@ -76,3 +76,27 @@ class FirstBasketTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class SummaryIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.game={'gameId':'espn_123','homeTeam':{'teamTricode':'BOS'},'awayTeam':{'teamTricode':'NYK'}}
+        self.payload={'header':{'id':'123','competitions':[{'id':'123','status':{'type':{'completed':True}},'competitors':[{'homeAway':'home','team':{'abbreviation':'BOS'}},{'homeAway':'away','team':{'abbreviation':'NY'}}]}]}}
+    def test_completed_matching_event_and_alias(self):
+        eng.validate_espn_summary(self.game,self.payload)
+    def test_wrong_event_incomplete_and_reversed_sides(self):
+        import copy
+        variants=[]
+        p=copy.deepcopy(self.payload);p['header']['id']='999';variants.append(p)
+        p=copy.deepcopy(self.payload);p['header']['competitions'][0]['id']='999';variants.append(p)
+        p=copy.deepcopy(self.payload);p['header']['competitions'][0]['status']['type']['completed']=False;variants.append(p)
+        p=copy.deepcopy(self.payload)
+        for c in p['header']['competitions'][0]['competitors']:c['homeAway']='away' if c['homeAway']=='home' else 'home'
+        variants.append(p)
+        for payload in variants:
+            with self.assertRaises(ValueError):eng.validate_espn_summary(self.game,payload)
+    def test_trimmed_fixture_without_identity_is_rejected(self):
+        payload=json.loads(Path(__file__).with_name('espn_test_fixture.json').read_text())
+        competitors=payload['header']['competitions'][0]['competitors']
+        game={'gameId':'espn_401809955'}
+        for c in competitors:game[c['homeAway']+'Team']={'teamTricode':eng.espn_team(c['team'])}
+        with self.assertRaises(ValueError):eng.validate_espn_summary(game,payload)

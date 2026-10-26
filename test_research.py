@@ -51,7 +51,7 @@ class ResearchTests(unittest.TestCase):
             old=game_rows('espn_1','2025-11-01')
             eng.write_csv(path,eng.FIELDS,old)
             games=[{'gameId':f'espn_{i}','_date':f'2025-11-0{i}','gameStatus':3} for i in (1,2,3)]
-            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt,'season_index',return_value=(games,[])),patch.object(rt.core,'request',return_value={}),patch.object(eng,'espn_game_payloads',return_value=({},{})),patch.object(eng,'extract_game',side_effect=lambda g,p,b:game_rows(g['gameId'],g['_date'])):
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt,'season_index',return_value=(games,[])),patch.object(rt.core,'request',return_value={}),patch.object(eng,'validate_espn_summary'),patch.object(eng,'espn_game_payloads',return_value=({},{})),patch.object(eng,'extract_game',side_effect=lambda g,p,b:game_rows(g['gameId'],g['_date'])):
                 first=rt.import_season(2026,1)
                 second=rt.import_season(2026,1)
                 third=rt.import_season(2026,1)
@@ -399,3 +399,41 @@ class PlayerEvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):rt.player_evidence(self.rows,'2026-10-21','BOS','absent',self.five)
         bad=[dict(r) for r in self.rows];bad[0]['first_scorer']=0
         with self.assertRaises(ValueError):rt.player_evidence(bad,'2026-10-21','BOS','10',self.five)
+
+class OpeningDataIntegrityTests(unittest.TestCase):
+    def test_conflicting_opening_flags_rejected(self):
+        mutations=[('first_team_shot',1),('first_game_shot',1),('first_fg_scorer',1),('tip_first_action',0)]
+        for field,value in mutations:
+            rows=game_rows('test','2026-10-20');rows[1][field]=value
+            self.assertTrue(rt.audit(rows)[1],field)
+        rows=game_rows('test','2026-10-20')
+        for r in rows:r['tip_first_action']=1
+        self.assertTrue(rt.audit(rows)[1])
+    def test_game_shooter_requires_team_opening_flag(self):
+        rows=game_rows('test','2026-10-20');rows[0]['first_team_shot']=0
+        self.assertTrue(rt.audit(rows)[1])
+    def test_absent_starter_shot_flags_and_unknown_proxy_are_allowed(self):
+        rows=game_rows('test','2026-10-20')
+        for r in rows:
+            for field in ('first_team_shot','first_game_shot','first_fg_scorer','tip_first_action'):r[field]=0
+        self.assertEqual(rt.audit(rows)[1],[])
+    def test_unknown_proxy_not_counted_as_possession_loss(self):
+        known=game_rows('known','2026-10-20')
+        unknown=game_rows('unknown','2026-10-19')
+        for r in unknown:r['tip_first_action']=0
+        before=eng.team_stats(known);after=eng.team_stats(known+unknown)
+        for team in ('BOS','NYK'):
+            self.assertEqual(after[team]['n'],2)
+            self.assertEqual(after[team]['proxy_games'],1)
+            self.assertAlmostEqual(before[team]['tip_proxy'],after[team]['tip_proxy'])
+            self.assertEqual(eng.team_stats(unknown)[team]['tip_proxy'],.5)
+    def test_mismatched_summary_sync_preserves_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);history=folder/'history.csv'
+            eng.write_csv(history,eng.FIELDS,game_rows('old','2026-10-19'))
+            previous=history.read_bytes()
+            game={'gameId':'espn_123','_date':'2026-10-20','gameStatus':3,'homeTeam':{'teamTricode':'BOS'},'awayTeam':{'teamTricode':'NYK'}}
+            payload={'header':{'id':'wrong','competitions':[{'id':'wrong'}]}}
+            with patch.object(eng,'HISTORY',history),patch.object(eng,'ODDS',folder/'odds.csv'),patch.object(eng,'schedule',return_value=[game]),patch.object(eng,'get_json',return_value=payload),patch.object(eng,'create_starter_template'):
+                eng.sync(1)
+            self.assertEqual(previous,history.read_bytes())

@@ -150,6 +150,24 @@ def schedule(target_day=None):
         raise RuntimeError(f"ESPN schedule unavailable: {exc}") from exc
 
 
+def validate_espn_summary(game, payload):
+    """Reject a mismatched provider event before importing any starter rows."""
+    header=payload.get('header',{})
+    competitions=header.get('competitions',[])
+    if len(competitions)!=1:raise ValueError('Summary has no unique game competition.')
+    competition=competitions[0]
+    expected=str(game['gameId']).removeprefix('espn_')
+    if str(header.get('id',''))!=expected or str(competition.get('id',expected))!=expected:
+        raise ValueError('Summary game ID does not match the requested game.')
+    if not competition.get('status',{}).get('type',{}).get('completed'):
+        raise ValueError('Summary does not confirm a completed game.')
+    competitors=competition.get('competitors',[])
+    actual={c.get('homeAway'):espn_team(c['team']) for c in competitors}
+    expected_teams={'home':game['homeTeam']['teamTricode'],'away':game['awayTeam']['teamTricode']}
+    if len(competitors)!=2 or actual!=expected_teams:
+        raise ValueError('Summary home/away teams do not match the requested matchup.')
+
+
 def espn_game_payloads(payload):
     teams = {}
     sides = {}
@@ -295,8 +313,12 @@ def sync(max_games):
             continue
         try:
             summary = get_json(ESPN_BASE + "/summary", params={"event": game_id.removeprefix("espn_")})
+            validate_espn_summary(g,summary)
             play, box = espn_game_payloads(summary)
             rows = extract_game(g, play, box)
+            from research_tools import audit
+            _,issues=audit(rows)
+            if issues:raise ValueError(issues[0]['reason'])
             old.extend(rows)
             saved_ids.add(game_id)
             count += 1
@@ -353,17 +375,20 @@ def starters_for_team(rows, team):
 
 def team_stats(history):
     games = defaultdict(dict)
+    proxy_known=set()
     for r in history:
         games[r["team"]][r["game_id"]] = r
+        if int(r["tip_first_action"]):proxy_known.add(r["game_id"])
     stats = {}
     for team, bygame in games.items():
         records = list(bygame.values())
         n = len(records)
         first = sum(int(r["team_scored_first"]) for r in records)
-        tip = sum(int(r["tip_first_action"]) for r in records)
+        proxy_records=[r for r in records if r["game_id"] in proxy_known]
+        tip = sum(int(r["tip_first_action"]) for r in proxy_records)
         # Prior is 50% to mitigate tiny early-season samples.
         stats[team] = {"n": n, "first": (first + 10) / (n + 20),
-                       "tip_proxy": (tip + 10) / (n + 20)}
+                       "tip_proxy": (tip + 10) / (len(proxy_records) + 20), "proxy_games":len(proxy_records)}
     return stats
 
 
