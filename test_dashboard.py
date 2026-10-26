@@ -181,3 +181,62 @@ class MatchupLeaderBoardTests(unittest.TestCase):
             rows=copy.deepcopy(self.rows);rows[0][field]=value;variants.append(rows)
         for rows in variants:
             with self.assertRaises(ValueError):c.matchup_leader_board(rows)
+
+
+class StartingProjectionEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        from test_research import game_rows
+        self.make=game_rows
+        self.players=[{'player_id':str(i),'player':f'Player {i}'} for i in range(10,17)]
+    def test_recent_counts_and_latest_defaults(self):
+        history=self.make('old','2026-10-20')+self.make('new','2026-10-24')
+        for r in history:
+            if r['game_id']=='new' and r['player_id']=='14':r['player_id']='15'
+        result=c.projection_evidence(history,'BOS','2026-10-25',self.players)
+        self.assertEqual(set(result['defaults']),{'10','11','12','13','15'})
+        byid={r['Player ID']:r for r in result['players']}
+        self.assertEqual(byid['10']['Starts in recent recorded games'],2)
+        self.assertEqual(byid['14']['Selection basis'],'Review candidate')
+        self.assertFalse(byid['14']['Started last recorded game'])
+    def test_no_same_day_future_or_other_team_leakage(self):
+        history=self.make('old','2026-10-24')+self.make('today','2026-10-25')+self.make('future','2026-10-26')
+        result=c.projection_evidence(history,'BOS','2026-10-25',self.players)
+        self.assertEqual(result['reviewed_games'],1)
+        self.assertEqual(result['last_game_date'],'2026-10-24')
+        self.assertEqual(result['history_age_days'],1)
+    def test_stale_and_missing_roster_withhold_defaults(self):
+        history=self.make('old','2026-09-24')
+        result=c.projection_evidence(history,'BOS','2026-10-25',self.players)
+        self.assertEqual(result['defaults'],[])
+        self.assertTrue(any('31 days old' in w for w in result['warnings']))
+        recent=self.make('new','2026-10-24')
+        self.assertEqual(c.projection_evidence(recent,'BOS','2026-10-25',self.players,False)['defaults'],[])
+        self.assertEqual(len(c.projection_evidence(history,'BOS','2026-10-24',self.players)['defaults']),5)
+    def test_departed_player_not_replaced_silently(self):
+        result=c.projection_evidence(self.make('old','2026-10-24'),'BOS','2026-10-25',self.players[1:])
+        self.assertEqual(len(result['defaults']),4)
+        self.assertNotIn('15',result['defaults'])
+        self.assertTrue(any('absent from the loaded roster' in w for w in result['warnings']))
+    def test_corrupt_latest_game_ignored(self):
+        old=self.make('old','2026-10-23');bad=self.make('bad','2026-10-24')[:-1]
+        result=c.projection_evidence(old+bad,'BOS','2026-10-25',self.players)
+        self.assertEqual(result['last_game_date'],'2026-10-23')
+        self.assertEqual(result['reviewed_games'],1)
+    def test_last_five_and_sixty_day_window(self):
+        history=[r for i in range(7) for r in self.make(str(i),f'2026-10-{i+1:02d}')]+self.make('ancient','2025-10-01')
+        result=c.projection_evidence(history,'BOS','2026-10-25',self.players)
+        self.assertEqual(result['reviewed_games'],5)
+        self.assertEqual(result['players'][0]['Starts in recent recorded games'],5)
+        older=c.projection_evidence(self.make('old','2026-08-01'),'BOS','2026-10-25',self.players)
+        self.assertEqual(older['reviewed_games'],0)
+    def test_empty_and_duplicate_roster(self):
+        self.assertEqual(c.projection_evidence([],'BOS','2026-10-25',self.players)['defaults'],[])
+        with self.assertRaises(ValueError):c.projection_evidence([],'BOS','2026-10-25',self.players+self.players[:1])
+    def test_deterministic_no_input_mutation(self):
+        import copy
+        history=self.make('old','2026-10-24');before=copy.deepcopy(history)
+        first=c.projection_evidence(history,'BOS','2026-10-25',self.players)
+        second=c.projection_evidence(list(reversed(history)),'BOS','2026-10-25',list(reversed(self.players)))
+        self.assertEqual(first['players'],second['players'])
+        self.assertEqual(history,before)
+        self.assertEqual(set(c.projections(history,'BOS','2026-10-25',self.players)),set(first['defaults']))

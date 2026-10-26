@@ -42,10 +42,50 @@ def roster(team):
     return result
 
 
+def projection_evidence(history, team, day, players, roster_verified=True):
+    """Recent recorded starts, not provider-confirmed starting lineups."""
+    from datetime import date, timedelta
+    from collections import defaultdict
+    import research_tools as research
+    target=date.fromisoformat(day)
+    allowed={p['player_id']:p for p in players}
+    if len(allowed)!=len(players):raise ValueError('Roster contains duplicate player IDs.')
+    valid,issues=research.audit(history)
+    games=defaultdict(list)
+    for r in valid:
+        if r['team']==team and r['date']<day:games[r['game_id']].append(r)
+    ordered=sorted(games.values(),key=lambda g:(g[0]['date'],g[0]['game_id']),reverse=True)
+    latest=ordered[0] if ordered else []
+    last_day=latest[0]['date'] if latest else None
+    age=(target-date.fromisoformat(last_day)).days if last_day else None
+    cutoff=(target-timedelta(days=60)).isoformat()
+    recent=[g for g in ordered if g[0]['date']>=cutoff][:5]
+    latest_ids={r['player_id'] for r in latest}
+    defaults=[r['player_id'] for r in latest if r['player_id'] in allowed] if roster_verified and age is not None and age<=30 else []
+    warnings=[]
+    if not roster_verified:warnings.append('Current roster unavailable: no automatic starter selections. Historical names are manual options only.')
+    if age is None:warnings.append('No valid earlier starting-five history for this team. Choose the announced starters manually.')
+    elif age>30:warnings.append(f'Last recorded starting five is {age} days old. Automatic selections are withheld; review all five starters.')
+    if latest and roster_verified:
+        removed=[r['player'] for r in latest if r['player_id'] not in allowed]
+        if removed:warnings.append('Last-game starters absent from the loaded roster: '+', '.join(removed)+'. Vacancies require manual selection.')
+    if len(recent)<5:warnings.append(f'Only {len(recent)} valid recorded team games are available in the last 60 days; recent-start counts may be incomplete.')
+    evidence=[]
+    for pid,player in allowed.items():
+        starts=[g for g in recent if any(r['player_id']==pid for r in g)]
+        earlier=[g for g in ordered if any(r['player_id']==pid for r in g)]
+        last_start=earlier[0][0]['date'] if earlier else None
+        evidence.append({'Player ID':pid,'Player':player['player'],'Started last recorded game':pid in latest_ids,
+                         'Starts in recent recorded games':len(starts),'Recorded games reviewed':len(recent),
+                         'Last recorded start':last_start,'Days since recorded start':(target-date.fromisoformat(last_start)).days if last_start else None,
+                         'Selection basis':'Last-game projection' if pid in defaults else 'Review candidate' if starts else 'No recent recorded starts'})
+    evidence.sort(key=lambda r:(-r['Starts in recent recorded games'],-int(r['Started last recorded game']),r['Player ID']))
+    return {'defaults':defaults,'players':evidence,'warnings':warnings,'last_game_date':last_day,
+            'history_age_days':age,'reviewed_games':len(recent),'roster_loaded':roster_verified}
+
+
 def projections(history, team, day, players):
-    prior = [r for r in history if r["date"] < day]
-    allowed = {p["player_id"] for p in players}
-    return [r["player_id"] for r in eng.recent_starters(prior, team) if r["player_id"] in allowed]
+    return projection_evidence(history,team,day,players)['defaults']
 
 
 def injury_reports(key):

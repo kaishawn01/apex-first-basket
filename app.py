@@ -115,13 +115,14 @@ if slate_col.button('2 · Load slate & projected starters',type='primary',use_co
                 games=[{'gameId':f'research_{research_away}_{research_home}_{day}','_date':day,'gameStatus':0,'research_only':True,'start_time':day+'T23:00:00Z','awayTeam':{'teamTricode':research_away},'homeTeam':{'teamTricode':research_home}}]
             else:
                 games=core.fresh_schedule(day)
-            roster_map={}; errors=[]
+            roster_map={}; errors=[]; unavailable_rosters=[]
             for team in sorted({g[s]['teamTricode'] for g in games for s in ('awayTeam','homeTeam')}):
                 try: roster_map[team]=core.roster(team)
                 except (RuntimeError,KeyError,ValueError) as exc:
                     errors.append(f'{team}: roster unavailable; only historical starters are available.')
+                    unavailable_rosters.append(team)
                     roster_map[team]=[{'player_id':r['player_id'],'player':r['player']} for r in eng.recent_starters([r for r in hist if r['date']<day],team)]
-            st.session_state['slate']={'day':day,'games':games,'rosters':roster_map,'loaded':datetime.now().isoformat(timespec='seconds'),'errors':errors,'mode':analysis_mode,'research_teams':[research_away,research_home]}
+            st.session_state['slate']={'day':day,'games':games,'rosters':roster_map,'loaded':datetime.now().isoformat(timespec='seconds'),'errors':errors,'unavailable_rosters':unavailable_rosters,'mode':analysis_mode,'research_teams':[research_away,research_home]}
             st.session_state['revision']=st.session_state.get('revision',0)+1
             st.session_state.pop('results',None)
             st.session_state.pop('prices',None)
@@ -170,12 +171,22 @@ else:
             for col,team in zip(st.columns(2),(away,home)):
                 with col:
                     players=slate['rosters'][team]; byid={p['player_id']:p for p in players}
-                    defaults=core.projections(hist,team,day,players)
+                    projection=core.projection_evidence(hist,team,day,players,roster_verified=team not in slate.get('unavailable_rosters',[]))
+                    defaults=projection['defaults']
                     selected=st.multiselect(f'{team} · select five starters',list(byid),default=defaults,
                         format_func=lambda pid,byid=byid:byid[pid]['player'],max_selections=5,
                         key=f'five:{day}:{gid}:{team}:{st.session_state.get("revision",0)}')
                     choices[gid][team]=[byid[pid] for pid in selected]
-                    st.caption('Projection: last recorded starting five, limited to the current roster. Injured players are flagged, not silently replaced.')
+                    st.caption('Projection: latest valid recorded five on the loaded roster, only when history is at most 30 days old. This review cutoff is a guardrail, not a validated accuracy threshold. No provider-confirmed starters are fetched. Injuries are flagged; replacements require your review.')
+                    if projection['last_game_date']:st.caption(f"Last recorded team game: {projection['last_game_date']} · {projection['history_age_days']} days before the selected date.")
+                    for warning in projection['warnings']:st.warning(warning)
+                    st.markdown('**Recent starting-lineup evidence**')
+                    evidence=[]
+                    for item in projection['players']:
+                        injury=core.injury_for(reports,team,byid[item['Player ID']]['player'])
+                        evidence.append({**item,'Selected':item['Player ID'] in selected,'Injury report':injury['status'] if injury else 'No matched report; availability unverified'})
+                    st.dataframe(pd.DataFrame(evidence),hide_index=True,use_container_width=True)
+                    st.caption('Counts use up to five valid recorded games in the prior 60 days, excluding the selected date. Missing games and the history’s nonstarter-scorer exclusion can affect these counts. They are evidence for review, not starting probabilities. Reload the slate to refresh rosters and reset selections and confirmations.')
                     for pid in selected:
                         report=core.injury_for(reports,team,byid[pid]['player'])
                         if report: st.warning(f"{report['player']}: {report['status']} — {report['description']}")

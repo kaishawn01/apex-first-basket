@@ -68,6 +68,10 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert all(ranking['Observed opening-shot starts']==1)
  assert all(ranking['Weighted observed shot starts']<1)
  assert all(ranking['Shot coverage note']=='Below 8 observed opening-shot starts')
+ evidence_tables=[d.value for d in at.dataframe if 'Starts in recent recorded games' in d.value.columns]
+ assert len(evidence_tables)==2
+ assert all(sum(t['Selected'])==5 for t in evidence_tables)
+ assert any('No provider-confirmed starters' in x.value for x in at.caption)
  assert any(d.label=='Download matchup model comparison CSV' for d in at.get('download_button'))
  model_table=next(d.value for d in at.dataframe if 'Range (percentage points)' in d.value.columns)
  assert len(model_table)==10
@@ -275,3 +279,13 @@ with tempfile.TemporaryDirectory() as repair_dir:
   assert len(list(folder.glob('history_before_repair_*.csv')))==1
   assert not any(b.label=='Repair selected history games' for b in at.button)
   print('Repair UI passed: selected-game repair, backup, refreshed validation, success report.')
+
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=RuntimeError('Unavailable')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ assert not at.exception,list(at.exception)
+ assert all(not m.value for m in at.multiselect if 'select five starters' in m.label)
+ assert any('Current roster unavailable: no automatic' in w.value for w in at.warning)
+ assert all(cb.disabled for cb in at.checkbox if cb.label.startswith('I verified'))
+ print('Roster failure UI passed: no automatic selections or confirmations.')
