@@ -416,8 +416,8 @@ with st.expander('Build deeper history · prior-season import'):
             st.dataframe(pd.DataFrame(report['skipped']),hide_index=True,use_container_width=True)
 
 with st.expander('Opening-shot conversion · enrich saved history'):
-    missing_results=sorted({r['game_id'] for r in hist if str(r.get('first_team_shot',''))=='1' and str(r.get('first_team_shot_made','')) not in ('0','1') and r.get('date','')<datetime.now(ZoneInfo('America/New_York')).date().isoformat()},reverse=True)
-    st.caption('New imports record the opening field-goal result when explicit. Older missing results stay unknown. Enrichment rechecks saved ESPN games and adds only missing shot outcomes; changed starters, dates or existing scoring facts block that game. A backup is created before writing. This uses public ESPN requests, not paid odds calls.')
+    missing_results=sorted({r['game_id'] for r in hist if ((str(r.get('first_team_shot',''))=='1' and str(r.get('first_team_shot_made','')) not in ('0','1')) or r.get('opening_score_path','') not in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')) and r.get('date','')<datetime.now(ZoneInfo('America/New_York')).date().isoformat()},reverse=True)
+    st.caption('New imports record the opening field-goal result when explicit. Older missing results stay unknown. Enrichment also records whether scoring began before a field-goal attempt, on the opening make, or after the opening miss. Enrichment rechecks saved ESPN games and adds only missing shot outcomes; changed starters, dates or existing scoring facts block that game. A backup is created before writing. This uses public ESPN requests, not paid odds calls.')
     enrich_ids=st.multiselect('Saved games to enrich with opening-shot results',missing_results,max_selections=20)
     if st.button('Enrich selected opening-shot results',disabled=not enrich_ids):
         try:
@@ -429,6 +429,7 @@ with st.expander('Opening-shot conversion · enrich saved history'):
     enrichment=st.session_state.get('opening_enrichment')
     if enrichment:
         st.write(f"Added {enrichment['added_results']} opening-shot outcomes across {enrichment['enriched_games']} games.")
+        st.caption(f"Added scoring paths for {enrichment.get('added_paths',0)} games.")
         if enrichment['backup']:st.caption('Backup: '+enrichment['backup'])
         if enrichment['errors']:st.dataframe(pd.DataFrame(enrichment['errors']),hide_index=True,use_container_width=True)
 
@@ -538,6 +539,25 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
         else:st.info('Not enough eligible history to compare decay settings.')
     elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
+    if st.button('Test post-miss scoring model'):
+        with st.spinner('Comparing opening makes and post-miss recovery…'):
+            st.session_state['post_miss_comparison']=research.compare_post_miss(hist,warmup)
+    sequence=st.session_state.get('post_miss_comparison')
+    if sequence and sequence['fingerprint']==research.fingerprint(hist) and sequence['min_training']==warmup:
+        st.markdown('**Who scores after the opening attempt misses?**')
+        path_labels={'free_throw_before_fg':'Free throw before a field-goal attempt','opening_fg_made':'Opening field-goal attempt made','opening_fg_missed':'First score after opening miss'}
+        st.dataframe(pd.DataFrame([{'Opening scoring path':path_labels[path],'Recorded games':count} for path,count in sequence['path_counts'].items()]),hide_index=True,use_container_width=True)
+        st.caption('The challenger separates free throws scored before any field-goal attempt, a made opening attempt, and eventual first scoring after an opening miss. Post-miss outcomes include later free throws. It learns recovery from recorded outcomes; it does not explicitly simulate rebounds, turnovers or each later possession.')
+        st.caption('Both teams need ten earlier games with known scoring paths before this model activates; otherwise it reproduces Opening conversion. Evidence uses 90-day decay, a 400-day window and same-team player records. The early-free-throw prior is 1 event in 20, opening-team prior is 50/50 with strength 20, and recovery rates use strength-10 conversion-model anchors trained on games outside that recovery path. These are experimental assumptions, not validated league averages.')
+        st.write(f"Games after sequence minimum: {sequence['eligible_games']}")
+        if not sequence['eligible_games']:st.info('No games reached the sequence-data minimum. Enrich earlier saved games before assessing this challenger.')
+        if sequence['summary']:
+            st.dataframe(pd.DataFrame(sequence['summary']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(sequence['comparisons']),hide_index=True,use_container_width=True)
+            st.caption('All comparisons use identical games. The after-minimum section separates active modeling from fallback. Differences are challenger minus Opening conversion; lower probability error is better. Date-bootstrap intervals do not remove selection bias, small-sample uncertainty or repeated-testing risk. Live defaults are unchanged; historical observed starters and excluded nonstarter scorers remain limitations.')
+            st.download_button('Download post-miss model summary CSV',pd.DataFrame(sequence['summary']).to_csv(index=False).encode(),'apex_post_miss_summary.csv','text/csv')
+            st.download_button('Download post-miss model predictions CSV',pd.DataFrame(sequence['details']).to_csv(index=False).encode(),'apex_post_miss_predictions.csv','text/csv')
+    elif sequence:st.info('History or training minimum changed. Run the post-miss model test again.')
     if st.button('Test opening-shot conversion model'):
         with st.spinner('Comparing recent form with the conversion challenger…'):
             st.session_state['conversion_comparison']=research.compare_opening_conversion(hist,warmup)

@@ -56,7 +56,7 @@ TEAMS = {
     "TOR": "Toronto Raptors", "UTA": "Utah Jazz", "WAS": "Washington Wizards",
 }
 FIELDS = ["game_id", "date", "team", "opponent", "player_id", "player", "first_team_shot",
-          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action", "opening_shot_observed", "first_team_shot_made"]
+          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action", "opening_shot_observed", "first_team_shot_made", "opening_score_path"]
 
 
 def get_json(url, *, params=None):
@@ -265,8 +265,8 @@ def espn_game_payloads(payload):
                         "personId": int(people[0]["athlete"]["id"]) if people else 0,
                         "description": desc, "isFieldGoal": int(shot), "shotResult": "Made" if made else "Missed",
                         "shotOutcomeKnown": shot and type(play.get('scoringPlay')) is bool and type(play.get('scoreValue')) is int and
-                        ((play['scoringPlay'] and play['scoreValue'] in (2,3) and not desc.strip().upper().startswith('MISS')) or
-                         (not play['scoringPlay'] and play['scoreValue']==0 and desc.strip().upper().startswith('MISS')))})
+                        ((play['scoringPlay'] and play['scoreValue'] in (2,3) and not re.search(r'\bmiss(?:es|ed)?\b',desc,re.I)) or
+                         (not play['scoringPlay'] and play['scoreValue']==0 and re.search(r'\bmiss(?:es|ed)?\b',desc,re.I) is not None))})
     return {"game": {"actions": actions}}, {"game": {"homeTeam": boxes[sides["home"]], "awayTeam": boxes[sides["away"]]}}
 
 
@@ -309,9 +309,19 @@ def first_offense_team(actions):
 def opening_attempt_result(action,player_id):
     if action.get('personId')!=player_id or action.get('shotOutcomeKnown',True) is not True:return ''
     result=str(action.get('shotResult','')).lower()
-    if result=='made' and str(action.get('description','')).strip().upper().startswith('MISS'):return ''
+    if result=='made' and re.search(r'\bmiss(?:es|ed)?\b',str(action.get('description','')),re.I):return ''
     if result=='missed' and norm(action.get('actionType',''))=='madeshot':return ''
     return 1 if result=='made' else 0 if result=='missed' else ''
+
+
+def opening_score_path(actions,scorer,first_shot):
+    if not first_shot:return ''
+    if actions.index(scorer)<actions.index(first_shot):
+        return 'free_throw_before_fg' if norm(scorer.get('actionType',''))=='freethrow' else ''
+    result=opening_attempt_result(first_shot,first_shot.get('personId'))
+    if result==1 and scorer is first_shot:return 'opening_fg_made'
+    if result==0 and actions.index(scorer)>actions.index(first_shot):return 'opening_fg_missed'
+    return ''
 
 
 def extract_game(game, play, box):
@@ -348,6 +358,7 @@ def extract_game(game, play, box):
                 "player": p.get("name") or (str(p.get("firstName", "")) + " " + str(p.get("familyName", ""))).strip(),
                 "first_team_shot": int(first_per_team.get(team, {}).get("personId", 0) == pid),
                 "first_team_shot_made": opening_attempt_result(first_per_team.get(team,{}),pid),
+                "opening_score_path": opening_score_path(actions,scorer,first_game_shot),
                 "opening_shot_observed": int(int(first_per_team.get(team, {}).get("personId", 0)) in {int(q["personId"]) for q in side.get("players", []) if int(q["personId"])>0}),
                 "first_game_shot": int(first_game_shot is not None and int(first_game_shot.get("personId", 0)) == pid),
                 "first_scorer": int(int(scorer.get("personId", 0)) == pid),
@@ -824,11 +835,65 @@ def conversion_player_weights(history,starters,team,target_day,half_life=90.0,sh
     return [(r[0],r[1]/total,*r[2:]) for r in raw]
 
 
+def post_miss_prediction(history,lineups,target_day,shot_weight=.65,half_life=90.0):
+    """Three empirical scoring paths; not a rebound/turnover possession simulator."""
+    target=date.fromisoformat(target_day)
+    base=predict_first_score(history,lineups,target_day,'conversion',shot_weight,half_life)
+    prior=[r for r in history if 0<(target-date.fromisoformat(r['date'])).days<=400]
+    known=defaultdict(list)
+    for row in prior:
+        if row.get('opening_score_path') in ('free_throw_before_fg','opening_fg_made','opening_fg_missed'):
+            known[row['game_id']].append(row)
+    relevant={gid:rows for gid,rows in known.items() if any(r['team'] in lineups for r in rows)}
+    team_games={team:{r['game_id'] for rows in relevant.values() for r in rows if r['team']==team} for team in lineups}
+    if any(len(ids)<10 for ids in team_games.values()):return base
+    weights={gid:2**(-(target-date.fromisoformat(rows[0]['date'])).days/half_life) for gid,rows in relevant.items()}
+    mass=sum(weights.values())
+    ft_mass=sum(weights[gid] for gid,rows in relevant.items() if rows[0]['opening_score_path']=='free_throw_before_fg')
+    # A small explicit prior avoids asserting that rare paths are impossible.
+    p_ft=(ft_mass+1)/(mass+20)
+    open_stats={}
+    for team in lineups:
+        opportunities=firsts=0.
+        for gid,rows in relevant.items():
+            if rows[0]['opening_score_path']=='free_throw_before_fg' or not any(r['team']==team for r in rows):continue
+            first=[r for r in rows if int(r['first_game_shot'])==1]
+            if len(first)!=1:continue  # Unknown/bench opening shooter does not identify the opening team here.
+            opportunities+=weights[gid];firsts+=weights[gid]*int(first[0]['team']==team)
+        open_stats[team]={'first':(firsts+10)/(opportunities+20)}
+    a,b=sorted(lineups);pa=recent_first_team_probability(a,b,open_stats)
+    made={};miss_mass=0.
+    for team,p_open in ((a,pa),(b,1-pa)):
+        player_rows=conversion_player_weights(prior,lineups[team],team,target_day,half_life,shot_weight)
+        total_shot=sum(r[6] for r in player_rows)
+        for row in player_rows:
+            pid=row[0]['player_id'];attempt=p_open*row[6]/total_shot;q=row[8]
+            made[pid]=(1-p_ft)*attempt*q
+            miss_mass+=(1-p_ft)*attempt*(1-q)
+    def recovery(path):
+        context_games={gid for gid,rows in relevant.items() if rows[0]['opening_score_path']==path}
+        anchor=predict_first_score([r for r in prior if r['game_id'] not in context_games],lineups,target_day,'conversion',shot_weight,half_life)
+        result={}
+        for team,players in lineups.items():
+            for player in players:
+                pid=player['player_id'];starts=scores=0.
+                for gid,rows in relevant.items():
+                    if rows[0]['opening_score_path']!=path:continue
+                    matches=[r for r in rows if r['team']==team and r['player_id']==pid]
+                    if matches:
+                        starts+=weights[gid];scores+=weights[gid]*int(matches[0]['first_scorer'])
+                result[pid]=(scores+10*anchor[pid])/(starts+10)
+        total=sum(result.values());return {pid:p/total for pid,p in result.items()}
+    missed=recovery('opening_fg_missed');free=recovery('free_throw_before_fg')
+    result={pid:made[pid]+miss_mass*missed[pid]+p_ft*free[pid] for pid in base}
+    total=sum(result.values());return {pid:p/total for pid,p in result.items()}
+
+
 def predict_matchups(history, matchups, target_day, model="baseline", shot_weight=.65, half_life=90.0):
     """Build date-specific statistics once, then score each matchup independently."""
     validate_half_life(half_life)
     validate_shot_weight(shot_weight)
-    if model not in ('baseline','recent','lineup','conversion'):raise ValueError('Unknown model.')
+    if model not in ('baseline','recent','lineup','conversion','post_miss'):raise ValueError('Unknown model.')
     target=date.fromisoformat(target_day)
     for lineups in matchups.values():
         if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
@@ -836,6 +901,7 @@ def predict_matchups(history, matchups, target_day, model="baseline", shot_weigh
         ids=[p['player_id'] for players in lineups.values() for p in players]
         if len(set(ids))!=10:raise ValueError('Ten distinct player IDs are required.')
     if not matchups:return {}
+    if model=='post_miss':return {gid:post_miss_prediction(history,lineups,target_day,shot_weight,half_life) for gid,lineups in matchups.items()}
     prior=[r for r in history if 0<(target-date.fromisoformat(r['date'])).days<=400]
     by_team=defaultdict(list)
     for row in prior:by_team[row['team']].append(row)

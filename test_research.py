@@ -1607,3 +1607,77 @@ class OpeningResultEnrichmentTests(unittest.TestCase):
             with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=request):
                 with self.assertRaisesRegex(ValueError,'History changed'):rt.enrich_opening_results(['espn_401809955'])
             self.assertEqual(path.read_text(),'Another writer')
+
+class PostMissModelTests(unittest.TestCase):
+    def setUp(self):
+        self.lineups={team:[{'player_id':str(offset+i),'player':f'{team} Player {i}'} for i in range(5)] for team,offset in [('BOS',10),('NYK',20)]}
+    def history(self,n=12,path='opening_fg_missed'):
+        rows=[r for i in range(n) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        for row in rows:
+            row['opening_score_path']=path
+            if row['first_team_shot']:row['first_team_shot_made']=int(path=='opening_fg_made')
+        return rows
+    def test_no_sequence_and_low_sample_fall_back_exactly(self):
+        for history in (game_rows('old','2026-08-01'),self.history(9)):
+            expected=eng.predict_first_score(history,self.lineups,'2026-08-20','conversion')
+            self.assertEqual(eng.predict_first_score(history,self.lineups,'2026-08-20','post_miss'),expected)
+    def test_all_paths_are_normalized_positive_and_active(self):
+        for path in ('opening_fg_missed','opening_fg_made','free_throw_before_fg'):
+            history=self.history(path=path)
+            base=eng.predict_first_score(history,self.lineups,'2026-08-20','conversion')
+            result=eng.predict_first_score(history,self.lineups,'2026-08-20','post_miss')
+            self.assertEqual(set(result),set(base));self.assertAlmostEqual(sum(result.values()),1)
+            self.assertTrue(all(0<p<1 for p in result.values()))
+            self.assertNotEqual(result,base)
+    def test_same_day_future_and_old_sequences_excluded(self):
+        history=self.history(9)
+        baseline=eng.predict_first_score(history,self.lineups,'2026-08-20','post_miss')
+        extras=[]
+        for gid,day in [('today','2026-08-20'),('future','2026-08-21'),('old','2024-01-01')]:
+            for row in game_rows(gid,day):row['opening_score_path']='opening_fg_missed';extras.append(row)
+        self.assertEqual(eng.predict_first_score(history+extras,self.lineups,'2026-08-20','post_miss'),baseline)
+    def test_recovery_anchor_excludes_its_own_context_games(self):
+        history=self.history()
+        with patch.object(eng,'predict_first_score',wraps=eng.predict_first_score) as predict:
+            eng.post_miss_prediction(history,self.lineups,'2026-08-20')
+        self.assertEqual(len(predict.call_args_list),3)
+        self.assertEqual(predict.call_args_list[1].args[0],[])
+        self.assertEqual(len(predict.call_args_list[2].args[0]),len(history))
+    def test_extracted_paths_follow_actual_action_order(self):
+        shot={'personId':10,'actionType':'2pt','shotResult':'Made'}
+        free={'personId':11,'actionType':'free throw','shotResult':'Made'}
+        self.assertEqual(eng.opening_score_path([shot],shot,shot),'opening_fg_made')
+        self.assertEqual(eng.opening_score_path([free,shot],free,shot),'free_throw_before_fg')
+        missed={**shot,'shotResult':'Missed'}
+        self.assertEqual(eng.opening_score_path([missed,free],free,missed),'opening_fg_missed')
+        unknown={**shot,'shotOutcomeKnown':False}
+        self.assertEqual(eng.opening_score_path([unknown,free],free,unknown),'')
+    def test_audit_rejects_mixed_or_contradictory_paths(self):
+        history=self.history(1)
+        self.assertFalse(rt.audit(history)[1])
+        history[0]['opening_score_path']='opening_fg_made';self.assertTrue(rt.audit(history)[1])
+        history=self.history(1);history[0]['first_team_shot_made']=1
+        self.assertTrue(rt.audit(history)[1])
+    def test_report_separates_active_games_on_identical_sets(self):
+        result=rt.compare_post_miss(self.history(),1)
+        self.assertEqual(result['eligible_games'],2)
+        active=[r for r in result['summary'] if r['Period']=='After sequence minimum']
+        self.assertEqual([r['Evaluated games'] for r in active],[2,2])
+        self.assertEqual(result['path_counts']['opening_fg_missed'],12)
+        self.assertEqual({r['Game'] for r in result['details'] if r['Model']=='Opening conversion'},
+                         {r['Game'] for r in result['details'] if r['Model']=='Post-miss challenger'})
+        self.assertEqual(rt.compare_post_miss([],1)['summary'],[])
+    def test_path_enrichment_preserves_existing_shot_outcomes(self):
+        fixture=OpeningResultEnrichmentTests();fixture.setUp()
+        play,box=eng.espn_game_payloads(fixture.payload)
+        rows=eng.extract_game({'gameId':'espn_401809955','_date':'2025-10-25'},play,box)
+        expected=rows[0]['opening_score_path'];self.assertTrue(expected)
+        for row in rows:row.pop('opening_score_path')
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'history.csv';eng.write_csv(path,list(rows[0]),rows)
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',return_value=fixture.payload):
+                report=rt.enrich_opening_results(['espn_401809955'])
+            self.assertEqual(report['added_results'],0);self.assertEqual(report['added_paths'],1)
+            enriched=eng.read_csv(path)
+            self.assertEqual({r['opening_score_path'] for r in enriched},{expected})
+            self.assertEqual([str(r['first_team_shot_made']) for r in rows],[r['first_team_shot_made'] for r in enriched])

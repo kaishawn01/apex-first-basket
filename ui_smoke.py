@@ -373,3 +373,24 @@ with tempfile.TemporaryDirectory() as folder:
   assert list(Path(folder).glob('history_before_opening_results_*.csv'))
   assert sum(str(r['first_team_shot_made']) in ('0','1') for r in eng.read_csv(path))==fixture.known
   print('Opening enrichment UI passed: selected import, backup and saved outcomes.')
+
+from test_research import PostMissModelTests
+sequence_fixture=PostMissModelTests();sequence_fixture.setUp()
+sequence_history=sequence_fixture.history()
+with patch.object(eng,'read_csv',return_value=sequence_history),patch.object(core,'request',side_effect=AssertionError('No network for post-miss comparison')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ # With twelve games the normal UI warmup excludes all evaluations, but data coverage stays visible.
+ next(b for b in at.button if b.label=='Test post-miss scoring model').click().run()
+ assert not at.exception,list(at.exception)
+ assert at.session_state['post_miss_comparison']['path_counts']['opening_fg_missed']==12
+ assert any('No games reached the sequence-data minimum' in x.value for x in at.info)
+ report=research.compare_post_miss(sequence_history,1);report['min_training']=30
+ with patch.object(research,'compare_post_miss',return_value=report):
+  next(b for b in at.button if b.label=='Test post-miss scoring model').click().run()
+ assert not at.exception,list(at.exception)
+ assert any(d.label=='Download post-miss model predictions CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
+ assert not any(d.label=='Download post-miss model predictions CSV' for d in at.get('download_button'))
+ assert any('Run the post-miss model test again' in x.value for x in at.info)
+ print('Post-miss model UI passed: path counts, empty/active reports, exports and stale settings.')

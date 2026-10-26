@@ -36,12 +36,19 @@ def audit(rows):
             for r in game:
                 if not r['player_id'].isdigit() or not r['player'].strip(): raise ValueError('Invalid player')
                 if r['opponent'] not in teams-{r['team']}: raise ValueError('Invalid opponent')
-                for f in (f for f in eng.FIELDS[6:] if f not in ('opening_shot_observed','first_team_shot_made')):
+                for f in (f for f in eng.FIELDS[6:] if f not in ('opening_shot_observed','first_team_shot_made','opening_score_path')):
                     if str(r[f]) not in ('0','1'): raise ValueError('Invalid binary outcome')
                 shot_result=str(r.get('first_team_shot_made',''))
                 if shot_result not in ('','None','0','1'):raise ValueError('Invalid opening-shot result')
                 if shot_result in ('0','1') and int(r['first_team_shot'])!=1:raise ValueError('Opening-shot result belongs to a non-opening shooter')
                 if shot_result=='1' and int(r['first_game_shot']) and not int(r['first_fg_scorer']):raise ValueError('Made game-opening shot contradicts first field-goal scorer')
+            paths={str(r.get('opening_score_path','')) for r in game}
+            if not (paths<= {'','None'} or paths in ({'free_throw_before_fg'},{'opening_fg_made'},{'opening_fg_missed'})):
+                raise ValueError('Invalid or inconsistent opening scoring path')
+            if paths=={'opening_fg_made'} and not any(int(r['first_game_shot']) and int(r['first_scorer']) and int(r['first_fg_scorer']) for r in game):
+                raise ValueError('Made opening path contradicts scorer flags')
+            if paths=={'opening_fg_missed'} and any(int(r['first_game_shot']) and str(r.get('first_team_shot_made',''))=='1' for r in game):
+                raise ValueError('Missed opening path contradicts shot outcome')
             winners=[r for r in game if int(r['first_scorer'])==1]
             if len(winners)!=1: raise ValueError('Expected exactly one first scorer')
             winning_team=winners[0]['team']
@@ -294,7 +301,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
     temper_probabilities({str(i):.1 for i in range(10)},temperature)
     eng.validate_half_life(half_life)
     eng.validate_shot_weight(shot_weight)
-    if model not in ("baseline","recent","lineup","conversion"):raise ValueError("Unknown model.")
+    if model not in ("baseline","recent","lineup","conversion","post_miss"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
     for r in valid: byday[r['date']][r['game_id']].append(r)
@@ -312,12 +319,13 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
             for gid,game in byday[day].items():
                 probs=temper_probabilities(predictions[gid],temperature)
                 conversion_attempts=sum(conversion_counts[(r['team'],r['player_id'])] for r in game)
+                path_counts=[len({r['game_id'] for r in train if r['team']==team and r.get('opening_score_path') in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')}) for team in {r['team'] for r in game}]
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games,'Known conversion training attempts':conversion_attempts,**scoring_stage_metrics(probs,{r['player_id']:r['team'] for r in game},winner['player_id'])})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games,'Known conversion training attempts':conversion_attempts,'Minimum team sequence games':min(path_counts),**scoring_stage_metrics(probs,{r['player_id']:r['team'] for r in game},winner['player_id'])})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
@@ -1100,21 +1108,43 @@ def enrich_opening_results(game_ids,progress=lambda text:None):
                 new=indexed[row['player_id']]
                 facts=('date','team','opponent','first_team_shot','first_game_shot','first_scorer','first_fg_scorer','team_scored_first','tip_first_action')
                 if any(str(row[f])!=str(new[f]) for f in facts):raise ValueError('Stored outcomes differ from provider; no enrichment applied.')
-                value=new.get('first_team_shot_made','');current=row.get('first_team_shot_made','')
-                if str(current) in ('0','1') and str(value)!=str(current):raise ValueError('Existing opening-shot result differs from provider.')
-                if str(current) not in ('0','1') and str(value) in ('0','1'):patch[row['player_id']]=value
+                additions={}
+                for field,allowed in (('first_team_shot_made',('0','1')),('opening_score_path',('free_throw_before_fg','opening_fg_made','opening_fg_missed'))):
+                    value=new.get(field,'');current=row.get(field,'')
+                    if str(current) in allowed and str(value)!=str(current):raise ValueError('Existing opening data differs from provider.')
+                    if str(current) not in allowed and str(value) in allowed:additions[field]=value
+                if additions:patch[row['player_id']]=additions
             if not patch:raise ValueError('No missing opening-shot outcomes could be resolved.')
             updates[gid]=patch
         except (RuntimeError,ValueError,KeyError,TypeError,IndexError) as exc:errors.append({'game_id':gid,'reason':str(exc)})
     backup=None
     if updates:
         if eng.HISTORY.read_bytes()!=original:raise ValueError('History changed during enrichment; nothing was written.')
-        enriched=[{**r,'first_team_shot_made':updates.get(r['game_id'],{}).get(r['player_id'],r.get('first_team_shot_made',''))} for r in history]
+        enriched=[{**r,**updates.get(r['game_id'],{}).get(r['player_id'],{})} for r in history]
         _,bad=audit(enriched)
         if bad:raise ValueError('Enriched history failed validation; nothing was written.')
         fd,name=tempfile.mkstemp(prefix='history_before_opening_results_',suffix='.csv',dir=eng.DATA);backup=Path(name)
         with os.fdopen(fd,'wb') as stream:stream.write(original);stream.flush();os.fsync(stream.fileno())
         fields=list(history[0])
-        if 'first_team_shot_made' not in fields:fields.append('first_team_shot_made')
+        for field in ('first_team_shot_made','opening_score_path'):
+            if field not in fields:fields.append(field)
         eng.write_csv(eng.HISTORY,fields,enriched)
-    return {'attempted':len(selected),'enriched_games':len(updates),'added_results':sum(len(v) for v in updates.values()),'errors':errors,'backup':backup.name if backup else None}
+    return {'attempted':len(selected),'enriched_games':len(updates),'added_results':sum('first_team_shot_made' in fields for patch in updates.values() for fields in patch.values()),'added_paths':sum(any('opening_score_path' in fields for fields in patch.values()) for patch in updates.values()),'errors':errors,'backup':backup.name if backup else None}
+
+
+def compare_post_miss(history,min_training=100):
+    results={label:evaluate(history,min_training,model=model) for label,model in (('Opening conversion','conversion'),('Post-miss challenger','post_miss'))}
+    dates=sorted({r['Date'] for r in results['Opening conversion']['games']})
+    latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    eligible={(r['Date'],r['Game']) for r in results['Opening conversion']['games'] if r['Minimum team sequence games']>=10}
+    summary=[];details=[];comparisons=[]
+    for period in ('All evaluated dates','Newest quarter of dates','After sequence minimum'):
+        subsets={label:[r for r in result['games'] if period=='All evaluated dates' or (r['Date'] in latest if period=='Newest quarter of dates' else (r['Date'],r['Game']) in eligible)] for label,result in results.items()}
+        for label,games in subsets.items():
+            if games:summary.append({'Model':label,'Period':period,'Dates':len({r['Date'] for r in games}),**evaluation_metrics(games)})
+        paired=compare_evaluations({'games':subsets['Opening conversion']},{'games':subsets['Post-miss challenger']})
+        comparisons.extend({'Period':period,'Games':paired['games'],'Dates':paired['dates'],**r} for r in paired['metrics'])
+    for label,result in results.items():details.extend({'Model':label,**r} for r in result['games'])
+    valid,_=audit(history);paths={r['game_id']:r.get('opening_score_path','') for r in valid}
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'details':details,'comparisons':comparisons,
+            'eligible_games':len(eligible),'path_counts':{path:sum(v==path for v in paths.values()) for path in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')}}
