@@ -240,3 +240,71 @@ class StartingProjectionEvidenceTests(unittest.TestCase):
         self.assertEqual(first['players'],second['players'])
         self.assertEqual(history,before)
         self.assertEqual(set(c.projections(history,'BOS','2026-10-25',self.players)),set(first['defaults']))
+
+class NBAConfirmedLineupTests(unittest.TestCase):
+    def setUp(self):
+        self.now=datetime(2027,1,2,21,tzinfo=timezone.utc)
+        self.game={'gameId':'espn_1','_date':'2027-01-02','start_time':'2027-01-02T23:00:00Z','gameStatus':1,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+        self.rosters={t:[{'player_id':str(base+i),'player':f'{t} Player {i}'} for i in range(6)] for t,base in [('BOS',10),('NYK',20)]}
+        self.payload={'games':[{'gameId':'0022600001','gameStatus':1}]}
+        for side,team,tid in [('awayTeam','BOS',100),('homeTeam','NYK',200)]:
+            self.payload['games'][0][side]={'teamAbbreviation':team,'teamId':tid,'players':[
+                {'personId':tid+i,'teamId':tid,'playerName':f'{team} Player {i}','lineupStatus':'Confirmed','rosterStatus':'Active',
+                 'position':position,'timestamp':'2027-01-02T16:00:00'} for i,position in enumerate(('PG','SG','SF','PF','C'))]}
+    def parse(self,payload=None,rosters=None,games=None):
+        return c.parse_nba_confirmed_lineups(self.payload if payload is None else payload,'2027-01-02',[self.game] if games is None else games,self.rosters if rosters is None else rosters,self.now)
+    def test_exact_five_maps_names_not_provider_ids(self):
+        result=self.parse();entry=result['entries']['espn_1']['BOS']
+        self.assertEqual(entry['player_ids'],['10','11','12','13','14'])
+        self.assertEqual(entry['nba_player_ids'],['100','101','102','103','104'])
+        self.assertEqual(entry['source_timestamp'],'2027-01-02T16:00:00')
+        self.assertEqual(result['messages'],[])
+    def test_confirmed_bench_roster_entries_are_not_starters(self):
+        import copy
+        p=copy.deepcopy(self.payload['games'][0]['awayTeam']['players'][0]);p.update(personId=999,position='',playerName='Bench')
+        self.payload['games'][0]['awayTeam']['players'].append(p)
+        self.assertEqual(len(self.parse()['entries']['espn_1']['BOS']['player_ids']),5)
+        for r in self.payload['games'][0]['awayTeam']['players']:r['position']=''
+        self.assertNotIn('BOS',self.parse()['entries']['espn_1'])
+    def test_expected_partial_inactive_and_duplicate_positions_rejected(self):
+        import copy
+        variants=[]
+        for field,value in [('lineupStatus','Expected'),('rosterStatus','Inactive'),('position','SG'),('teamId',999),('personId',101),('timestamp','2027-01-01T16:00:00')]:
+            data=copy.deepcopy(self.payload);data['games'][0]['awayTeam']['players'][0][field]=value;variants.append(data)
+        data=copy.deepcopy(self.payload);data['games'][0]['awayTeam']['players'].pop();variants.append(data)
+        for data in variants:self.assertNotIn('BOS',self.parse(data)['entries']['espn_1'])
+    def test_missing_and_ambiguous_roster_names_are_rejected(self):
+        import copy
+        rosters=copy.deepcopy(self.rosters);rosters['BOS'].pop(0)
+        self.assertNotIn('BOS',self.parse(rosters=rosters)['entries']['espn_1'])
+        rosters=copy.deepcopy(self.rosters);rosters['BOS'].append({'player_id':'999','player':'BOS Player 0'})
+        self.assertNotIn('BOS',self.parse(rosters=rosters)['entries']['espn_1'])
+    def test_wrong_pair_duplicate_game_started_and_wrong_date(self):
+        import copy
+        data=copy.deepcopy(self.payload);data['games']*=2
+        self.assertEqual(self.parse(data)['entries'],{})
+        data=copy.deepcopy(self.payload);data['games'][0]['gameStatus']=2
+        self.assertEqual(self.parse(data)['entries'],{})
+        data=copy.deepcopy(self.payload);data['games'][0]['awayTeam']['teamAbbreviation']='CLE'
+        self.assertEqual(self.parse(data)['entries'],{})
+        self.assertEqual(self.parse(games=[{**self.game,'_date':'2027-01-03'}])['entries'],{})
+        self.assertEqual(self.parse(games=[{**self.game,'research_only':True}])['entries'],{})
+    def test_expiry_edits_reschedule_and_clock_rollback_clear_match(self):
+        from datetime import timedelta
+        entry=self.parse()['entries']['espn_1']['BOS'];selected=self.rosters['BOS'][:5]
+        self.assertTrue(c.nba_confirmation_matches(entry,self.game,selected,self.now))
+        self.assertTrue(c.nba_confirmation_matches(entry,self.game,selected,self.now+timedelta(seconds=300)))
+        for now in (self.now+timedelta(seconds=301),self.now-timedelta(seconds=1)):
+            self.assertFalse(c.nba_confirmation_matches(entry,self.game,selected,now))
+        self.assertFalse(c.nba_confirmation_matches(entry,self.game,self.rosters['BOS'][1:],self.now))
+        self.assertFalse(c.nba_confirmation_matches(entry,{**self.game,'start_time':'2027-01-03T00:00:00Z'},selected,self.now))
+    def test_manual_and_provider_sources_stay_distinct(self):
+        entries=self.parse()['entries']['espn_1'];lineups={t:rs[:5] for t,rs in self.rosters.items()}
+        self.assertEqual(set(c.lineup_confirmation_sources(self.game,lineups,{},entries,self.now).values()),{'NBA feed confirmed'})
+        sources=c.lineup_confirmation_sources(self.game,lineups,{'BOS':True},{},self.now)
+        self.assertEqual(sources,{'BOS':'User confirmed','NYK':'Unconfirmed'})
+    def test_malformed_response_fails_closed_and_no_input_mutation(self):
+        import copy
+        original=copy.deepcopy(self.payload);self.parse();self.assertEqual(original,self.payload)
+        for data in ({},None,{'games':[{'homeTeam':None,'awayTeam':{}}]}):
+            with self.assertRaises(ValueError):self.parse(data if data is not None else {'games':None})

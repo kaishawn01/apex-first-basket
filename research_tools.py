@@ -330,7 +330,7 @@ def journal_connection(path=None):
     return conn
 
 
-def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=None,path=None,now=None,model_forecasts=None):
+def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=None,path=None,now=None,model_forecasts=None,lineup_evidence=None):
     from datetime import timezone
     import math
     now=now or datetime.now(timezone.utc)
@@ -361,7 +361,7 @@ def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=Non
         if any(abs(saved[r['_player_id']]-r['_probability'])>1e-12 for r in rows):
             raise ValueError('Selected forecast does not match the comparison snapshot.')
     snapshot={'game_id':game['gameId'],'date':game['_date'],'start_time':game['start_time'],'saved_at':now.isoformat(),
-              'model_version':model_version,'model':rows[0].get('Model','baseline'),'history_hash':history_hash,'injuries_checked_at':injury_time,
+              'model_version':model_version,'model':rows[0].get('Model','baseline'),'history_hash':history_hash,'injuries_checked_at':injury_time,'lineup_evidence':lineup_evidence or {},
               'lineup_confirmation':'User confirmed','rows':rows}
     if model_forecasts is not None:snapshot['model_forecasts']=model_forecasts
     conn=journal_connection(path)
@@ -447,6 +447,8 @@ def journal_table(records):
         tops=[r['Player'] for r in snap['rows'] if abs(r['_probability']-best)<1e-12]
         table.append({'Game':snap['game_id'],'Date':snap['date'],'Matchup':snap['rows'][0]['Matchup'],
                       'Version':snap['model_version'],'Model':snap.get('model','baseline'),'Saved before tip':snap['saved_at'],
+                      'Lineup verification':' / '.join(t+': '+v.get('method','Not recorded') for t,v in sorted(snap.get('lineup_evidence',{}).items())) or 'Not recorded',
+                      'NBA lineup retrieval UTC':' / '.join(t+': '+v['fetched_at'] for t,v in sorted(snap.get('lineup_evidence',{}).items()) if v.get('fetched_at')) or None,
                       'Top prediction':' / '.join(tops),'Top probability %':100*best,
                       'Winner':outcome['winner'] if outcome else 'Pending',
                       'Top-1 credit':outcome['top1_credit'] if outcome else None,

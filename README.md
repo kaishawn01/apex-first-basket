@@ -1,3 +1,15 @@
+APEX V2.37.0 — Load NBA-feed confirmed starting fives
+
+After loading the slate, use Load NBA-confirmed starters · resets selections. This makes an explicit fresh schedule request and a public NBA daily-lineup request, with no additional API key or paid integration. The action resets selections and manual confirmations and removes previous ranking results. Each usable confirmed five is selected automatically and labeled NBA FEED CONFIRMED. Other teams keep history-based projections and require manual verification. Research matchups cannot use this action.
+
+The parser requires a unique same-date home/away matchup, a pregame NBA status, exactly five positioned players covering PG/SG/SF/PF/C, every one explicitly Confirmed and Active, unique NBA IDs, matching team IDs and one consistent source timestamp dated for the selected day. Confirmed roster entries with blank positions are not treated as starters. Names must match uniquely within the loaded ESPN team roster; NBA and ESPN player IDs are never interchanged. Partial, expected, ambiguous, missing-roster or malformed confirmations are rejected. This is a conservative parser of an observed public feed, not a guaranteed provider contract.
+
+Confirmation is valid only for the exact selected five, date, game, home/away pairing and start time, for five minutes after retrieval and before tipoff. Edits, changed game times, expiry and failed refreshes invalidate provider confirmation. Validity is checked again against the fresh game at ranking and journal-save time. The source timestamp is shown without inventing its timezone, and retrieval time includes UTC offset. Manual confirmation remains separately labeled and can be used when the feed is unavailable. Injury holds are unchanged. Saved journal records retain lineup source, source timestamp, NBA IDs and retrieval time; the journal CSV exposes verification method and retrieval time. Older records remain labeled Not recorded for this provenance.
+
+The public feed may fail, change format or publish late. Nothing polls automatically, and the five-minute freshness limit is a review guardrail, not proof that no late scratch occurred. Refresh close to tipoff. BALLDONTLIE's documented NBA lineups are only available once games begin, so that endpoint is not used for pregame confirmation. Sources: https://www.nba.com/players/todays-lineups ; https://stats.nba.com/js/data/leaders/00_daily_lineups_YYYYMMDD.json ; https://docs.balldontlie.io/#get-game-lineups
+
+Validation: 234 unit tests and all Streamlit smoke checks passed. Tests cover confirmed-vs-expected data, blank-position roster entries, malformed/duplicate identities, roster name ambiguity, partial fives, timestamps, expiry, clock rollback, lineup edits, reschedules, automatic selection, journal provenance and failure invalidation. A live public NBA payload and ESPN schedule/rosters matched a confirmed Cleveland five while Minnesota remained unconfirmed. Windows execution and prediction-accuracy improvement were not tested here.
+
 APEX V2.36.0 — Measure starting-five projection accuracy
 
 Backtest lab adds Test starting-lineup projections. It compares the latest recorded starting five with the five most frequent starters across the last five recorded team games, on identical eligible team lineups. Frequency ties prefer last-game starters, then latest start date, then player ID. Both methods require five prior games within 60 days and a latest game within 30 days. Same-day and later outcomes cannot select players, and evaluation excludes games on or after the selected analysis date.
@@ -297,7 +309,7 @@ The dashboard replaces manual starter CSV editing. The original numbered command
 
 ## Automatic starters
 
-The app preselects each team's last recorded starting five, filtered against its current ESPN roster. A missing roster or lack of history is shown explicitly; you may need to choose players yourself. Injury reports flag selected players but do not silently choose replacements. Confirmations are user-entered, never represented as provider-verified. They reset with a changed lineup, slate reload, date, or new session.
+The app preselects each team's last recorded starting five, filtered against its current ESPN roster. A missing roster or lack of history is shown explicitly; you may need to choose players yourself. Injury reports flag selected players but do not silently choose replacements. Confirmations are user-entered unless a valid fresh NBA feed match is available; labels distinguish these sources. They reset with a changed lineup, slate reload, date, or new session.
 
 ## Data and keys
 

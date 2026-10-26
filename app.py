@@ -123,6 +123,7 @@ if slate_col.button('2 · Load slate & projected starters',type='primary',use_co
                     unavailable_rosters.append(team)
                     roster_map[team]=[{'player_id':r['player_id'],'player':r['player']} for r in eng.recent_starters([r for r in hist if r['date']<day],team)]
             st.session_state['slate']={'day':day,'games':games,'rosters':roster_map,'loaded':datetime.now().isoformat(timespec='seconds'),'errors':errors,'unavailable_rosters':unavailable_rosters,'mode':analysis_mode,'research_teams':[research_away,research_home]}
+            st.session_state.pop('nba_lineups',None)
             st.session_state['revision']=st.session_state.get('revision',0)+1
             st.session_state.pop('results',None)
             st.session_state.pop('prices',None)
@@ -162,22 +163,41 @@ else:
         if not games: st.info('No unstarted regular-season games are available for this date. Choose a future date or use Research matchup to work on the scoring model now. Odds API access does not control this filter.')
     else:
         st.warning('RESEARCH MATCHUP — hypothetical lineups, not a live game or a pregame forecast.')
-    choices={}; confirmations={}
+    if st.button('Load NBA-confirmed starters · resets selections',disabled=analysis_mode=='Research matchup' or not games):
+        st.session_state.pop('nba_lineups',None)
+        st.session_state.pop('results',None)
+        st.session_state['revision']=st.session_state.get('revision',0)+1
+        try:
+            with st.spinner('Checking fresh schedule and NBA starting lineups…'):
+                fresh_games=core.fresh_schedule(day)
+                usable_rosters={team:players for team,players in slate['rosters'].items() if team not in slate.get('unavailable_rosters',[])}
+                st.session_state['nba_lineups']=core.fetch_nba_confirmed_lineups(day,fresh_games,usable_rosters)
+        except (RuntimeError,ValueError,KeyError,TypeError):st.warning('NBA lineup check failed. Provider confirmations were cleared. Review projections or confirm the announced five manually.')
+    nba_state=st.session_state.get('nba_lineups',{})
+    nba_entries=nba_state.get('entries',{}) if nba_state.get('day')==day else {}
+    if nba_state.get('day')==day:
+        st.caption('NBA lineup check: '+nba_state['fetched_at']+' · Provider confirmation expires after five minutes and is checked again before rankings and saving.')
+        for message in nba_state.get('messages',[]):st.info(message)
+    choices={}; confirmations={}; manual_confirmations={}; confirmation_sources={}
+
     for g in games:
         gid=g['gameId']; away,home=(g[s]['teamTricode'] for s in ('awayTeam','homeTeam'))
         start=datetime.fromisoformat(g['start_time'].replace('Z','+00:00')).astimezone(ZoneInfo('America/New_York'))
         with st.expander(f'{away} vs {home} · RESEARCH' if g.get('research_only') else f'{away} @ {home} · {start:%I:%M %p} ET',expanded=True):
-            choices[gid]={}; confirmations[gid]={}
+            choices[gid]={}; confirmations[gid]={}; manual_confirmations[gid]={}
             for col,team in zip(st.columns(2),(away,home)):
                 with col:
                     players=slate['rosters'][team]; byid={p['player_id']:p for p in players}
                     projection=core.projection_evidence(hist,team,day,players,roster_verified=team not in slate.get('unavailable_rosters',[]))
                     defaults=projection['defaults']
+                    nba_entry=nba_entries.get(gid,{}).get(team,{})
+                    nba_players=[byid[pid] for pid in nba_entry.get('player_ids',[]) if pid in byid]
+                    if core.nba_confirmation_matches(nba_entry,g,nba_players):defaults=[p['player_id'] for p in nba_players]
                     selected=st.multiselect(f'{team} · select five starters',list(byid),default=defaults,
                         format_func=lambda pid,byid=byid:byid[pid]['player'],max_selections=5,
                         key=f'five:{day}:{gid}:{team}:{st.session_state.get("revision",0)}')
                     choices[gid][team]=[byid[pid] for pid in selected]
-                    st.caption('Projection: latest valid recorded five on the loaded roster, only when history is at most 30 days old. This review cutoff is a guardrail, not a validated accuracy threshold. No provider-confirmed starters are fetched. Injuries are flagged; replacements require your review.')
+                    st.caption('Projection: latest valid recorded five on the loaded roster, only when history is at most 30 days old. This review cutoff is a guardrail, not a validated accuracy threshold. Use the NBA lineup button to check for provider-confirmed starters. Injuries are flagged; replacements require your review.')
                     if projection['last_game_date']:st.caption(f"Last recorded team game: {projection['last_game_date']} · {projection['history_age_days']} days before the selected date.")
                     for warning in projection['warnings']:st.warning(warning)
                     st.markdown('**Recent starting-lineup evidence**')
@@ -192,11 +212,18 @@ else:
                         if report: st.warning(f"{report['player']}: {report['status']} — {report['description']}")
                     if g.get('research_only'):
                         confirmations[gid][team]=False
+                        manual_confirmations[gid][team]=False
                         st.caption('HYPOTHETICAL STARTING FIVE')
                     else:
                         confirmed=st.checkbox(f'I verified {team}’s announced starters for this game',key=f'confirm:{day}:{gid}:{team}:{st.session_state.get("revision",0)}:{",".join(sorted(selected))}',disabled=len(selected)!=5)
-                        confirmations[gid][team]=confirmed and len(selected)==5
-                        st.caption('USER CONFIRMED' if confirmations[gid][team] else 'PROJECTED / UNCONFIRMED')
+                        manual_confirmations[gid][team]=confirmed and len(selected)==5
+                        provider_confirmed=core.nba_confirmation_matches(nba_entry,g,choices[gid][team])
+                        confirmations[gid][team]=provider_confirmed or manual_confirmations[gid][team]
+                        st.caption('NBA FEED CONFIRMED' if provider_confirmed else 'USER CONFIRMED' if confirmed else 'PROJECTED / UNCONFIRMED')
+                        if nba_entry:
+                            st.caption('NBA source timestamp (timezone not supplied by feed): '+nba_entry['source_timestamp'])
+                            if not provider_confirmed:st.info('NBA confirmation is expired, does not match this five, or the game changed. Reload NBA starters or verify manually.')
+            confirmation_sources[gid]=core.lineup_confirmation_sources(g,choices[gid],manual_confirmations[gid],nba_entries.get(gid,{}))
     st.markdown('### Market & rankings')
     st.caption('Refresh odds shortly before running rankings. Prices expire after 10 minutes in this dashboard.')
     if st.button('Fetch FanDuel first-basket odds',disabled=not games or analysis_mode=='Research matchup'):
@@ -213,7 +240,7 @@ else:
     prices=prices_state.get('values',{}) if prices_state.get('day')==day and datetime.now().timestamp()-prices_state.get('fetched',0)<600 else {}
     if analysis_mode=='Research matchup':prices={}
     st.caption(f'{len(prices)} current player prices available. Rankings can run without prices; EV stays blank.')
-    signature=json.dumps({'day':day,'choices':choices,'confirmed':confirmations,'odds_time':prices_state.get('fetched') if prices else None,'injury_time':inj.get('time'),'history':research.fingerprint(hist),'model':selected_model,'workspace':analysis_mode},sort_keys=True)
+    signature=json.dumps({'day':day,'choices':choices,'confirmed':confirmations,'confirmation_sources':confirmation_sources,'nba_fetched':nba_state.get('fetched_at'),'odds_time':prices_state.get('fetched') if prices else None,'injury_time':inj.get('time'),'history':research.fingerprint(hist),'model':selected_model,'workspace':analysis_mode},sort_keys=True)
     if st.button('3 · Run rankings',type='primary',disabled=not games):
         st.session_state.pop('results',None)
         try:
@@ -223,7 +250,9 @@ else:
                 current=fresh.get(g['gameId'])
                 if not current or (not current.get('research_only') and not core.upcoming(current)):
                     st.warning(f"{g['gameId']}: started or no longer scheduled; skipped."); continue
-                bundle={m:core.rank_game(hist,current,choices[g['gameId']],confirmations[g['gameId']],prices if m==selected_model else {},reports,model=m) for m in ('baseline','recent','lineup')}
+                sources=core.lineup_confirmation_sources(current,choices[g['gameId']],manual_confirmations[g['gameId']],nba_entries.get(g['gameId'],{}))
+                if sources!=confirmation_sources[g['gameId']]:raise ValueError('Lineup confirmation changed or expired. Refresh the lineup and run rankings again.')
+                bundle={m:core.rank_game(hist,current,choices[g['gameId']],{t:v!='Unconfirmed' for t,v in sources.items()},prices if m==selected_model else {},reports,model=m) for m in ('baseline','recent','lineup')}
                 model_bundles[g['gameId']]=bundle
                 rows.extend(bundle[selected_model])
             st.session_state['results']={'rows':rows,'model_bundles':model_bundles,'signature':signature,'time':datetime.now().isoformat(timespec='seconds')}
@@ -327,7 +356,10 @@ else:
                     rows=[r for r in result['rows'] if r['_game_id']==gid]
                     try:
                         bundle=result['model_bundles'][gid]
-                        inserted=research.save_forecast(game,rows,confirmations.get(gid,{}),updater.current_version(),research.fingerprint(hist),inj.get('time'),model_forecasts=bundle)
+                        sources=core.lineup_confirmation_sources(game,choices[gid],manual_confirmations[gid],nba_entries.get(gid,{}))
+                        if sources!=confirmation_sources[gid]:raise ValueError('Lineup confirmation changed or expired; refresh and rerun rankings before saving.')
+                        evidence={t:({'method':v,**nba_entries[gid][t]} if v=='NBA feed confirmed' else {'method':v}) for t,v in sources.items()}
+                        inserted=research.save_forecast(game,rows,{t:v!='Unconfirmed' for t,v in sources.items()},updater.current_version(),research.fingerprint(hist),inj.get('time'),model_forecasts=bundle,lineup_evidence=evidence)
                         saved+=int(inserted);duplicates+=int(not inserted)
                     except ValueError as exc:st.warning(str(exc))
                 st.success(f'Saved {saved} new forecasts. {duplicates} already had a saved forecast and were left unchanged.')

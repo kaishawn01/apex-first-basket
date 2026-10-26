@@ -328,3 +328,84 @@ def matchup_leader_board(rows):
                       'Fewest leader starts':min(r['Starts'] for r in leaders),
                       'Fewest observed shot starts':min(r['Observed opening-shot starts'] for r in leaders)})
     return sorted(board,key=lambda r:(-r['Each leader %'],r['Matchup'],r['Game']))
+
+
+NBA_LINEUP_URL='https://stats.nba.com/js/data/leaders/00_daily_lineups_{day}.json'
+
+
+def parse_nba_confirmed_lineups(payload,day,games,rosters,now=None):
+    """Map only explicit five-position NBA confirmations to unique ESPN roster names."""
+    from datetime import date
+    date.fromisoformat(day)
+    now=now or datetime.now(timezone.utc)
+    if now.tzinfo is None:raise ValueError('Lineup retrieval time must include a timezone.')
+    if not isinstance(payload,dict) or not isinstance(payload.get('games'),list):raise ValueError('NBA lineup response is unreadable.')
+    if any(not isinstance(g,dict) or any(not isinstance(g.get(side),dict) for side in ('awayTeam','homeTeam')) for g in payload['games']):raise ValueError('NBA lineup game structure is unreadable.')
+    entries={};messages=[]
+    for game in games:
+        gid=game['gameId'];away=game['awayTeam']['teamTricode'];home=game['homeTeam']['teamTricode']
+        if game.get('research_only') or game.get('_date')!=day or not upcoming(game,now):continue
+        candidates=[g for g in payload['games'] if isinstance(g,dict) and
+                    g.get('awayTeam',{}).get('teamAbbreviation')==away and g.get('homeTeam',{}).get('teamAbbreviation')==home]
+        scheduled=[g for g in games if g.get('_date')==day and g.get('awayTeam',{}).get('teamTricode')==away and g.get('homeTeam',{}).get('teamTricode')==home]
+        if len(candidates)!=1 or len(scheduled)!=1:
+            messages.append(gid+': no unique NBA game match for this date and home/away pairing.');continue
+        source=candidates[0]
+        if sum(g.get('gameId')==source.get('gameId') for g in payload['games'])!=1:
+            messages.append(gid+': duplicate NBA game identity.');continue
+        if type(source.get('gameStatus')) is not int or source['gameStatus']!=1 or not str(source.get('gameId','')).isdigit():
+            messages.append(gid+': NBA game is not explicitly pregame.');continue
+        for side,team in (('awayTeam',away),('homeTeam',home)):
+            try:
+                data=source[side];players=data['players']
+                if type(data.get('teamId')) is not int or data['teamId']<=0:raise ValueError('Invalid NBA team ID')
+                if not isinstance(players,list):raise ValueError('Invalid player list')
+                positioned=[r for r in players if r.get('position')]
+                if len(positioned)!=5 or {r.get('position') for r in positioned}!={'PG','SG','SF','PF','C'}:
+                    raise ValueError('No complete five-position starting lineup')
+                if any(r.get('lineupStatus')!='Confirmed' or r.get('rosterStatus')!='Active' for r in positioned):
+                    raise ValueError('Starting five is not fully confirmed and active')
+                source_ids=[str(r.get('personId','')) for r in positioned]
+                if len(set(source_ids))!=5 or any(not pid.isdigit() or int(pid)<=0 for pid in source_ids):raise ValueError('Invalid NBA player IDs')
+                if any(r.get('teamId')!=data['teamId'] for r in positioned):raise ValueError('NBA player team mismatch')
+                timestamps={r['timestamp'] for r in positioned}
+                if len(timestamps)!=1 or any(datetime.fromisoformat(t.replace('Z','+00:00')).date().isoformat()!=day for t in timestamps):
+                    raise ValueError('Mixed or wrong-date lineup timestamps')
+                roster=rosters.get(team,[]);mapped=[]
+                for player in positioned:
+                    name=eng.norm(player['playerName'])
+                    matches=[r for r in roster if name and eng.norm(r['player'])==name]
+                    if len(matches)!=1:raise ValueError('Starter name does not uniquely match the loaded team roster')
+                    mapped.append(matches[0]['player_id'])
+                if len(set(mapped))!=5:raise ValueError('Duplicate mapped player IDs')
+                entries.setdefault(gid,{})[team]={'game_id':gid,'date':day,'start_time':game['start_time'],
+                    'home':home,'away':away,'team':team,'player_ids':mapped,'nba_player_ids':source_ids,
+                    'nba_game_id':str(source['gameId']),'source':'NBA daily lineup feed','source_timestamp':next(iter(timestamps)),
+                    'fetched_at':now.isoformat(),'source_url':NBA_LINEUP_URL.format(day=day.replace('-',''))}
+            except (ValueError,KeyError,TypeError,AttributeError):
+                messages.append(team+': no usable confirmed five; keep the lineup unconfirmed or verify it manually.')
+    return {'day':day,'entries':entries,'messages':messages,'fetched_at':now.isoformat()}
+
+
+def fetch_nba_confirmed_lineups(day,games,rosters):
+    from datetime import date
+    date.fromisoformat(day)
+    payload=request(NBA_LINEUP_URL.format(day=day.replace('-','')))
+    return parse_nba_confirmed_lineups(payload,day,games,rosters)
+
+
+def nba_confirmation_matches(entry,game,selected,now=None):
+    now=now or datetime.now(timezone.utc)
+    try:
+        age=(now-datetime.fromisoformat(entry['fetched_at'])).total_seconds()
+        ids=[p['player_id'] for p in selected]
+        return (not game.get('research_only') and upcoming(game,now) and 0<=age<=300 and
+                entry['game_id']==game['gameId'] and entry['date']==game['_date'] and entry['start_time']==game['start_time'] and
+                entry['home']==game['homeTeam']['teamTricode'] and entry['away']==game['awayTeam']['teamTricode'] and
+                len(ids)==5 and len(set(ids))==5 and set(ids)==set(entry['player_ids']))
+    except (KeyError,TypeError,ValueError):return False
+
+
+def lineup_confirmation_sources(game,lineups,manual,provider,now=None):
+    return {team:('NBA feed confirmed' if nba_confirmation_matches(provider.get(team,{}),game,players,now)
+                   else 'User confirmed' if manual.get(team) and len(players)==5 else 'Unconfirmed') for team,players in lineups.items()}

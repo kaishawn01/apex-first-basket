@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  evidence_tables=[d.value for d in at.dataframe if 'Starts in recent recorded games' in d.value.columns]
  assert len(evidence_tables)==2
  assert all(sum(t['Selected'])==5 for t in evidence_tables)
- assert any('No provider-confirmed starters' in x.value for x in at.caption)
+ assert any('Use the NBA lineup button' in x.value for x in at.caption)
  assert any(d.label=='Download matchup model comparison CSV' for d in at.get('download_button'))
  model_table=next(d.value for d in at.dataframe if 'Range (percentage points)' in d.value.columns)
  assert len(model_table)==10
@@ -313,3 +313,34 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  assert not any(d.label=='Download lineup projection details CSV' for d in at.get('download_button'))
  assert any('Run the starting-lineup projection test again' in x.value for x in at.info)
  print('Lineup validation UI passed: counts, export, no API calls and stale-date hiding.')
+
+from test_dashboard import NBAConfirmedLineupTests
+fixture=NBAConfirmedLineupTests();fixture.setUp()
+provider_game={**game,'gameId':fixture.game['gameId']}
+parsed=core.parse_nba_confirmed_lineups(fixture.payload,'2027-01-02',[provider_game],players)
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[provider_game]),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fetch_nba_confirmed_lineups',return_value=parsed):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ next(b for b in at.button if b.label=='Load NBA-confirmed starters · resets selections').click().run()
+ assert not at.exception,list(at.exception)
+ assert sum(x.value=='NBA FEED CONFIRMED' for x in at.caption)==2
+ assert all(not cb.value for cb in at.checkbox if cb.label.startswith('I verified'))
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ assert not at.exception,list(at.exception)
+ next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
+ assert not at.exception,list(at.exception)
+ saved=research.journal_records()
+ assert len(saved)==1
+ assert {v['method'] for v in saved[0]['snapshot']['lineup_evidence'].values()}=={'NBA feed confirmed'}
+ assert 'NBA feed confirmed' in research.journal_table(saved)[0]['Lineup verification']
+ assert research.journal_table(saved)[0]['NBA lineup retrieval UTC']
+ next(m for m in at.multiselect if m.label.startswith('BOS')).set_value(['10','11','12','13','15']).run()
+ assert sum(x.value=='NBA FEED CONFIRMED' for x in at.caption)==1
+ assert any('Inputs changed' in x.value for x in at.info)
+ with patch.object(core,'fetch_nba_confirmed_lineups',side_effect=RuntimeError('Network unavailable')):
+  next(b for b in at.button if b.label=='Load NBA-confirmed starters · resets selections').click().run()
+ assert not at.exception,list(at.exception)
+ assert not any(x.value=='NBA FEED CONFIRMED' for x in at.caption)
+ assert any('Provider confirmations were cleared' in x.value for x in at.warning)
+ print('NBA confirmed-lineup UI passed: load, automatic confirmation, journal provenance, edit and failure invalidation.')
