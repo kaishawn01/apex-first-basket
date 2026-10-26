@@ -1,3 +1,11 @@
+APEX V2.20.0 — Warn on thin usable shot history
+
+Dashboard rankings now mark HOLD: SHOT COVERAGE when the existing lineup, injury and total-sample checks pass but a player has fewer than eight observed opening-shot starts. Recent-form and lineup models also require at least eight decayed observed starts, using their 90-day half-life. These are heuristic sample safeguards, not statistically validated accuracy thresholds. The lineup model's coverage safeguard uses overall observed-start decay; it does not imply sufficient similar-lineup evidence, which remains separately displayed.
+
+Rankings/export include weighted observed shot starts and a shot-coverage explanation, including for hypothetical research matchups and rows already held for another reason. Holds use full precision, never rounded display values. Higher-priority lineup, injury and sample holds remain intact. Saved journal rows retain the displayed status; new coverage holds count in the journal's sample-hold total. Existing journal snapshots remain unchanged. Model probabilities and first-score calculations are unchanged in this release. This guard applies to the Streamlit dashboard; the legacy command-line tool retains its older total-start sample checks.
+
+Validation: 125 unit tests and all Streamlit smoke checks passed. Added checks cover sparse shot data despite sufficient total starts, raw-versus-decayed sample boundaries, warning priority, research-mode explanations, unchanged probabilities, and journal hold counts. Windows execution was not tested here.
+
 APEX V2.19.0 — Separate unknown opening shots from observed misses
 
 New history imports record whether the team's first recorded field-goal attempt has an identified shooter in the box score, including bench players. All three models now use only observed opening-shot starts in their shot-rate denominators. First-score rates and total start counts retain all valid games. Lineup-context shot updates apply the same coverage rule with their context weights.

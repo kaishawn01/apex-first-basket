@@ -342,7 +342,7 @@ def journal_table(records):
                       'Log loss':('Infinite (zero-probability winner)' if outcome['outside_field'] else outcome['log_loss']) if outcome else None,
                       'Lineup matched':outcome['lineup_matches'] if outcome else None,
                       'Outside field':outcome['outside_field'] if outcome else None,
-                      'Sample holds':sum(r['Status'] in ('HOLD: SAMPLE','HOLD: WEIGHTED SAMPLE') for r in snap['rows'])})
+                      'Sample holds':sum(r['Status'] in ('HOLD: SAMPLE','HOLD: WEIGHTED SAMPLE','HOLD: SHOT COVERAGE') for r in snap['rows'])})
     return table
 
 

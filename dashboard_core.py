@@ -134,6 +134,13 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
     predictions=eng.predict_first_score(hist,lineups,game["_date"],model)
     stats = eng.team_stats(hist)
     shot_coverage=eng.opening_shot_games(hist)
+    shot_samples={}
+    for r in hist:
+        if (r["game_id"],r["team"]) not in shot_coverage:continue
+        key=(r["team"],r["player_id"])
+        count,mass=shot_samples.get(key,(0,0.0))
+        age=(datetime.fromisoformat(game["_date"])-datetime.fromisoformat(r["date"])).days
+        shot_samples[key]=(count+1,mass+2**(-age/90.0))
     pa = eng.first_team_probability(away, home, stats)
     baseline_pa = pa
     recent_stats = eng.recent_team_stats(hist,game["_date"])
@@ -153,17 +160,22 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
             p=predictions[player["player_id"]]
             price=prices.get((game['gameId'],eng.norm(player['player'])))
             report=injury_for(reports,team,player['player'])
+            shot_count,shot_mass=shot_samples.get((team,player['player_id']),(0,0.0))
+            shot_insufficient=shot_count<8 or (model!='baseline' and shot_mass<8)
+            shot_note=('Below 8 observed opening-shot starts' if shot_count<8 else 'Below 8 decayed opening-shot starts' if model!='baseline' and shot_mass<8 else 'Meets shot-count safeguard; accuracy unvalidated')
             enough=all(stats.get(t,{}).get('n',0)>=10 for t in (away,home)) and starts>=8
             status='HOLD: LINEUP' if not all_confirmed else 'HOLD: INJURY REVIEW' if injury_conflict else 'HOLD: SAMPLE' if not enough else 'NO PRICE' if not price else 'RESEARCH ONLY'
             if model!='baseline' and (recent[player['player_id']][5]<8 or any(recent_stats.get(t,{}).get('weighted_games',0)<10 for t in (away,home))) and status not in ('HOLD: LINEUP','HOLD: INJURY REVIEW'):
                 status='HOLD: WEIGHTED SAMPLE'
+            if shot_insufficient and not status.startswith('HOLD:'):
+                status='HOLD: SHOT COVERAGE'
             if game.get('research_only'):
                 status='RESEARCH MATCHUP';price=None;prices={}
             fair=100*(1-p)/p if p<=.5 else -100*p/(1-p)
             rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'_research_only':bool(game.get('research_only')),'Model':model,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
                          'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Within-team share %':round(share*100,2),'Similar-lineup starts':context[player['player_id']][8] if context else None,'Weighted lineup starts':round(context[player['player_id']][9],1) if context else None,'Other-lineup starts':context[player['player_id']][10] if context else None,'Weighted other-lineup starts':round(context[player['player_id']][11],1) if context else None,'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
                          'Model EV %':round((p*price[0]-1)*100,2) if price else None,
-                         'Starts':starts,'Observed opening-shot starts':sum(r['team']==team and r['player_id']==player['player_id'] and (r['game_id'],team) in shot_coverage for r in hist),'Team games':stats.get(team,{}).get('n',0),
+                         'Starts':starts,'Observed opening-shot starts':shot_count,'Weighted observed shot starts':round(shot_mass,3),'Shot coverage note':shot_note,'Team games':stats.get(team,{}).get('n',0),
                          'Current-season starts':sum(r['team']==team and r['player_id']==player['player_id'] for r in current),
                          'Injury':report['status'] if report else 'Not flagged / not verified',
                          'Status':status,'Odds updated':price[3] if price else ''})

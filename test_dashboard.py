@@ -81,3 +81,55 @@ class ModelComparisonTests(unittest.TestCase):
         result=c.compare_model_forecasts(self.bundle)
         self.assertEqual(result['leaders'][0]['Players tied at top'],1)
         self.assertEqual(self.bundle,original)
+
+class ShotCoverageGuardTests(unittest.TestCase):
+    def setUp(self):
+        from test_research import game_rows
+        from datetime import date,timedelta
+        fixture=DashboardTests();fixture.setUp()
+        self.game=fixture.game;self.lineups=fixture.lineups
+        self.history=[r for i in range(12) for r in game_rows(str(i),(date(2026,10,24)-timedelta(days=i)).isoformat())]
+    def make_unknown(self,keep):
+        for row in self.history:
+            if row['team']=='BOS' and int(row['game_id'])>=keep:
+                row['first_team_shot']=0;row['first_game_shot']=0;row['opening_shot_observed']=0
+    def rank(self,model='baseline',confirmed=None,reports=None,game=None):
+        return c.rank_game(self.history,game or self.game,self.lineups,{'BOS':True,'NYK':True} if confirmed is None else confirmed,{},reports or [],model)
+    def test_many_starts_with_sparse_shots_are_held_in_all_models(self):
+        self.make_unknown(2)
+        for model in ('baseline','recent','lineup'):
+            rows=self.rank(model)
+            bos=[r for r in rows if r['Team']=='BOS']
+            self.assertTrue(all(r['Status']=='HOLD: SHOT COVERAGE' for r in bos))
+            self.assertTrue(all(r['Starts']==12 and r['Observed opening-shot starts']==2 for r in bos))
+            self.assertTrue(all(r['Status']=='NO PRICE' for r in rows if r['Team']=='NYK'))
+    def test_raw_eight_passes_baseline_but_decayed_eight_does_not(self):
+        self.make_unknown(8)
+        baseline=self.rank();recent=self.rank('recent')
+        self.assertTrue(all(r['Status']=='NO PRICE' for r in baseline))
+        for row in recent:
+            if row['Team']=='BOS':
+                self.assertEqual(row['Status'],'HOLD: SHOT COVERAGE')
+                self.assertLess(row['Weighted observed shot starts'],8)
+                self.assertIn('decayed',row['Shot coverage note'])
+    def test_higher_priority_holds_and_research_notes_preserved(self):
+        self.make_unknown(0)
+        self.assertTrue(all(r['Status']=='HOLD: LINEUP' for r in self.rank(confirmed={})))
+        reports=[{'team':'NYK','player':'NYK Player 0','status':'Out'}]
+        self.assertTrue(all(r['Status']=='HOLD: INJURY REVIEW' for r in self.rank(reports=reports)))
+        rows=self.rank(game={**self.game,'research_only':True})
+        self.assertTrue(all(r['Status']=='RESEARCH MATCHUP' for r in rows))
+        self.assertTrue(all('Below 8' in r['Shot coverage note'] for r in rows if r['Team']=='BOS'))
+    def test_guard_never_changes_probabilities(self):
+        import first_basket_engine as eng
+        self.make_unknown(2)
+        for model in ('baseline','recent','lineup'):
+            expected=eng.predict_first_score(self.history,self.lineups,self.game['_date'],model)
+            self.assertEqual({r['_player_id']:r['_probability'] for r in self.rank(model)},expected)
+    def test_coverage_holds_count_in_journal_without_regrading(self):
+        import research_tools as rt
+        self.make_unknown(2)
+        for model in ('baseline','recent','lineup'):
+            rows=self.rank(model)
+            record={'snapshot':{'game_id':self.game['gameId'],'date':self.game['_date'],'model_version':'2.20.0','model':model,'saved_at':'test','rows':rows},'outcome':None}
+            self.assertEqual(rt.journal_table([record])[0]['Sample holds'],5)

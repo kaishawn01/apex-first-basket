@@ -29,6 +29,8 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
  assert len(ranking)==10
  assert all(ranking['Observed opening-shot starts']==1)
+ assert all(ranking['Weighted observed shot starts']<1)
+ assert all(ranking['Shot coverage note']=='Below 8 observed opening-shot starts')
  assert any(d.label=='Download matchup model comparison CSV' for d in at.get('download_button'))
  model_table=next(d.value for d in at.dataframe if 'Range (percentage points)' in d.value.columns)
  assert len(model_table)==10
