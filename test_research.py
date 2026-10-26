@@ -39,7 +39,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(seen,[{'2026-10-20'}])
     def test_equal_model_baseline_and_ties(self):
         rows=game_rows('a','2026-10-20')+game_rows('b','2026-10-21')
-        def equal(history,players,team):return [(p,.2,0,0,0) for p in players]
+        def equal(history,players,team,shot_weight=.65):return [(p,.2,0,0,0) for p in players]
         with patch.object(eng,'first_team_probability',return_value=.5),patch.object(eng,'player_weights',side_effect=equal):
             result=rt.evaluate(rows,1)
         self.assertAlmostEqual(result['metrics']['Log loss'],math.log(10))
@@ -851,3 +851,51 @@ class OpeningPlayIntegrityTests(unittest.TestCase):
                 updated,errors=rt.refresh_journal(path)
             self.assertEqual(updated,0);self.assertEqual(len(errors),1)
             self.assertIsNone(rt.journal_records(path)[0]['outcome'])
+
+class SignalComparisonTests(unittest.TestCase):
+    def setUp(self):
+        self.history=game_rows('a','2026-10-20')
+        for row in self.history:
+            row['first_team_shot']=int(row['player_id'] in ('11','21'))
+            row['first_game_shot']=int(row['player_id']=='11')
+        self.lineups={t:[dict(r) for r in self.history if r['team']==t] for t in ('BOS','NYK')}
+    def test_pure_signals_change_player_leader_but_preserve_team_mass(self):
+        for model in ('baseline','recent','lineup'):
+            results={w:eng.predict_first_score(self.history,self.lineups,'2026-10-21',model,shot_weight=w) for w in (0.,.65,1.)}
+            for w,probs in results.items():
+                self.assertAlmostEqual(sum(probs.values()),1)
+                self.assertAlmostEqual(sum(probs[p['player_id']] for p in self.lineups['BOS']),sum(results[.65][p['player_id']] for p in self.lineups['BOS']))
+            self.assertGreater(results[1.]['11'],results[1.]['10'])
+            self.assertGreater(results[0.]['10'],results[0.]['11'])
+            self.assertEqual(eng.predict_first_score(self.history,self.lineups,'2026-10-21',model),results[.65])
+    def test_baseline_default_matches_original_rate_blend(self):
+        rows=eng.player_weights(self.history,self.lineups['BOS'],'BOS')
+        raw=[.65*(int(i==1)+1)/6+.35*(int(i==0)+.5)/6 for i in range(5)]
+        for row,w in zip(rows,raw):self.assertAlmostEqual(row[1],w/sum(raw))
+    def test_experiment_matches_regular_evaluation_and_keeps_same_games(self):
+        from datetime import date,timedelta
+        history=[r for i in range(8) for r in game_rows(str(i),(date(2026,8,1)+timedelta(days=i)).isoformat())]
+        for model in ('baseline','recent','lineup'):
+            report=rt.compare_scoring_signals(history,1,model)
+            regular=rt.evaluate(history,1,model)
+            blend=[{k:v for k,v in r.items() if k not in ('Signal variant','Shot weight','Newest quarter')} for r in report['details'] if r['Signal variant']=='Current blend']
+            self.assertEqual(blend,regular['games'])
+            groups=[{(r['Game'],r['Date']) for r in report['details'] if r['Signal variant']==label} for label in ('Current blend','Opening shot only','First score only')]
+            self.assertEqual(groups[0],groups[1]);self.assertEqual(groups[1],groups[2])
+            self.assertEqual(len(report['summary']),6)
+            self.assertEqual(len(report['recent_comparisons']),8)
+    def test_all_signal_variants_exclude_same_day_future_and_old_history(self):
+        extra=game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
+        for model in ('baseline','recent','lineup'):
+            for w in (0.,1.):
+                self.assertEqual(eng.predict_first_score(self.history,self.lineups,'2026-10-21',model,w),eng.predict_first_score(self.history+extra,self.lineups,'2026-10-21',model,w))
+    def test_invalid_weights_and_empty_history(self):
+        for w in (-.1,1.1,float('nan'),float('inf'),True,'0.5'):
+            with self.assertRaises(ValueError):eng.predict_matchups([],{},'2026-10-21',shot_weight=w)
+            with self.assertRaises(ValueError):rt.evaluate([],1,shot_weight=w)
+        self.assertEqual(rt.compare_scoring_signals([],1)['summary'],[])
+    def test_mismatched_games_rejected(self):
+        first={'games':[{'Game':'a','Date':'2026-10-20'}],'excluded':[]}
+        other={'games':[],'excluded':[]}
+        with patch.object(rt,'evaluate',side_effect=[first,other,other]):
+            with self.assertRaisesRegex(ValueError,'identical'):rt.compare_scoring_signals([],1)

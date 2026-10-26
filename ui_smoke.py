@@ -105,6 +105,19 @@ with patch.object(eng,'read_csv',return_value=history2):
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
  assert any('Run full model validation again' in x.value for x in at.info)
  assert not any('Period' in d.value.columns for d in at.dataframe)
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ with patch.object(core,'request',side_effect=AssertionError('Signal experiment must not fetch APIs')):
+  next(b for b in at.button if b.label=='Compare opening-shot vs first-score signals').click().run()
+ assert not at.exception,list(at.exception)
+ signal=at.session_state['signal_comparison']
+ assert len(signal['summary'])==6
+ assert signal['model']=='baseline'
+ assert next(s for s in at.selectbox if s.label=='Scoring model').value=='baseline'
+ assert any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))
+ assert any(d.label=='Download signal predictions CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Scoring model').set_value('recent').run()
+ assert any('Run the signal comparison again' in x.value for x in at.info)
+ assert not any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))
  print('Backtest UI passed: full validation, recent-period counts, exports and stale-report reset.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):

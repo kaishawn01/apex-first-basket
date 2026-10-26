@@ -207,7 +207,8 @@ def scoring_stage_summary(games):
             'Within-team loss minus equal five':player-math.log(5)}
 
 
-def evaluate(rows,min_training=100,model="baseline"):
+def evaluate(rows,min_training=100,model="baseline",shot_weight=.65):
+    eng.validate_shot_weight(shot_weight)
     if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
@@ -218,7 +219,7 @@ def evaluate(rows,min_training=100,model="baseline"):
         training_games=len({r['game_id'] for r in train})
         if training_games>=min_training:
             matchups={gid:{t:[r for r in game if r['team']==t] for t in {r['team'] for r in game}} for gid,game in byday[day].items()}
-            predictions=eng.predict_matchups(train,matchups,day,model)
+            predictions=eng.predict_matchups(train,matchups,day,model,shot_weight=shot_weight)
             for gid,game in byday[day].items():
                 probs=predictions[gid]
                 winner=next(r for r in game if int(r['first_scorer']))
@@ -236,7 +237,7 @@ def evaluate(rows,min_training=100,model="baseline"):
         if subset: bins.append({'Probability band':f'{lo:.0%}–{min(hi,1):.0%}','Player predictions':len(subset),'Mean predicted %':100*sum(p for p,y in subset)/len(subset),'Observed first-score %':100*sum(y for p,y in subset)/len(subset)})
     n=len(results)
     metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Top-3 hit %':100*sum(r['Top-3 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
-    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model}
+    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model,'shot_weight':shot_weight}
 
 # Forward journal: local, immutable pregame forecasts; outcomes are stored separately.
 def journal_connection(path=None):
@@ -580,3 +581,30 @@ def validation_report(history, min_training=100, progress=lambda text:None):
         paired.extend({'Candidate':model,**r} for r in comparison['metrics'])
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'monthly':monthly,'details':details,
             'scoring_stages':stages,'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
+
+
+def compare_scoring_signals(history,min_training=100,model='baseline',progress=lambda text:None):
+    """Fixed signal-removal experiment; does not fit weights or select a live model."""
+    variants={'Current blend':.65,'Opening shot only':1.0,'First score only':0.0}
+    results={}
+    for label,weight in variants.items():
+        progress('Testing '+label.lower()+'…')
+        results[label]=evaluate(history,min_training,model,shot_weight=weight)
+    expected={(r['Game'],r['Date']) for r in results['Current blend']['games']}
+    if any({(r['Game'],r['Date']) for r in result['games']}!=expected or len(result['games'])!=len(expected) for result in results.values()):
+        raise ValueError('Signal comparisons require identical games and dates.')
+    dates=sorted({d for g,d in expected})
+    newest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[];details=[];recent={}
+    for label,result in results.items():
+        games=result['games'];latest=[r for r in games if r['Date'] in newest]
+        recent[label]={'games':latest}
+        for period,subset in [('All evaluated dates',games),('Newest quarter of dates',latest)]:
+            if subset:summary.append({'Signal variant':label,'Period':period,'Shot weight':variants[label],**evaluation_metrics(subset),**scoring_stage_summary(subset)})
+        details.extend({'Signal variant':label,'Shot weight':variants[label],'Newest quarter':r['Date'] in newest,**r} for r in games)
+    paired=[]
+    for label in ('Opening shot only','First score only'):
+        paired.extend({'Signal variant':label,**r} for r in compare_evaluations(recent['Current blend'],recent[label])['metrics'])
+    return {'fingerprint':fingerprint(history),'model':model,'min_training':min_training,'summary':summary,
+            'details':details,'recent_comparisons':paired,'latest_dates':len(newest),
+            'excluded_games':len(results['Current blend']['excluded'])}

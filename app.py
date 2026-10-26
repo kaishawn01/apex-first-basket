@@ -351,7 +351,7 @@ with st.expander('Data quality & coverage'):
                 progress=st.empty()
                 with st.spinner('Checking replacement game data…'):
                     st.session_state['repair_report']=research.repair_history(repair_ids,progress=progress.info)
-                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report'):st.session_state.pop(key,None)
+                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report','signal_comparison'):st.session_state.pop(key,None)
                 st.rerun()
             except (RuntimeError,ValueError,OSError) as exc:st.error(str(exc))
 
@@ -379,6 +379,24 @@ with st.expander('Backtest lab · test the model before trusting it'):
     if st.button('Run walk-forward evaluation'):
         with st.spinner('Evaluating historical games…'):
             st.session_state['evaluation']=research.evaluate(hist,warmup,model=selected_model)
+    if st.button('Compare opening-shot vs first-score signals'):
+        progress=st.empty()
+        with st.spinner('Testing the current blend and each signal separately…'):
+            st.session_state['signal_comparison']=research.compare_scoring_signals(hist,warmup,selected_model,progress.info)
+    signals=st.session_state.get('signal_comparison')
+    if signals and signals['fingerprint']==research.fingerprint(hist) and signals['min_training']==warmup and signals['model']==selected_model:
+        st.markdown('**Which player signal helps? · '+selected_model+'**')
+        if signals['summary']:
+            st.dataframe(pd.DataFrame(signals['summary']),hide_index=True,use_container_width=True)
+            st.caption('Same games, earlier-date training, team probabilities, priors and lineup rules. Only the player-signal blend changes: current 65% opening-shot / 35% first-score rates, opening-shot rates alone, or first-score rates alone. The weights mix smoothed rates before normalizing the five players; they are not shares of final win probability. The first-score signal is unconditional in baseline and conditional on the team scoring first in recent/lineup.')
+            st.dataframe(pd.DataFrame(signals['recent_comparisons']),hide_index=True,use_container_width=True)
+            st.caption('Recent differences are candidate minus current blend, with approximate 95% intervals resampling whole dates. The newest quarter is a rolling diagnostic, not an untouched final test set. This experiment does not fit weights, change live rankings or establish profit. Historical starter-selection bias remains.')
+            if signals['latest_dates']<30:st.warning('Fewer than 30 dates in the recent signal comparison. Differences can be unstable.')
+            st.caption(f"Invalid historical games excluded: {signals['excluded_games']}.")
+            st.download_button('Download signal comparison CSV',pd.DataFrame(signals['summary']).to_csv(index=False).encode(),'apex_signal_comparison.csv','text/csv')
+            st.download_button('Download signal predictions CSV',pd.DataFrame(signals['details']).to_csv(index=False).encode(),'apex_signal_predictions.csv','text/csv')
+        else:st.info('Not enough eligible history for the signal comparison. Import more games or lower the training minimum.')
+    elif signals:st.info('History, model or training minimum changed. Run the signal comparison again.')
     if st.button('Run full model validation'):
         progress=st.empty()
         with st.spinner('Evaluating all three models…'):

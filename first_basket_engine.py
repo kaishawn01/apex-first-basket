@@ -479,7 +479,13 @@ def opening_shot_games(history):
     return known
 
 
-def player_weights(history, starters, team):
+def validate_shot_weight(weight):
+    if isinstance(weight,bool) or not isinstance(weight,(int,float)) or not math.isfinite(weight) or not 0<=weight<=1:
+        raise ValueError('Opening-shot blend weight must be a finite number from 0 to 1.')
+
+
+def player_weights(history, starters, team, shot_weight=.65):
+    validate_shot_weight(shot_weight)
     observed=opening_shot_games(history)
     bykey = defaultdict(list)
     for r in history:
@@ -494,7 +500,7 @@ def player_weights(history, starters, team):
         shot_n=sum((r['game_id'],team) in observed for r in rows)
         shot_rate = (nshots + 1.0) / (shot_n + 5.0)
         first_rate = (nscores + 0.5) / (n + 5.0)
-        w = 0.65 * shot_rate + 0.35 * first_rate
+        w = shot_weight * shot_rate + (1-shot_weight) * first_rate
         raw.append((s, w, n, nshots, nscores))
     total = sum(item[1] for item in raw)
     return [(s, w / total, n, shots, scores) for s, w, n, shots, scores in raw]
@@ -770,7 +776,8 @@ def recent_first_team_probability(team,opponent,stats):
     return max(.25,min(.75,strength_a/(strength_a+strength_b)))
 
 
-def recent_player_weights(history,starters,team,target_day,half_life=90.0):
+def recent_player_weights(history,starters,team,target_day,half_life=90.0,shot_weight=.65):
+    validate_shot_weight(shot_weight)
     target=date.fromisoformat(target_day)
     observed=opening_shot_games(history)
     by_player=defaultdict(list)
@@ -788,13 +795,14 @@ def recent_player_weights(history,starters,team,target_day,half_life=90.0):
         shot_mass=sum(w for r,w in rows if (r['game_id'],team) in observed)
         shot_rate=(shots+2)/(shot_mass+10)
         conditional_rate=(scores+1)/(opportunities+5)
-        weight=.65*shot_rate+.35*conditional_rate
+        weight=shot_weight*shot_rate+(1-shot_weight)*conditional_rate
         raw.append((player,weight,len(rows),sum(int(r['first_team_shot']) for r,w in rows),sum(int(r['first_scorer']) for r,w in rows),mass,shot_rate,conditional_rate))
     total=sum(r[1] for r in raw)
     return [(p,w/total,n,shots,scores,mass,shot,conditional) for p,w,n,shots,scores,mass,shot,conditional in raw]
 
-def lineup_player_weights(history, starters, team, target_day):
+def lineup_player_weights(history, starters, team, target_day, shot_weight=.65):
     """Similar-lineup evidence anchored on disjoint other-lineup starts; experimental."""
+    validate_shot_weight(shot_weight)
     target=date.fromisoformat(target_day)
     selected={p['player_id'] for p in starters}
     games=defaultdict(list)
@@ -827,14 +835,15 @@ def lineup_player_weights(history, starters, team, target_day):
         shot_mass=sum(w for r,w in context if (r['game_id'],team) in observed)
         context_shot=(sum(w*int(r['first_team_shot']) for r,w in context)+10*shot)/(shot_mass+10)
         context_score=(sum(w*int(r['first_scorer']) for r,w in context)+5*conditional)/(opportunities+5)
-        weight=.65*context_shot+.35*context_score
+        weight=shot_weight*context_shot+(1-shot_weight)*context_score
         raw.append((player,weight,n,shots,scores,mass,context_shot,context_score,len(context),context_mass,anchor[2],anchor[5]))
     total=sum(r[1] for r in raw)
     return [(r[0],r[1]/total,*r[2:]) for r in raw]
 
 
-def predict_matchups(history, matchups, target_day, model="baseline"):
+def predict_matchups(history, matchups, target_day, model="baseline", shot_weight=.65):
     """Build date-specific statistics once, then score each matchup independently."""
+    validate_shot_weight(shot_weight)
     if model not in ('baseline','recent','lineup'):raise ValueError('Unknown model.')
     target=date.fromisoformat(target_day)
     for lineups in matchups.values():
@@ -854,14 +863,14 @@ def predict_matchups(history, matchups, target_day, model="baseline"):
         probabilities={}
         for team,pt in ((a,pa),(b,1-pa)):
             team_history=by_team.get(team,[])
-            weights=(lineup_player_weights(team_history,lineups[team],team,target_day) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day) if model=='recent' else player_weights(team_history,lineups[team],team))
+            weights=(lineup_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight) if model=='recent' else player_weights(team_history,lineups[team],team,shot_weight=shot_weight))
             probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
         results[game_id]=probabilities
     return results
 
 
-def predict_first_score(history, lineups, target_day, model="baseline"):
-    return predict_matchups(history,{'single':lineups},target_day,model)['single']
+def predict_first_score(history, lineups, target_day, model="baseline", shot_weight=.65):
+    return predict_matchups(history,{'single':lineups},target_day,model,shot_weight=shot_weight)['single']
 
 
 if __name__ == "__main__":

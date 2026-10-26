@@ -1,3 +1,11 @@
+APEX V2.23.0 — Compare the two player signals
+
+Backtest lab now has Compare opening-shot vs first-score signals for the selected model. It evaluates the current 65/35 blend, opening-shot rates alone and first-score rates alone on identical historical games, with the same chronological 400-day training window, team probabilities, priors and lineup rules. Signal weights mix smoothed player rates before within-team normalization. The baseline first-score rate is unconditional; recent and lineup models use a conditional rate given the team scores first.
+
+The report includes all-date and newest-quarter metrics, team/player error decomposition, paired recent differences with date-bootstrap intervals, and summary/per-game CSV exports. Changing history, model or training minimum invalidates the display. No weights are fitted, selected or applied to live rankings; the default remains 65/35. The newest period is a rolling diagnostic, not an untouched final test set. Existing historical starter-selection bias and small-sample limitations remain. No extra API calls are required.
+
+Validation: 143 unit tests and all Streamlit smoke checks passed. Added checks cover pure-signal effects, unchanged team probabilities and default blend, identical evaluation sets, chronological exclusions, invalid weights, empty history, exports, model-change invalidation and no API calls during comparison. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.22.0 — Reject ambiguous opening scorers
 
 The ESPN adapter now orders first-period plays by sequence, collapses identical duplicates and rejects conflicting entries at the same sequence. Before accepting the first scoring play it checks consistent scoring flags/point values, a scorer identified in that team's box score, and a supported free-throw or field-goal type. An unreadable first scorer raises an error instead of letting a later basket become the apparent first score.
