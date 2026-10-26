@@ -1,3 +1,13 @@
+APEX V2.29.0 — Check training-history gaps against the schedule
+
+Build deeper history now offers Check saved history against season schedule. It compares the selected prior season's indexed completed games within the analysis date's 400-day window with saved records. The report separates usable saved games, missing games, invalid saved games and saved date/team mismatches. It includes per-team counts and coverage percentages plus a game-level CSV export. Games on/after today or the analysis date are excluded; identical schedule duplicates collapse and conflicting duplicates are rejected.
+
+Coverage percentages describe only the returned index, not guaranteed full-season completeness. Existing season-index caching is reused, and partial team-schedule failures remain visible. Missing games may include prior download failures or nonstarter first scorers excluded by this model. The check makes no history changes; use the existing import/repair workflows for appropriate follow-up and inspect schedule mismatches before changing records. History, season, analysis-date and calendar-day changes invalidate the displayed report. A failed check clears the previous report.
+
+Schedule checks may call public ESPN feeds when an index is unavailable. They do not call paid odds/injury APIs or change prediction formulas. This is a training-data diagnostic, not evidence of predictive improvement.
+
+Validation: 177 unit tests and all Streamlit smoke checks passed. Added checks cover missing/invalid/mismatched records, date and status boundaries, future analysis dates, duplicate schedule entries, partial warnings, no history mutation, exports, stale-date hiding and failed-refresh clearing. Windows execution and live ESPN schedule downloads were not tested for this release.
+
 APEX V2.28.0 — Test how fast older games should lose weight
 
 Backtest lab can compare 30-, 90- and 180-day half-lives for the recent-form or lineup-context model. All variants use the same games, earlier-date training, 400-day window, priors and 65/35 signal blend. The tested decay applies consistently to team rates, player rates and lineup-context evidence plus its disjoint anchor. Faster decay also gives the unchanged priors more relative influence.

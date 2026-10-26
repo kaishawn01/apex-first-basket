@@ -756,3 +756,48 @@ def compare_recency(history,min_training=100,model='recent',progress=lambda text
     return {'fingerprint':fingerprint(history),'model':model,'min_training':min_training,
             'summary':summary,'details':details,'recent_comparisons':paired,'latest_dates':len(newest),
             'excluded_games':len(results[90]['excluded'])}
+
+
+def schedule_history_coverage(history,games,analysis_day,today=None):
+    """Compare indexed completed events with saved data without importing or deleting."""
+    target=date.fromisoformat(analysis_day)
+    today=today or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    end=min(target,date.fromisoformat(today));start=target-timedelta(days=MODEL_DAYS)
+    indexed={}
+    for game in games:
+        gid=game['gameId'];day=date.fromisoformat(game['_date'])
+        away=game['awayTeam']['teamTricode'];home=game['homeTeam']['teamTricode']
+        if away==home or away not in eng.TEAMS or home not in eng.TEAMS:raise ValueError('Invalid schedule matchup in coverage check.')
+        identity=(game['_date'],game['gameStatus'],away,home)
+        if gid in indexed and indexed[gid]!=identity:raise ValueError('Conflicting schedule entries in coverage check.')
+        indexed[gid]=identity
+    valid,issues=audit(history)
+    valid_by_id=defaultdict(list);raw_ids={r.get('game_id','') for r in history}
+    for row in valid:valid_by_id[row['game_id']].append(row)
+    reasons={r['game_id']:r['reason'] for r in issues}
+    details=[]
+    for gid,(day,status,away,home) in sorted(indexed.items(),key=lambda pair:(pair[1][0],pair[0])):
+        if status!=3 or not start<=date.fromisoformat(day)<end:continue
+        saved=valid_by_id.get(gid,[])
+        if gid not in raw_ids:state='Missing';reason='Not in saved history'
+        elif not saved:state='Saved invalid';reason=reasons.get(gid,'History validation failed')
+        elif {r['date'] for r in saved}!={day} or {r['team'] for r in saved}!={away,home}:
+            state='Schedule mismatch';reason='Saved date or teams disagree with the schedule index'
+        else:state='Saved valid';reason=''
+        details.append({'Game':gid,'Date':day,'Away':away,'Home':home,'Coverage':state,'Reason':reason})
+    teams=[]
+    for team in sorted(eng.TEAMS):
+        subset=[r for r in details if team in (r['Away'],r['Home'])]
+        counts={state:sum(r['Coverage']==state for r in subset) for state in ('Saved valid','Missing','Saved invalid','Schedule mismatch')}
+        teams.append({'Team':team,'Indexed completed games':len(subset),**counts,
+                      'Usable coverage %':100*counts['Saved valid']/len(subset) if subset else None})
+    counts={state:sum(r['Coverage']==state for r in details) for state in ('Saved valid','Missing','Saved invalid','Schedule mismatch')}
+    return {'details':details,'teams':teams,'counts':counts,'indexed_games':len(details),
+            'window_start':start.isoformat(),'end_exclusive':end.isoformat(),
+            'fingerprint':fingerprint(history),'analysis_day':analysis_day,'checked_on':today}
+
+
+def check_season_coverage(history,season_end,analysis_day,progress=lambda text:None):
+    games,warnings=season_index(season_end,progress)
+    report=schedule_history_coverage(history,games,analysis_day)
+    return {**report,'season_end':season_end,'schedule_warnings':warnings}

@@ -23,7 +23,23 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  import io,zipfile
  with zipfile.ZipFile(io.BytesIO(at.session_state['research_export']['data'])) as archive:
   assert 'history.csv' in archive.namelist()
+ indexed_game={'gameId':'espn_missing','_date':'2026-01-01','gameStatus':3,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+ with patch.object(research,'season_index',return_value=([indexed_game],['ATL: offline'])),patch.object(core,'request',side_effect=AssertionError('Use mocked schedule index')):
+  next(b for b in at.button if b.label=='Check saved history against season schedule').click().run()
+ assert not at.exception,list(at.exception)
+ assert at.session_state['schedule_coverage']['counts']['Missing']==1
+ assert any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
+ assert any('Partial schedule coverage' in x.value for x in at.warning)
+ with patch.object(research,'season_index',side_effect=RuntimeError('Schedule unavailable')):
+  next(b for b in at.button if b.label=='Check saved history against season schedule').click().run()
+ assert any('Schedule unavailable' in x.value for x in at.error)
+ assert not any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
+ with patch.object(research,'season_index',return_value=([indexed_game],[])):
+  next(b for b in at.button if b.label=='Check saved history against season schedule').click().run()
+
  at.date_input[0].set_value(date(2027,1,2)).run()
+ assert any('Check schedule coverage again' in x.value for x in at.info)
+ assert not any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
  assert any('Prepare a fresh research export' in x.value for x in at.info)
  assert not any(d.label=='Download research ZIP' for d in at.get('download_button'))
  next(b for b in at.button if 'Load slate' in b.label).click().run()

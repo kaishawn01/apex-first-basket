@@ -1109,3 +1109,43 @@ class RecencyComparisonTests(unittest.TestCase):
         other={'games':[],'excluded':[]}
         with patch.object(rt,'evaluate',side_effect=[first,other,other]):
             with self.assertRaisesRegex(ValueError,'identical'):rt.compare_recency([],1)
+
+class ScheduleHistoryCoverageTests(unittest.TestCase):
+    def game(self,gid,day='2026-01-01',status=3,away='BOS',home='NYK'):
+        return {'gameId':gid,'_date':day,'gameStatus':status,'awayTeam':{'teamTricode':away},'homeTeam':{'teamTricode':home}}
+    def test_missing_invalid_mismatched_and_valid_are_distinct(self):
+        history=game_rows('good','2026-01-01')+game_rows('bad','2026-01-01')+game_rows('mismatch','2026-01-02')
+        history[11]['player_id']=history[10]['player_id']
+        games=[self.game(gid) for gid in ('good','bad','mismatch','missing')]
+        report=rt.schedule_history_coverage(history,games,'2026-10-25','2026-10-26')
+        self.assertEqual(report['counts'],{'Saved valid':1,'Missing':1,'Saved invalid':1,'Schedule mismatch':1})
+        bos=next(r for r in report['teams'] if r['Team']=='BOS')
+        self.assertEqual(bos['Indexed completed games'],4);self.assertEqual(bos['Usable coverage %'],25)
+    def test_dates_status_and_zero_denominator(self):
+        from datetime import date,timedelta
+        target=date(2026,10,25)
+        games=[self.game('boundary',(target-timedelta(days=400)).isoformat()),self.game('old',(target-timedelta(days=401)).isoformat()),self.game('same',target.isoformat()),self.game('future','2026-10-26'),self.game('scheduled',status=1)]
+        report=rt.schedule_history_coverage([],games,target.isoformat(),'2026-10-26')
+        self.assertEqual([r['Game'] for r in report['details']],['boundary'])
+        self.assertIsNone(next(r for r in report['teams'] if r['Team']=='ATL')['Usable coverage %'])
+    def test_future_analysis_does_not_include_today_or_future_completed_flags(self):
+        games=[self.game('today','2026-10-26'),self.game('yesterday','2026-10-25'),self.game('future','2026-11-01')]
+        result=rt.schedule_history_coverage([],games,'2026-11-02','2026-10-26')
+        self.assertEqual([r['Game'] for r in result['details']],['yesterday'])
+    def test_duplicate_schedule_entries(self):
+        game=self.game('a')
+        self.assertEqual(rt.schedule_history_coverage([],[game,dict(game)],'2026-10-25','2026-10-26')['indexed_games'],1)
+        with self.assertRaisesRegex(ValueError,'Conflicting'):
+            rt.schedule_history_coverage([],[game,self.game('a','2026-01-02')],'2026-10-25','2026-10-26')
+    def test_partial_schedule_warnings_and_no_history_mutation(self):
+        import copy
+        rows=game_rows('good','2026-01-01');before=copy.deepcopy(rows)
+        with patch.object(rt,'season_index',return_value=([self.game('good')],['ATL: offline'])),patch.object(eng,'write_csv',side_effect=AssertionError('No history writes')):
+            report=rt.check_season_coverage(rows,2026,'2026-10-25')
+        self.assertEqual(report['schedule_warnings'],['ATL: offline'])
+        self.assertEqual(report['counts']['Saved valid'],1)
+        self.assertEqual(rows,before)
+    def test_valid_rows_with_wrong_teams_are_not_usable(self):
+        rows=game_rows('a','2026-01-01')
+        report=rt.schedule_history_coverage(rows,[self.game('a',home='ATL')],'2026-10-25','2026-10-26')
+        self.assertEqual(report['counts']['Schedule mismatch'],1)

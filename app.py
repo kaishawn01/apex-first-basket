@@ -321,6 +321,28 @@ with st.expander('Build deeper history · prior-season import'):
     season_end=st.selectbox('Prior season',list(range(current_end-1,max(2020,current_end-4),-1)),format_func=lambda y:f'{y-1}–{y}')
     batch=st.selectbox('Maximum new games per batch',[100,250,500,1500],index=1)
     st.caption('Latest missing games are loaded first. Rankings use only the 400 days before the game date. Historical sample counts can include last season; current-season starts are shown separately.')
+    if st.button('Check saved history against season schedule'):
+        st.session_state.pop('schedule_coverage',None)
+        line=st.empty()
+        try:
+            with st.spinner('Comparing saved games with the season index…'):
+                st.session_state['schedule_coverage']=research.check_season_coverage(hist,season_end,day,line.info)
+        except (RuntimeError,ValueError,OSError,KeyError,TypeError) as exc:st.error(str(exc))
+    coverage_report=st.session_state.get('schedule_coverage')
+    if coverage_report and coverage_report['fingerprint']==research.fingerprint(hist) and coverage_report['season_end']==season_end and coverage_report['analysis_day']==day and coverage_report['checked_on']==datetime.now(ZoneInfo('America/New_York')).date().isoformat():
+        st.markdown('**Saved history versus indexed completed games**')
+        counts=coverage_report['counts']
+        st.write(f"Indexed: {coverage_report['indexed_games']} · Usable: {counts['Saved valid']} · Missing: {counts['Missing']} · Invalid: {counts['Saved invalid']} · Schedule mismatch: {counts['Schedule mismatch']}")
+        st.caption(f"Selected season only, from {coverage_report['window_start']} to before {coverage_report['end_exclusive']}. Completed games on or after today/the analysis date are excluded. Counts use the returned schedule index, which may be cached; they do not certify that the provider supplied every game.")
+        for warning in coverage_report['schedule_warnings']:st.warning('Partial schedule coverage: '+warning)
+        st.dataframe(pd.DataFrame(coverage_report['teams']),hide_index=True,use_container_width=True)
+        if coverage_report['details']:
+            st.dataframe(pd.DataFrame(coverage_report['details']),hide_index=True,use_container_width=True)
+            st.download_button('Download schedule coverage CSV',pd.DataFrame(coverage_report['details']).to_csv(index=False).encode(),'apex_schedule_coverage.csv','text/csv')
+        else:st.info('No indexed completed games fall in this season/date window.')
+        st.caption('Use Import prior-season history for missing games, Data quality for invalid rows, and the research export to investigate schedule mismatches. Missing games can include prior failures or nonstarter first scorers excluded by the current model. This check does not import, repair or delete history.')
+    elif coverage_report:st.info('History, season, analysis date or calendar day changed. Check schedule coverage again.')
+    st.caption('Coverage checks use the public ESPN schedule index and may fetch team schedules. They do not call your paid odds or injury APIs.')
     if st.button('Import prior-season history'):
         line=st.empty()
         try:
