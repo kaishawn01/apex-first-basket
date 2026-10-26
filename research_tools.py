@@ -457,3 +457,45 @@ def repair_history(game_ids, progress=lambda text:None):
             else:repaired.append(row)
         eng.write_csv(eng.HISTORY,eng.FIELDS,repaired)
     return {'attempted':len(selected),'repaired':len(replacements),'games':list(replacements),'errors':errors,'backup':backup.name if backup else None}
+
+
+def evaluation_metrics(games):
+    n=len(games)
+    return {'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in games)/n if n else None,
+            'Top-3 hit %':100*sum(r['Top-3 credit'] for r in games)/n if n else None,
+            'Log loss':sum(r['Log loss'] for r in games)/n if n else None,
+            'Brier':sum(r['Brier'] for r in games)/n if n else None}
+
+
+def validation_report(history, min_training=100, progress=lambda text:None):
+    """Same-game comparison with a fixed newest-quarter-of-dates diagnostic."""
+    results={}
+    for model in ('baseline','recent','lineup'):
+        progress('Evaluating '+model+' on earlier-date history…')
+        results[model]=evaluate(history,min_training,model)
+    expected={(r['Game'],r['Date']) for r in results['baseline']['games']}
+    for result in results.values():
+        if {(r['Game'],r['Date']) for r in result['games']}!=expected or len(result['games'])!=len(expected):
+            raise ValueError('Validation models did not evaluate identical games and dates.')
+    dates=sorted({day for gid,day in expected})
+    recent_dates=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[];monthly=[];details=[];latest={}
+    for model,result in results.items():
+        games=result['games'];newest=[r for r in games if r['Date'] in recent_dates]
+        latest[model]={'games':newest}
+        for label,subset in [('All evaluated dates',games),('Newest quarter of dates',newest)]:
+            if subset:
+                metrics=evaluation_metrics(subset)
+                summary.append({'Model':model,'Period':label,'First date':min(r['Date'] for r in subset),'Last date':max(r['Date'] for r in subset),**metrics,
+                                'Log loss minus equal baseline':metrics['Log loss']-math.log(10),
+                                'Brier minus equal baseline':metrics['Brier']-.9})
+        for month in sorted({r['Date'][:7] for r in games}):
+            subset=[r for r in games if r['Date'].startswith(month)]
+            monthly.append({'Model':model,'Month':month,**evaluation_metrics(subset)})
+        details.extend({'Model':model,'Newest quarter':r['Date'] in recent_dates,**r} for r in games)
+    paired=[]
+    for model in ('recent','lineup'):
+        comparison=compare_evaluations(latest['baseline'],latest[model])
+        paired.extend({'Candidate':model,**r} for r in comparison['metrics'])
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'monthly':monthly,'details':details,
+            'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}

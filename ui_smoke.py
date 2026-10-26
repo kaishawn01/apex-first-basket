@@ -74,7 +74,16 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert not at.exception,list(at.exception)
  comparison=next(d.value for d in at.dataframe if 'Model' in d.value.columns and set(d.value['Model'])=={'baseline','lineup'})
  assert list(comparison['Evaluated games'])==[10,10]
- print('Backtest UI passed: evaluation, both model comparisons, CSV export.')
+ next(b for b in at.button if b.label=='Run full model validation').click().run()
+ assert not at.exception,list(at.exception)
+ validation=next(d.value for d in at.dataframe if 'Period' in d.value.columns)
+ assert len(validation)==6
+ assert list(validation[validation['Period']=='Newest quarter of dates']['Evaluated games'])==[3,3,3]
+ assert any(d.label=='Download full validation CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
+ assert any('Run full model validation again' in x.value for x in at.info)
+ assert not any('Period' in d.value.columns for d in at.dataframe)
+ print('Backtest UI passed: full validation, recent-period counts, exports and stale-report reset.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
  at=AppTest.from_file(str(root/'app.py')).run()

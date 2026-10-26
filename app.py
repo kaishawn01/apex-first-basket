@@ -349,7 +349,7 @@ with st.expander('Data quality & coverage'):
                 progress=st.empty()
                 with st.spinner('Checking replacement game data…'):
                     st.session_state['repair_report']=research.repair_history(repair_ids,progress=progress.info)
-                for key in ('results','evaluation','model_comparison','lineup_scenario'):st.session_state.pop(key,None)
+                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report'):st.session_state.pop(key,None)
                 st.rerun()
             except (RuntimeError,ValueError,OSError) as exc:st.error(str(exc))
 
@@ -377,6 +377,28 @@ with st.expander('Backtest lab · test the model before trusting it'):
     if st.button('Run walk-forward evaluation'):
         with st.spinner('Evaluating historical games…'):
             st.session_state['evaluation']=research.evaluate(hist,warmup,model=selected_model)
+    if st.button('Run full model validation'):
+        progress=st.empty()
+        with st.spinner('Evaluating all three models…'):
+            st.session_state['validation_report']=research.validation_report(hist,warmup,progress=progress.info)
+    validation=st.session_state.get('validation_report')
+    if validation and validation['fingerprint']==research.fingerprint(hist) and validation['min_training']==warmup:
+        st.markdown('**Full model validation**')
+        if not validation['summary']:st.info('No eligible evaluation dates yet. Import more history or lower the training minimum.')
+        else:
+            st.dataframe(pd.DataFrame(validation['summary']),hide_index=True,use_container_width=True)
+            st.caption('All models use identical games. The newest period is the final 25% of distinct evaluation dates, rounded up; games on one date stay together. Training still advances using earlier dates. This is a recent-performance diagnostic, not an untouched final test set.')
+            st.caption('Negative log-loss/Brier differences beat equal 10-player probabilities on that sample. Top-three accuracy measures coverage, not profit.')
+            if validation['latest_dates']<30:st.warning('The newest period contains fewer than 30 evaluation dates. Recent estimates and uncertainty intervals can be unstable.')
+            st.markdown('**Recent differences versus baseline**')
+            st.dataframe(pd.DataFrame(validation['latest_comparisons']),hide_index=True,use_container_width=True)
+            st.caption('Approximate 95% intervals resample whole dates. Crossing zero does not distinguish models on that metric; across-date dependence and repeated comparisons remain limitations.')
+            st.markdown('**Results by month**')
+            st.dataframe(pd.DataFrame(validation['monthly']),hide_index=True,use_container_width=True)
+            st.caption(f"Invalid historical games excluded: {validation['excluded_games']}. Historical starting-five and nonstarter-selection limitations still apply. No model is promoted automatically.")
+            st.download_button('Download full validation CSV',pd.DataFrame(validation['details']).to_csv(index=False).encode(),'apex_full_validation.csv','text/csv')
+            st.download_button('Download validation summary CSV',pd.DataFrame(validation['summary']).to_csv(index=False).encode(),'apex_validation_summary.csv','text/csv')
+    elif validation:st.info('History or training minimum changed. Run full model validation again.')
     st.caption('Evaluation model: '+selected_model)
     if st.button('Compare baseline vs recent form'):
         with st.spinner('Testing both models on identical chronological holdouts…'):

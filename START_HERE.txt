@@ -1,3 +1,9 @@
+APEX V2.13.0 — Full chronological model validation
+
+Backtest lab > Run full model validation evaluates baseline, recent form and lineup context on identical games. It reports overall results, the newest quarter of evaluation dates, monthly results, paired recent differences with date-bootstrap intervals, and game-by-game and summary CSV exports. The newest period is fixed at 25% of distinct evaluation dates rounded up; games on the same date remain together.
+
+Every prediction still trains on earlier dates within the 400-day window. Training advances within the newest period, so this is a rolling recent-performance diagnostic, not a frozen or untouched test set. Compare top-one/top-three coverage, log loss and Brier. Negative loss differences beat equal probabilities on that historical sample. Few dates, correlated games, repeated comparisons and historical starter-selection bias limit conclusions. The app does not promote a model or change scoring formulas automatically. Changed history or training minimum invalidates the report. No new network requests or paid API credits are used by validation.
+
 APEX V2.12.0 — Compare models before saving forecasts
 
 Run rankings now computes baseline, recent form and lineup context together for the same matchup, date, history and five starters per team. Open Model comparison to see top estimates, per-player probabilities and ranks, sample counts, injury flags and model statuses. Download a matchup comparison CSV if needed. The selected model still controls the main ranking table. No extra API requests or paid credits are needed to calculate the other two estimates.

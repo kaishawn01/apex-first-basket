@@ -497,3 +497,40 @@ class HistoryRepairTests(unittest.TestCase):
             with patch.object(eng,'HISTORY',path),patch.object(rt.core,'request') as request:
                 with self.assertRaises(ValueError):rt.repair_history(['espn_123'])
                 request.assert_not_called()
+
+class FullValidationTests(unittest.TestCase):
+    def test_same_games_and_newest_full_dates(self):
+        from datetime import date,timedelta
+        start=date(2026,8,1)
+        rows=[r for i in range(9) for r in game_rows(str(i),(start+timedelta(days=i)).isoformat())]
+        rows+=game_rows('extra','2026-08-09')
+        report=rt.validation_report(rows,2)
+        self.assertEqual(report['evaluated_dates'],7)
+        self.assertEqual(report['latest_dates'],2)
+        newest=[r for r in report['summary'] if r['Period']=='Newest quarter of dates']
+        self.assertEqual([r['Evaluated games'] for r in newest],[3,3,3])
+        self.assertTrue(all(r['First date']=='2026-08-08' for r in newest))
+        sets=[{r['Game'] for r in report['details'] if r['Model']==model} for model in ('baseline','recent','lineup')]
+        self.assertEqual(sets[0],sets[1]);self.assertEqual(sets[0],sets[2])
+        self.assertEqual(len(report['latest_comparisons']),8)
+    def test_empty_and_one_date_reports(self):
+        self.assertEqual(rt.validation_report([],2)['summary'],[])
+        rows=game_rows('a','2026-08-01')+game_rows('b','2026-08-02')
+        result=rt.validation_report(rows,1)
+        self.assertEqual(result['latest_dates'],1)
+        self.assertTrue(all(r['95% lower'] is None for r in result['latest_comparisons']))
+    def test_metrics_are_game_weighted(self):
+        games=[{'Top-1 credit':v,'Top-3 credit':v,'Log loss':v,'Brier':v} for v in (0.,0.,1.)]
+        m=rt.evaluation_metrics(games)
+        self.assertAlmostEqual(m['Log loss'],1/3)
+        self.assertAlmostEqual(m['Top-1 hit %'],100/3)
+    def test_month_counts_add_to_all_games(self):
+        rows=game_rows('a','2026-08-30')+game_rows('b','2026-08-31')+game_rows('c','2026-09-01')+game_rows('d','2026-09-02')
+        report=rt.validation_report(rows,1)
+        for model in ('baseline','recent','lineup'):
+            self.assertEqual(sum(r['Evaluated games'] for r in report['monthly'] if r['Model']==model),3)
+    def test_comparison_rejects_mismatched_game_sets(self):
+        first={'games':[{'Game':'a','Date':'2026-08-01'}],'excluded':[]}
+        other={'games':[],'excluded':[]}
+        with patch.object(rt,'evaluate',side_effect=[first,other,other]):
+            with self.assertRaisesRegex(ValueError,'identical'):rt.validation_report([],1)
