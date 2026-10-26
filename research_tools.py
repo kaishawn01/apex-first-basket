@@ -3,6 +3,7 @@ import json
 import math
 import shutil
 import hashlib
+from pathlib import Path
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -401,3 +402,58 @@ def player_evidence(history, target_day, team, player_id, selected_five):
     return {'summary':[summarize('Last 10 recorded starts',rows[:10]),summarize('Last 30 recorded starts',rows[:30]),summarize('400-day model window',rows)],
             'games':logs,'last_start':last,'days_since_last_start':(date.fromisoformat(target_day)-date.fromisoformat(last)).days if last else None,
             'other_team_starts':sum(r['player_id']==player_id and r['team']!=team for r in valid)}
+
+
+def repair_history(game_ids, progress=lambda text:None):
+    """Replace only explicitly selected invalid games after provider validation."""
+    import os
+    import re
+    import tempfile
+    selected=list(dict.fromkeys(game_ids))
+    if not selected or len(selected)>20:raise ValueError('Select between 1 and 20 flagged games.')
+    original=eng.HISTORY.read_bytes()
+    history=eng.read_csv(eng.HISTORY)
+    _,issues=audit(history)
+    flagged={r['game_id'] for r in issues}
+    if not set(selected).issubset(flagged):raise ValueError('Selection changed or includes valid games. Refresh Data quality first.')
+    replacements={};errors=[]
+    for index,gid in enumerate(selected,1):
+        progress(f'Rechecking game {index}/{len(selected)} · {gid}')
+        try:
+            if not re.fullmatch(r'espn_\d+',gid):raise ValueError('Only ESPN game IDs can be repaired automatically.')
+            old_rows=[r for r in history if r.get('game_id')==gid]
+            old_teams={r.get('team') for r in old_rows}
+            if len(old_teams)!=2 or not old_teams.issubset(eng.TEAMS):
+                raise ValueError('Stored matchup is ambiguous; manual review is required.')
+            payload=core.request(eng.ESPN_BASE+'/summary',{'event':gid.removeprefix('espn_')})
+            comp=payload['header']['competitions'][0]
+            sides={c['homeAway']:eng.espn_team(c['team']) for c in comp['competitors']}
+            if set(sides.values())!=old_teams:raise ValueError('Provider matchup differs from the stored teams.')
+            start=datetime.fromisoformat(comp['date'].replace('Z','+00:00'))
+            if start.tzinfo is None:raise ValueError('Provider game time has no timezone.')
+            day=start.astimezone(ZoneInfo('America/New_York')).date()
+            if day>datetime.now(ZoneInfo('America/New_York')).date():raise ValueError('Provider game date is in the future.')
+            game={'gameId':gid,'_date':day.isoformat(),'homeTeam':{'teamTricode':sides['home']},'awayTeam':{'teamTricode':sides['away']}}
+            eng.validate_espn_summary(game,payload)
+            play,box=eng.espn_game_payloads(payload)
+            rows=eng.extract_game(game,play,box)
+            _,bad=audit(rows)
+            if bad:raise ValueError(bad[0]['reason'])
+            replacements[gid]=rows
+        except (RuntimeError,ValueError,KeyError,TypeError,IndexError) as exc:
+            errors.append({'game_id':gid,'reason':str(exc)})
+    backup=None
+    if replacements:
+        if eng.HISTORY.read_bytes()!=original:raise ValueError('History changed during repair. Nothing replaced; retry with other imports stopped.')
+        fd,name=tempfile.mkstemp(prefix='history_before_repair_',suffix='.csv',dir=eng.DATA)
+        backup=Path(name)
+        with os.fdopen(fd,'wb') as stream:
+            stream.write(original);stream.flush();os.fsync(stream.fileno())
+        repaired=[];emitted=set()
+        for row in history:
+            gid=row.get('game_id')
+            if gid in replacements:
+                if gid not in emitted:repaired.extend(replacements[gid]);emitted.add(gid)
+            else:repaired.append(row)
+        eng.write_csv(eng.HISTORY,eng.FIELDS,repaired)
+    return {'attempted':len(selected),'repaired':len(replacements),'games':list(replacements),'errors':errors,'backup':backup.name if backup else None}

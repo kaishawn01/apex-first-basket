@@ -437,3 +437,63 @@ class OpeningDataIntegrityTests(unittest.TestCase):
             with patch.object(eng,'HISTORY',history),patch.object(eng,'ODDS',folder/'odds.csv'),patch.object(eng,'schedule',return_value=[game]),patch.object(eng,'get_json',return_value=payload),patch.object(eng,'create_starter_template'):
                 eng.sync(1)
             self.assertEqual(previous,history.read_bytes())
+
+class HistoryRepairTests(unittest.TestCase):
+    def setUp(self):
+        self.good=game_rows('espn_123','2025-10-25')
+        self.bad=[dict(r) for r in self.good];self.bad[1]['first_team_shot']=1
+        fixture=ForwardJournalTests();fixture.setUp()
+        self.payload=fixture.payload()
+        self.payload['header']['competitions'][0]['date']='2025-10-25T23:00:00Z'
+    def test_repair_backups_and_preserves_other_games(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);path=folder/'history.csv'
+            untouched=game_rows('espn_456','2025-10-26')
+            eng.write_csv(path,eng.FIELDS,self.bad+untouched);before=path.read_bytes()
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt.core,'request',return_value=self.payload),patch.object(eng,'extract_game',return_value=self.good):
+                result=rt.repair_history(['espn_123'])
+            self.assertEqual(result['repaired'],1)
+            self.assertEqual((folder/result['backup']).read_bytes(),before)
+            loaded=eng.read_csv(path)
+            self.assertEqual(rt.audit(loaded)[1],[])
+            self.assertEqual([r for r in loaded if r['game_id']=='espn_456'],[{k:str(v) for k,v in r.items()} for r in untouched])
+    def test_wrong_id_and_offline_leave_original_bytes(self):
+        import copy
+        wrong=copy.deepcopy(self.payload);wrong['header']['id']='wrong'
+        for failure in (RuntimeError('offline'),wrong):
+            with tempfile.TemporaryDirectory() as tmp:
+                folder=Path(tmp);path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,self.bad);before=path.read_bytes()
+                kwargs={'side_effect':failure} if isinstance(failure,Exception) else {'return_value':failure}
+                with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt.core,'request',**kwargs):
+                    result=rt.repair_history(['espn_123'])
+                self.assertEqual(result['repaired'],0);self.assertEqual(len(result['errors']),1)
+                self.assertEqual(path.read_bytes(),before);self.assertIsNone(result['backup'])
+    def test_invalid_replacement_and_nonstarter_preserve_original(self):
+        for failure in (ValueError('First scorer is not a starter'),self.bad):
+            with tempfile.TemporaryDirectory() as tmp:
+                folder=Path(tmp);path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,self.bad);before=path.read_bytes()
+                kwargs={'side_effect':failure} if isinstance(failure,Exception) else {'return_value':failure}
+                with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt.core,'request',return_value=self.payload),patch.object(eng,'extract_game',**kwargs):
+                    result=rt.repair_history(['espn_123'])
+                self.assertEqual(result['repaired'],0);self.assertEqual(path.read_bytes(),before)
+    def test_concurrent_changes_abort_before_replace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,self.bad)
+            def download(*args,**kwargs):
+                eng.write_csv(path,eng.FIELDS,self.bad+game_rows('espn_456','2025-10-26'))
+                return self.payload
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt.core,'request',side_effect=download),patch.object(eng,'extract_game',return_value=self.good):
+                with self.assertRaisesRegex(ValueError,'History changed'):rt.repair_history(['espn_123'])
+            self.assertEqual(len(eng.read_csv(path)),20)
+    def test_backup_failure_prevents_replacement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,self.bad);before=path.read_bytes()
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),patch.object(rt.core,'request',return_value=self.payload),patch.object(eng,'extract_game',return_value=self.good),patch('tempfile.mkstemp',side_effect=OSError('disk error')):
+                with self.assertRaises(OSError):rt.repair_history(['espn_123'])
+            self.assertEqual(path.read_bytes(),before)
+    def test_valid_games_cannot_be_selected_for_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'history.csv';eng.write_csv(path,eng.FIELDS,self.good)
+            with patch.object(eng,'HISTORY',path),patch.object(rt.core,'request') as request:
+                with self.assertRaises(ValueError):rt.repair_history(['espn_123'])
+                request.assert_not_called()

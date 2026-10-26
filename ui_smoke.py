@@ -123,3 +123,23 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert evidence['Game first scores'].sum()==0
  assert at.session_state['results']['rows']==original_results
  print('Player evidence UI passed: history table, player switching, CSV export, rankings preserved.')
+
+from test_research import ForwardJournalTests
+fixture=ForwardJournalTests();fixture.setUp()
+payload=fixture.payload()
+payload['header']['competitions'][0]['date']='2025-10-25T23:00:00Z'
+with tempfile.TemporaryDirectory() as repair_dir:
+ folder=Path(repair_dir);path=folder/'history.csv'
+ bad=game_rows('espn_123','2025-10-25');bad[1]['first_team_shot']=1
+ eng.write_csv(path,eng.FIELDS,bad)
+ with patch.object(eng,'DATA',folder),patch.object(eng,'HISTORY',path),patch.object(core,'request',return_value=payload):
+  at=AppTest.from_file(str(root/'app.py')).run()
+  assert not at.exception,list(at.exception)
+  assert any(b.label=='Repair selected history games' for b in at.button)
+  next(b for b in at.button if b.label=='Repair selected history games').click().run()
+  assert not at.exception,list(at.exception)
+  assert research.audit(eng.read_csv(path))[1]==[]
+  assert any('Last repair: 1 of 1' in x.value for x in at.info)
+  assert len(list(folder.glob('history_before_repair_*.csv')))==1
+  assert not any(b.label=='Repair selected history games' for b in at.button)
+  print('Repair UI passed: selected-game repair, backup, refreshed validation, success report.')

@@ -1,3 +1,11 @@
+APEX V2.11.0 — Repair flagged historical games
+
+Open Data quality & coverage when validation flags games. Select up to 20 flagged ESPN games and click Repair selected history games. APEX re-downloads the summaries, verifies completed status, event ID and stored team matchup, uses the provider timestamp in Eastern time, then parses and validates all replacement starter records. Valid games cannot be selected. Ambiguous teams, unavailable data and nonstarter first scorers remain flagged for manual review.
+
+Successful replacements are written together using the existing atomic history writer, after a unique byte-for-byte backup named data/history_before_repair_*.csv. Failed games and unselected games are retained. If history changes while downloads run, repair aborts before writing; stop other imports during repair. Backup failures prevent replacement. Reports list successes, failures and backup name. Rankings, scenarios and backtest caches reset after repair. Forecast journal snapshots remain unchanged.
+
+This repairs stored records only when provider validation succeeds. It does not manufacture missing outcomes, remove hard-to-model games, change model formulas or establish prediction accuracy.
+
 APEX V2.10.0 — Opening-data integrity and neutral unknown possessions
 
 Historical validation now rejects multiple team-opening shooters, conflicting game-opening shooters or first field-goal scorers, a game-opening shooter lacking their team-opening flag, inconsistent within-team possession-proxy flags, and both teams marked as the first opening action. Zero flags remain valid when a nonstarter was involved or the proxy is unknown. Existing rows are never silently deleted; issues appear in Data quality. Invalid games are excluded from backtests and block affected rankings.

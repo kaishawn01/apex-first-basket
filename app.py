@@ -327,10 +327,26 @@ with st.expander('Data quality & coverage'):
     if issues:
         st.error(f'{len(issues)} game(s) failed data checks. They are excluded from backtests and block affected rankings/imports. No rows were deleted.')
         st.dataframe(pd.DataFrame(issues),hide_index=True,use_container_width=True)
+        st.caption('Repair re-downloads only selected flagged games from ESPN. Validated replacements are saved together after a full history backup. Failed games remain untouched. Stop other imports while repairing.')
+        repair_ids=st.multiselect('Flagged games to repair',[r['game_id'] for r in issues],default=[r['game_id'] for r in issues[:5]],max_selections=20)
+        if st.button('Repair selected history games',disabled=not repair_ids):
+            try:
+                progress=st.empty()
+                with st.spinner('Checking replacement game data…'):
+                    st.session_state['repair_report']=research.repair_history(repair_ids,progress=progress.info)
+                for key in ('results','evaluation','model_comparison','lineup_scenario'):st.session_state.pop(key,None)
+                st.rerun()
+            except (RuntimeError,ValueError,OSError) as exc:st.error(str(exc))
+
     elif hist:
         st.success('All saved games passed starter-count, ID, date, opponent, opening-shot, possession-proxy and scoring-consistency checks.')
         st.caption(f"History: {min(r['date'] for r in valid)} through {max(r['date'] for r in valid)}")
     else: st.info('Sync or import history to see coverage.')
+    repaired=st.session_state.get('repair_report')
+    if repaired:
+        st.info(f"Last repair: {repaired['repaired']} of {repaired['attempted']} games replaced.")
+        if repaired['backup']:st.caption('Original history backup: data/'+repaired['backup'])
+        if repaired['errors']:st.dataframe(pd.DataFrame(repaired['errors']),hide_index=True,use_container_width=True)
     active=research.history_window(valid,day)
     proxy_coverage=eng.team_stats(active)
     st.caption('Opening-action proxy coverage is shown separately. Unknown proxies do not count as possession losses. The proxy is not a verified jump-ball winner.')
