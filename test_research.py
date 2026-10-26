@@ -1149,3 +1149,81 @@ class ScheduleHistoryCoverageTests(unittest.TestCase):
         rows=game_rows('a','2026-01-01')
         report=rt.schedule_history_coverage(rows,[self.game('a',home='ATL')],'2026-10-25','2026-10-26')
         self.assertEqual(report['counts']['Schedule mismatch'],1)
+
+class ImportRetryQueueTests(unittest.TestCase):
+    def fixture(self,folder,request):
+        import contextlib
+        stack=contextlib.ExitStack()
+        path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,[])
+        games=[{'gameId':f'espn_{i}','_date':f'2025-11-0{i}','gameStatus':3} for i in (1,2,3,4)]
+        for patcher in (patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',folder),
+                        patch.object(rt,'season_index',return_value=(games,[])),patch.object(rt.core,'request',side_effect=request),
+                        patch.object(eng,'validate_espn_summary'),patch.object(eng,'espn_game_payloads',return_value=({},{})),
+                        patch.object(eng,'extract_game',side_effect=lambda g,p,b:game_rows(g['gameId'],g['_date']))):
+            stack.enter_context(patcher)
+        return stack,path
+    def test_failed_newest_batch_does_not_starve_older_games(self):
+        import json
+        calls=[]
+        def request(url,params):
+            calls.append(params['event'])
+            if params['event'] in ('3','4'):raise RuntimeError('Unavailable')
+            return {}
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);stack,path=self.fixture(folder,request)
+            with stack:
+                first=rt.import_season(2026,2)
+                second=rt.import_season(2026,2)
+                third=rt.import_season(2026,2)
+            self.assertEqual(calls,['4','3','2','1','4','3'])
+            self.assertEqual([first['added'],second['added'],third['added']],[0,2,0])
+            self.assertEqual(first['never_attempted_remaining'],2)
+            self.assertEqual(second['never_attempted_remaining'],0)
+            self.assertEqual(third['retry_attempted'],2)
+            self.assertEqual(len(eng.read_csv(path)),20)
+            self.assertEqual(json.loads((folder/'history_import_attempts_2026.json').read_text())['attempts'],{'espn_4':2,'espn_3':2,'espn_2':1,'espn_1':1})
+    def test_interrupted_attempt_is_recorded_before_request(self):
+        calls=[]
+        def request(url,params):
+            calls.append(params['event'])
+            if len(calls)==1:raise KeyboardInterrupt()
+            return {}
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);stack,path=self.fixture(folder,request)
+            with stack:
+                with self.assertRaises(KeyboardInterrupt):rt.import_season(2026,1)
+                result=rt.import_season(2026,1)
+            self.assertEqual(calls,['4','3']);self.assertEqual(result['added'],1)
+    def test_tracker_write_failure_prevents_download(self):
+        from unittest.mock import Mock
+        request=Mock()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);stack,path=self.fixture(folder,request)
+            before=path.read_bytes()
+            with stack,patch.object(rt,'write_import_attempts',side_effect=OSError('Disk full')):
+                with self.assertRaises(OSError):rt.import_season(2026,1)
+            request.assert_not_called();self.assertEqual(path.read_bytes(),before)
+    def test_invalid_tracker_stops_before_schedule_or_history_changes(self):
+        import json
+        bad_records=[{}, {'schema':1,'season_end':2025,'attempts':{}}, {'schema':1,'season_end':2026,'attempts':{'x':-1}}, {'schema':1,'season_end':2026,'attempts':{'x':True}}]
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);path=folder/'history.csv';eng.write_csv(path,eng.FIELDS,[]);before=path.read_bytes()
+            for bad in bad_records:
+                (folder/'history_import_attempts_2026.json').write_text(json.dumps(bad))
+                with patch.object(eng,'DATA',folder),patch.object(eng,'HISTORY',path),patch.object(rt,'season_index') as index:
+                    with self.assertRaisesRegex(ValueError,'retry tracker'):rt.import_season(2026,1)
+                    index.assert_not_called()
+                self.assertEqual(path.read_bytes(),before)
+    def test_retry_priority_is_fewest_attempts_then_newest(self):
+        calls=[]
+        def request(url,params):calls.append(params['event']);raise RuntimeError('Unavailable')
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);stack,path=self.fixture(folder,request)
+            rt.write_import_attempts(folder/'history_import_attempts_2026.json',2026,{'espn_4':3,'espn_3':2,'espn_2':1,'espn_1':1})
+            with stack:rt.import_season(2026,2)
+        self.assertEqual(calls,['2','1'])
+    def test_invalid_batch_limits_and_seasons(self):
+        for limit in (0,-1,1501,True,1.5):
+            with self.assertRaises(ValueError):rt.import_season(2026,limit)
+        for season in ('../bad',True,0):
+            with self.assertRaises(ValueError):rt.import_season(season,1)

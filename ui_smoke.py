@@ -42,6 +42,13 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
  assert any('Prepare a fresh research export' in x.value for x in at.info)
  assert not any(d.label=='Download research ZIP' for d in at.get('download_button'))
+ retry_report={'season_end':2026,'added':0,'attempted':2,'remaining':14,'retry_attempted':2,'never_attempted_remaining':12,'schedule_warnings':[],
+               'skipped':[{'game_id':'espn_a','date':'2026-01-01','reason':'Unavailable'},{'game_id':'espn_b','date':'2026-01-02','reason':'Unavailable'}]}
+ with patch.object(research,'import_season',return_value=retry_report):
+  next(b for b in at.button if b.label=='Import prior-season history').click().run()
+ assert not at.exception,list(at.exception)
+ assert any('retried 2 previously attempted games' in x.value for x in at.caption)
+ assert any('12 indexed missing games have not been attempted yet' in x.value for x in at.caption)
  next(b for b in at.button if 'Load slate' in b.label).click().run()
  assert not at.exception,list(at.exception)
  assert len(at.multiselect)==2

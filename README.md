@@ -1,3 +1,13 @@
+APEX V2.31.0 — Keep history imports moving past repeated failures
+
+Prior-season imports now prioritize unattempted missing games, newest first, before retrying previously attempted games. Among retries, fewer previous attempts go first, with newer dates breaking ties. A season-specific local attempt tracker is checkpointed atomically before each game request. Failed or interrupted downloads remain retryable, but cannot repeatedly fill every batch while older unattempted games wait. Successfully saved IDs are still skipped.
+
+The import report shows how many games were retries and how many indexed missing games have never been attempted. The tracker starts empty on first use of this release; earlier attempts are not reconstructed. It contains game IDs and attempt counts only, and is separate from historical outcomes. If writing the tracker fails, the next request does not run. Invalid trackers stop the import before schedule fetching or history mutation. Existing per-game history checkpoints and backups remain in place; stop other import processes before importing.
+
+Failures remain visible, and the existing nonstarter-first-scorer exclusion is unchanged. This fixes import progress and potential training-data gaps, not established prediction accuracy. No download runs automatically when the app opens.
+
+Validation: 188 unit tests and all Streamlit smoke checks passed. New checks cover retry ordering, progress after repeated failures, interrupted requests, invalid trackers, write failures, input bounds and displayed retry counts. Windows execution was not tested here.
+
 APEX V2.30.0 — Top first-score candidates at a glance
 
 After Run rankings, a new board above the full player table shows each matchup's leading player(s), individual model probability, gap to the runner-up, tie count, leader status, injury-review label and minimum leader sample counts. Matchups are ordered by their highest individual probability using full precision. All tied leaders remain visible; a ten-player tie is explicitly called out rather than choosing a name by row order. Each leader's probability is not the combined chance of the listed players.

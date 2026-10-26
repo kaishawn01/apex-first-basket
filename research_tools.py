@@ -105,20 +105,55 @@ def season_index(season_end, progress=lambda msg:None):
     return result,errors
 
 
+def read_import_attempts(path,season_end):
+    if not path.exists():return {}
+    try:
+        record=json.loads(path.read_text())
+        attempts=record['attempts']
+        if record.get('schema')!=1 or record.get('season_end')!=season_end or not isinstance(attempts,dict):raise ValueError()
+        if any(not isinstance(gid,str) or not gid or isinstance(n,bool) or not isinstance(n,int) or n<0 for gid,n in attempts.items()):raise ValueError()
+        return attempts
+    except (ValueError,KeyError,TypeError,AttributeError):
+        raise ValueError('Import retry tracker is invalid; history has not been changed.')
+
+
+def write_import_attempts(path,season_end,attempts):
+    import os
+    import tempfile
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=path.parent,prefix='history_attempts_',suffix='.tmp',delete=False) as stream:
+            temporary=Path(stream.name)
+            json.dump({'schema':1,'season_end':season_end,'attempts':attempts},stream)
+            stream.flush();os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None and temporary.exists():temporary.unlink()
+
+
 def import_season(season_end,limit=250,progress=lambda msg:None):
+    if isinstance(season_end,bool) or not isinstance(season_end,int) or not 1000<=season_end<=9999:raise ValueError('Season must be a four-digit ending year.')
+    if isinstance(limit,bool) or not isinstance(limit,int) or not 1<=limit<=1500:raise ValueError('Import batch size must be between 1 and 1500.')
     old=eng.read_csv(eng.HISTORY)
     _,issues=audit(old)
     if issues: raise ValueError('Existing history failed validation. Open Data quality before importing; no data was changed.')
+    attempt_path=eng.DATA/f'history_import_attempts_{season_end}.json'
+    attempts=read_import_attempts(attempt_path,season_end)
     games,errors=season_index(season_end,progress)
     known={r['game_id'] for r in old}
     today=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
     missing=[g for g in games if g['gameStatus']==3 and g['_date']<today and g['gameId'] not in known]
-    selected=missing[-limit:]
+    # Fresh games first; retries with fewer prior attempts next. Dates break ties.
+    selected=sorted(missing,key=lambda g:(attempts.get(g['gameId'],0),-date.fromisoformat(g['_date']).toordinal(),g['gameId']))[:limit]
+    retries=sum(attempts.get(g['gameId'],0)>0 for g in selected)
     backup=eng.DATA/'history_before_prior_season.csv'
     if old and not backup.exists(): shutil.copy2(eng.HISTORY,backup)
     added=0; rejected=[]
     for i,g in enumerate(selected,1):
         progress(f'Game {i}/{len(selected)} · {g["_date"]} · {g["gameId"]}')
+        attempts[g['gameId']]=attempts.get(g['gameId'],0)+1
+        # Save before the request so an interruption cannot trap the next batch.
+        write_import_attempts(attempt_path,season_end,attempts)
         try:
             summary=core.request(eng.ESPN_BASE+'/summary',{'event':g['gameId'].removeprefix('espn_')})
             eng.validate_espn_summary(g,summary)
@@ -131,7 +166,7 @@ def import_season(season_end,limit=250,progress=lambda msg:None):
             eng.write_csv(eng.HISTORY,eng.FIELDS,old)  # Atomic checkpoint after each success.
         except (RuntimeError,KeyError,ValueError,TypeError) as exc:
             rejected.append({'game_id':g['gameId'],'date':g['_date'],'reason':str(exc)})
-    summary={'season_end':season_end,'added':added,'attempted':len(selected),'remaining':len(missing)-added,'schedule_warnings':errors,'skipped':rejected,'finished':datetime.now().isoformat(timespec='seconds')}
+    summary={'season_end':season_end,'added':added,'attempted':len(selected),'remaining':len(missing)-added,'retry_attempted':retries,'never_attempted_remaining':sum(g['gameId'] not in known and attempts.get(g['gameId'],0)==0 for g in missing),'schedule_warnings':errors,'skipped':rejected,'finished':datetime.now().isoformat(timespec='seconds')}
     (eng.DATA/'last_history_import.json').write_text(json.dumps(summary,indent=2))
     return summary
 

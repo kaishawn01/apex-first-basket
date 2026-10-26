@@ -330,7 +330,7 @@ with st.expander('Build deeper history · prior-season import'):
     current_end=today_et.year+1 if today_et.month>=10 else today_et.year
     season_end=st.selectbox('Prior season',list(range(current_end-1,max(2020,current_end-4),-1)),format_func=lambda y:f'{y-1}–{y}')
     batch=st.selectbox('Maximum new games per batch',[100,250,500,1500],index=1)
-    st.caption('Latest missing games are loaded first. Rankings use only the 400 days before the game date. Historical sample counts can include last season; current-season starts are shown separately.')
+    st.caption('Unattempted games are loaded first, newest first. Failed games stay retryable after unattempted games, with fewer-attempted retries first. Rankings use only the 400 days before the game date. Historical sample counts can include last season; current-season starts are shown separately.')
     if st.button('Check saved history against season schedule'):
         st.session_state.pop('schedule_coverage',None)
         line=st.empty()
@@ -366,6 +366,7 @@ with st.expander('Build deeper history · prior-season import'):
     report=st.session_state.get('import_report')
     if report:
         st.success(f"Added {report['added']} of {report['attempted']} attempted games; {report['remaining']} completed games remain missing.")
+        if 'retry_attempted' in report:st.caption(f"This batch retried {report['retry_attempted']} previously attempted games. {report['never_attempted_remaining']} indexed missing games have not been attempted yet.")
         for warning in report['schedule_warnings']: st.warning(warning)
         if report['skipped']:
             st.warning('Some games could not be imported. Games with a nonstarter first scorer remain excluded by this model.')
