@@ -289,6 +289,15 @@ else:
                 st.dataframe(comparison_frame,hide_index=True,use_container_width=True)
                 st.caption('Range measures disagreement between these three related heuristics; it is not a confidence interval. Agreement does not establish accuracy. Review starts, injury reports and each model’s status before interpreting the estimates. Rank 1 can include ties.')
                 st.download_button('Download matchup model comparison CSV',comparison_frame.to_csv(index=False).encode(),'apex_matchup_models.csv','text/csv')
+        with st.expander('Recent opening-shot role · prediction preview'):
+            role_bundles=result.get('model_bundles',{})
+            if role_bundles:
+                role_gid=st.selectbox('Preview role inputs for matchup',list(role_bundles),format_func=lambda gid:role_bundles[gid]['baseline'][0]['Matchup'])
+                role_rows=research.recent_role_preview(hist,choices[role_gid],day)
+                st.dataframe(pd.DataFrame(role_rows),hide_index=True,use_container_width=True)
+                st.caption('Experimental preview using your selected five. Each player’s last five recorded same-team starts within 60 days supply opening-shot evidence; at least three must have a known opening shooter. Unknown starts are excluded from the rate. Recent evidence is shrunk toward older, non-overlapping history with strength 10. These settings are unvalidated. Inactive inputs retain the Recent-form shot rate, although team normalization can still change their probability when a teammate is active.')
+                st.caption('Team-first probability and conditional first-score history stay at Recent-form values. This preview does not replace live rankings, odds calculations or journal forecasts. Review lineup confirmations, injuries and sample holds in the main table. No extra API calls are made.')
+                st.download_button('Download recent role inputs CSV',pd.DataFrame(role_rows).to_csv(index=False).encode(),'apex_recent_role_inputs.csv','text/csv')
         with st.expander('Player evidence · inspect the history behind a ranking'):
             evidence_rows={(r['_game_id'],r['_player_id']):r for r in result['rows']}
             if evidence_rows:
@@ -589,6 +598,19 @@ with st.expander('Backtest lab · test the model before trusting it'):
         else:st.info('Not enough eligible history to compare the scoring models. Import more history or review the training minimum.')
         st.caption(f"Invalid historical games excluded: {scorecard['excluded_games']}.")
     elif scorecard:st.info('History or training minimum changed. Compare all five scoring models again.')
+    if st.button('Test recent opening-shot roles'):
+        with st.spinner('Testing recent role inputs against Recent form…'):
+            st.session_state['recent_role_comparison']=research.compare_recent_role(hist,warmup)
+    role_report=st.session_state.get('recent_role_comparison')
+    if role_report and role_report['fingerprint']==research.fingerprint(hist) and role_report['min_training']==warmup:
+        st.markdown('**Recent opening-shot role validation**')
+        if role_report['summary']:
+            st.dataframe(pd.DataFrame(role_report['summary']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(role_report['comparisons']),hide_index=True,use_container_width=True)
+            st.download_button('Download recent role backtest CSV',pd.DataFrame(role_report['details']).to_csv(index=False).encode(),'apex_recent_role_backtest.csv','text/csv')
+        else:st.info('Not enough history to test recent opening-shot roles.')
+        st.caption('Identical evaluation games; only earlier dates train each forecast. This includes fallback games. Five starts, 60 days, three observations and strength 10 are experimental settings. Newest dates and date-bootstrap intervals are diagnostics, not independent proof of accuracy; historical starter selection and repeated comparisons remain limitations.')
+    elif role_report:st.info('History or training minimum changed. Test recent opening-shot roles again.')
     if st.button('Test post-miss scoring model'):
         with st.spinner('Comparing opening makes and post-miss recovery…'):
             st.session_state['post_miss_comparison']=research.compare_post_miss(hist,warmup)

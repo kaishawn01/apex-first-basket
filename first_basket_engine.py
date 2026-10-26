@@ -893,7 +893,7 @@ def predict_matchups(history, matchups, target_day, model="baseline", shot_weigh
     """Build date-specific statistics once, then score each matchup independently."""
     validate_half_life(half_life)
     validate_shot_weight(shot_weight)
-    if model not in ('baseline','recent','lineup','conversion','post_miss'):raise ValueError('Unknown model.')
+    if model not in ('baseline','recent','lineup','conversion','post_miss','recent_role'):raise ValueError('Unknown model.')
     target=date.fromisoformat(target_day)
     for lineups in matchups.values():
         if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
@@ -913,7 +913,7 @@ def predict_matchups(history, matchups, target_day, model="baseline", shot_weigh
         probabilities={}
         for team,pt in ((a,pa),(b,1-pa)):
             team_history=by_team.get(team,[])
-            weights=(conversion_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='conversion' else lineup_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='recent' else player_weights(team_history,lineups[team],team,shot_weight=shot_weight))
+            weights=(recent_role_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='recent_role' else conversion_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='conversion' else lineup_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day,shot_weight=shot_weight,half_life=half_life) if model=='recent' else player_weights(team_history,lineups[team],team,shot_weight=shot_weight))
             probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
         results[game_id]=probabilities
     return results
@@ -921,6 +921,43 @@ def predict_matchups(history, matchups, target_day, model="baseline", shot_weigh
 
 def predict_first_score(history, lineups, target_day, model="baseline", shot_weight=.65, half_life=90.0):
     return predict_matchups(history,{'single':lineups},target_day,model,shot_weight=shot_weight,half_life=half_life)['single']
+
+
+def recent_role_inputs(history,starters,team,target_day,half_life=90.0):
+    """Last five recorded starts within 60 days; older starts form a disjoint anchor."""
+    validate_half_life(half_life)
+    target=date.fromisoformat(target_day);observed=opening_shot_games(history)
+    base={r[0]['player_id']:r for r in recent_player_weights(history,starters,team,target_day,half_life)}
+    evidence={}
+    for player in starters:
+        pid=player['player_id']
+        rows=sorted([r for r in history if r['team']==team and r['player_id']==pid and 0<(target-date.fromisoformat(r['date'])).days<=400],key=lambda r:(r['date'],r['game_id']),reverse=True)
+        recent=[r for r in rows[:5] if (target-date.fromisoformat(r['date'])).days<=60]
+        ids={r['game_id'] for r in recent}
+        known=[r for r in recent if (r['game_id'],team) in observed]
+        older=[r for r in history if not (r['team']==team and r['player_id']==pid and r['game_id'] in ids)]
+        anchor=recent_player_weights(older,[player],team,target_day,half_life)[0][6]
+        shots=sum(int(r['first_team_shot']) for r in known)
+        active=len(known)>=3
+        rate=(shots+10*anchor)/(len(known)+10) if active else base[pid][6]
+        evidence[pid]={'Recent recorded starts':len(recent),'Recent observed starts':len(known),
+                       'Recent opening shots':shots,'Recent raw opening-shot %':100*shots/len(known) if known else None,
+                       'Older anchor opening-shot %':100*anchor,'Recent-form opening-shot %':100*base[pid][6],
+                       'Role-adjusted opening-shot %':100*rate,'Role input active':active,
+                       'Last recorded start':rows[0]['date'] if rows else None}
+    return evidence
+
+
+def recent_role_player_weights(history,starters,team,target_day,half_life=90.0,shot_weight=.65):
+    base=recent_player_weights(history,starters,team,target_day,half_life,shot_weight)
+    evidence=recent_role_inputs(history,starters,team,target_day,half_life)
+    if not any(r['Role input active'] for r in evidence.values()):return base
+    raw=[]
+    for player,share,n,shots,scores,mass,shot,conditional in base:
+        adjusted=evidence[player['player_id']]['Role-adjusted opening-shot %']/100
+        raw.append((player,shot_weight*adjusted+(1-shot_weight)*conditional,n,shots,scores,mass,adjusted,conditional))
+    total=sum(r[1] for r in raw)
+    return [(r[0],r[1]/total,*r[2:]) for r in raw]
 
 
 if __name__ == "__main__":

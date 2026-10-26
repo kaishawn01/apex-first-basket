@@ -60,6 +60,9 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not at.exception,list(at.exception)
  ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
  assert len(ranking)==10
+ role_preview=next(d.value for d in at.dataframe if 'Role input active' in d.value.columns)
+ assert len(role_preview)==10 and not role_preview['Role input active'].any()
+ assert any(d.label=='Download recent role inputs CSV' for d in at.get('download_button'))
  leaders=next(d.value for d in at.dataframe if 'Top candidates' in d.value.columns)
  assert len(leaders)==1
  assert abs(leaders.iloc[0]['Each leader %']-max(r['_probability'] for r in at.session_state['results']['rows'])*100)<1e-10
@@ -119,6 +122,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
 
  print('Journal UI passed: all-model save, comparison export, model filter, duplicate prevention.')
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
+ assert not any(d.label=='Download recent role inputs CSV' for d in at.get('download_button'))
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value
  assert any('Inputs changed' in x.value for x in at.info)
  assert not any('Range (percentage points)' in d.value.columns for d in at.dataframe)
@@ -444,3 +448,16 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  assert not any(d.label=='Download monthly consistency CSV' for d in at.get('download_button'))
  assert any('Compare all five scoring models again' in x.value for x in at.info)
  print('Scoring scorecard UI passed: five models, shared dates, active-data warning, exports and stale settings.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Role backtest must not fetch')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(b for b in at.button if b.label=='Test recent opening-shot roles').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['recent_role_comparison']
+ assert len(report['summary'])==4
+ assert any(d.label=='Download recent role backtest CSV' for d in at.get('download_button'))
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
+ assert not any(d.label=='Download recent role backtest CSV' for d in at.get('download_button'))
+ assert any('Test recent opening-shot roles again' in x.value for x in at.info)
+ print('Recent role UI passed: preview evidence, fallback, lineup invalidation, backtest export and stale settings.')

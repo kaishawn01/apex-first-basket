@@ -1922,3 +1922,76 @@ class ScorecardConsistencyTests(unittest.TestCase):
         with patch.object(rt.core,'request',side_effect=AssertionError('No API')),patch.object(rt,'evaluate',side_effect=AssertionError('No retraining')):
             rt.scorecard_consistency(card,'All evaluated dates')
         self.assertEqual(card,before)
+
+class RecentRoleTests(unittest.TestCase):
+    def setUp(self):
+        self.history=[]
+        for i in range(10):
+            day=f'2026-09-{i+1:02d}' if i<5 else f'2026-10-{i-4:02d}'
+            rows=game_rows(str(i),day)
+            if i>=5:
+                for r in rows:
+                    if r['team']=='BOS':r['first_team_shot']=int(r['player_id']=='11');r['first_game_shot']=int(r['player_id']=='11')
+            self.history.extend(rows)
+        self.lineups={t:[{'player_id':str(offset+i),'player':f'{t} Player {i}'} for i in range(5)] for t,offset in (('BOS',10),('NYK',20))}
+    def test_recent_shift_changes_probability_and_preserves_team_mass(self):
+        base=eng.predict_first_score(self.history,self.lineups,'2026-10-06','recent')
+        role=eng.predict_first_score(self.history,self.lineups,'2026-10-06','recent_role')
+        self.assertGreater(role['11'],base['11'])
+        self.assertAlmostEqual(sum(role.values()),1)
+        self.assertTrue(all(0<p<1 for p in role.values()))
+        self.assertAlmostEqual(sum(role[str(i)] for i in range(10,15)),sum(base[str(i)] for i in range(10,15)))
+    def test_disjoint_anchor_and_five_start_limit(self):
+        inputs=eng.recent_role_inputs(self.history,self.lineups['BOS'],'BOS','2026-10-06')
+        anchor=eng.recent_player_weights(self.history[:50],self.lineups['BOS'],'BOS','2026-10-06')[1][6]
+        r=inputs['11'];self.assertEqual(r['Recent observed starts'],5)
+        self.assertEqual(r['Recent opening shots'],5)
+        self.assertAlmostEqual(r['Older anchor opening-shot %']/100,anchor)
+        self.assertAlmostEqual(r['Role-adjusted opening-shot %']/100,(5+10*anchor)/15)
+    def test_missing_opening_shots_excluded_and_fallback_exact(self):
+        rows=[dict(r) for r in self.history]
+        for r in rows:
+            if int(r['game_id'])>=7 and r['team']=='BOS':r['first_team_shot']=0
+        inputs=eng.recent_role_inputs(rows,self.lineups['BOS'],'BOS','2026-10-06')
+        self.assertEqual(inputs['11']['Recent recorded starts'],5)
+        self.assertEqual(inputs['11']['Recent observed starts'],2)
+        self.assertFalse(inputs['11']['Role input active'])
+        self.assertEqual(eng.recent_role_player_weights(rows,self.lineups['BOS'],'BOS','2026-10-06'),eng.recent_player_weights(rows,self.lineups['BOS'],'BOS','2026-10-06'))
+    def test_age_team_and_future_exclusions(self):
+        extra=game_rows('same','2026-10-06')+game_rows('future','2026-10-07')+game_rows('old','2024-01-01')
+        extra += [{**r,'team':'LAL'} for r in game_rows('trade','2026-10-05')]
+        a=eng.recent_role_inputs(self.history,self.lineups['BOS'],'BOS','2026-10-06')
+        self.assertEqual(a,eng.recent_role_inputs(self.history+extra,self.lineups['BOS'],'BOS','2026-10-06'))
+        stale=eng.recent_role_inputs(self.history,self.lineups['BOS'],'BOS','2027-01-01')
+        self.assertTrue(all(not r['Role input active'] and r['Recent recorded starts']==0 for r in stale.values()))
+    def test_no_history_prior_and_no_mutation(self):
+        import copy
+        before=copy.deepcopy(self.history)
+        eng.recent_role_inputs(self.history,self.lineups['BOS'],'BOS','2026-10-06')
+        self.assertEqual(before,self.history)
+        self.assertEqual(eng.predict_first_score([],self.lineups,'2026-10-06','recent_role'),eng.predict_first_score([],self.lineups,'2026-10-06','recent'))
+    def test_preview_matches_engine_and_never_fetches(self):
+        with patch.object(rt.core,'request',side_effect=AssertionError('No API')):
+            rows=rt.recent_role_preview(self.history,self.lineups,'2026-10-06')
+        probs=eng.predict_first_score(self.history,self.lineups,'2026-10-06','recent_role')
+        self.assertEqual(len(rows),10)
+        self.assertAlmostEqual(next(r for r in rows if r['Player']=='BOS Player 1')['Recent role %'],100*probs['11'])
+        self.assertTrue(any(r['Role input active'] for r in rows))
+    def test_backtest_same_games_and_no_same_day_leak(self):
+        seen=[];original=eng.recent_role_player_weights
+        def spy(history,starters,team,target_day,**kwargs):
+            self.assertTrue(all(r['date']<target_day for r in history));seen.append(target_day)
+            return original(history,starters,team,target_day,**kwargs)
+        with patch.object(eng,'recent_role_player_weights',side_effect=spy):report=rt.compare_recent_role(self.history,2)
+        self.assertTrue(seen);self.assertEqual(len(report['summary']),4)
+        a={(r['Game'],r['Date']) for r in report['details'] if r['Model']=='Recent form'}
+        b={(r['Game'],r['Date']) for r in report['details'] if r['Model']=='Recent role'}
+        self.assertEqual(a,b)
+    def test_unknown_does_not_reach_back_beyond_last_five(self):
+        rows=[dict(r) for r in self.history]
+        for r in rows:
+            if int(r['game_id'])>=5:r['first_team_shot']=0
+        inputs=eng.recent_role_inputs(rows,self.lineups['BOS'],'BOS','2026-10-06')
+        self.assertEqual(inputs['11']['Recent observed starts'],0)
+    def test_empty_backtest(self):
+        self.assertEqual(rt.compare_recent_role([],1)['summary'],[])

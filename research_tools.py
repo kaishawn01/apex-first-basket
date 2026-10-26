@@ -301,7 +301,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
     temper_probabilities({str(i):.1 for i in range(10)},temperature)
     eng.validate_half_life(half_life)
     eng.validate_shot_weight(shot_weight)
-    if model not in ("baseline","recent","lineup","conversion","post_miss"):raise ValueError("Unknown model.")
+    if model not in ("baseline","recent","lineup","conversion","post_miss","recent_role"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
     for r in valid: byday[r['date']][r['game_id']].append(r)
@@ -1350,3 +1350,34 @@ def scorecard_consistency(scorecard, period):
                             'Highest difference excluding one month':max(omitted) if omitted else None,
                             'Sensitivity reading':reading})
     return {'monthly':monthly,'summary':summary}
+
+
+def recent_role_preview(history,lineups,target_day):
+    prior,issues=audit(history_window(history,target_day))
+    if issues:raise ValueError('Repair invalid history before previewing role inputs.')
+    base=eng.predict_first_score(prior,lineups,target_day,'recent')
+    candidate=eng.predict_first_score(prior,lineups,target_day,'recent_role')
+    rows=[]
+    for team,players in lineups.items():
+        inputs=eng.recent_role_inputs(prior,players,team,target_day)
+        for player in players:
+            pid=player['player_id']
+            rows.append({'Player':player['player'],'Team':team,'Recent form %':100*base[pid],
+                         'Recent role %':100*candidate[pid],'Change pp':100*(candidate[pid]-base[pid]),**inputs[pid]})
+    return sorted(rows,key=lambda r:(-r['Recent role %'],r['Team'],r['Player']))
+
+
+def compare_recent_role(history,min_training=100):
+    base=evaluate(history,min_training,model='recent');candidate=evaluate(history,min_training,model='recent_role')
+    dates=sorted({r['Date'] for r in base['games']});latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[];comparisons=[];details=[]
+    for period in ('All evaluated dates','Newest quarter of dates'):
+        a=[r for r in base['games'] if period=='All evaluated dates' or r['Date'] in latest]
+        b=[r for r in candidate['games'] if period=='All evaluated dates' or r['Date'] in latest]
+        paired=compare_evaluations({'games':a},{'games':b})
+        comparisons.extend({'Period':period,'Games':paired['games'],'Dates':paired['dates'],**r} for r in paired['metrics'])
+        for label,rows in (('Recent form',a),('Recent role',b)):
+            if rows:summary.append({'Period':period,'Model':label,'Dates':len({r['Date'] for r in rows}),**evaluation_metrics(rows)})
+    for label,result in (('Recent form',base),('Recent role',candidate)):
+        details.extend({'Model':label,**r} for r in result['games'])
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'comparisons':comparisons,'details':details}
