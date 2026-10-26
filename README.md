@@ -1,3 +1,13 @@
+APEX V2.36.0 — Measure starting-five projection accuracy
+
+Backtest lab adds Test starting-lineup projections. It compares the latest recorded starting five with the five most frequent starters across the last five recorded team games, on identical eligible team lineups. Frequency ties prefer last-game starters, then latest start date, then player ID. Both methods require five prior games within 60 days and a latest game within 30 days. Same-day and later outcomes cannot select players, and evaluation excludes games on or after the selected analysis date.
+
+All-date and newest-quarter summaries show complete-five match rate, starter-slot match rate, eligible winning-team counts and first-scorer coverage of the projected five. Team lineups are the denominator, not games; first-scorer coverage is restricted to eligible winning teams and is not top-pick accuracy. Detail exports contain projected and actual IDs, missed starters and latest training date. Skipped and invalid-history counts remain visible; history/date changes hide old reports.
+
+This is a history-only comparison, without historical pregame rosters, injuries or announced starters. Current rosters and actual target lineups never filter candidates. Missing games and the existing nonstarter-first-scorer exclusion can bias results. The recent period is descriptive, not an untouched test set. Live projections, scoring models and journal records remain unchanged; no winning strategy is promoted automatically.
+
+Validation: 226 unit tests and all Streamlit smoke checks passed. New checks cover lineup-method differences, scorer coverage, identical team-lineup denominators, same-day/future exclusion, stale/insufficient history, one-team eligibility, invalid records, deterministic results, unchanged inputs, no network calls, exports and stale-date hiding. Windows execution and real-user lineup accuracy were not tested here.
+
 APEX V2.35.0 — Earlier-date probability adjustment experiment
 
 Backtest lab adds Test probability calibration for the selected baseline, recent or lineup model. It compares unchanged (temperature 1), softer (1.25) and sharper (0.8) forecasts on identical chronological games, plus an earlier-date selector. The selector needs 100 earlier evaluated games across 30 dates within 400 days and chooses the option with lowest prior log loss. Before that minimum it uses unchanged probabilities. Same-day outcomes never enter that date's choice; numerical ties favor unchanged. All forecasts remain positive and normalized. Temperature scaling preserves player order and is aimed at probability quality, not a different top pick.

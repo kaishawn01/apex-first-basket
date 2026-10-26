@@ -1434,3 +1434,67 @@ class TemperatureCalibrationTests(unittest.TestCase):
         self.assertEqual(result['learned_games'],4)
         self.assertEqual([r['Evaluated games'] for r in learned],[4]*4)
         self.assertEqual(result['learned_dates'],1)
+
+class StartingFiveValidationTests(unittest.TestCase):
+    def history(self):
+        rows=[r for i in range(6) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        # One-game fill-in starts immediately before the original starter returns.
+        for row in rows:
+            if row['game_id']=='4' and row['player_id']=='10':
+                row['player_id']='15';row['player']='Fill-in'
+        return rows
+    def test_frequency_and_latest_differ_on_same_lineups(self):
+        report=rt.evaluate_starting_fives(self.history(),'2026-08-07')
+        rows=[r for r in report['summary'] if r['Period']=='All evaluated dates']
+        self.assertEqual([r['Team lineups'] for r in rows],[2,2])
+        self.assertEqual([r['Exact five %'] for r in rows],[50,100])
+        self.assertEqual([r['Starter slots matched %'] for r in rows],[90,100])
+        self.assertEqual([r['First scorer covered %'] for r in rows],[0,100])
+        self.assertEqual(report['skipped_team_lineups'],10)
+        self.assertEqual(len(report['details']),4)
+    def test_no_same_day_future_or_target_lineup_filter(self):
+        rows=self.history()+game_rows('same','2026-08-06')+game_rows('future','2026-08-08')
+        result=rt.evaluate_starting_fives(rows,'2026-08-07')
+        self.assertEqual({r['Latest training game'] for r in result['details']},{'2026-08-05'})
+        self.assertNotIn('future',{r['Game'] for r in result['details']})
+        latest=next(r for r in result['details'] if r['Team']=='BOS' and r['Method']=='Last recorded five')
+        self.assertIn('15',latest['Projected player IDs'])
+        self.assertNotIn('15',latest['Actual player IDs'])
+        self.assertEqual(rt.evaluate_starting_fives(rows,'2026-08-06')['details'],[])
+    def test_stale_and_short_recent_history_are_skipped(self):
+        old=[r for i in range(5) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        for day in ('2026-09-10','2026-11-10'):
+            report=rt.evaluate_starting_fives(old+game_rows('target',day),'2026-12-01')
+            self.assertEqual(report['summary'],[])
+            self.assertEqual(report['skipped_team_lineups'],12)
+    def test_only_one_team_eligible_uses_team_denominator(self):
+        history=self.history()
+        for row in history:
+            if row['game_id'] in ('0','1'):
+                if row['team']=='NYK':row['team']='CLE'
+                if row['opponent']=='NYK':row['opponent']='CLE'
+        report=rt.evaluate_starting_fives(history,'2026-08-07')
+        self.assertEqual({r['Team'] for r in report['details']},{'BOS'})
+        self.assertTrue(all(r['Team lineups']==1 for r in report['summary']))
+        self.assertTrue(all(r['Eligible winning-team lineups']==1 for r in report['summary']))
+    def test_invalid_and_empty_history(self):
+        self.assertEqual(rt.evaluate_starting_fives([],'2026-08-07')['summary'],[])
+        history=self.history();history.pop()
+        report=rt.evaluate_starting_fives(history,'2026-08-07')
+        self.assertEqual(report['excluded_games'],1)
+        self.assertEqual(report['summary'],[])
+    def test_results_are_deterministic_and_input_unchanged(self):
+        import copy
+        history=self.history();original=copy.deepcopy(history)
+        with patch.object(rt.core,'roster',side_effect=AssertionError('No current roster')),patch.object(rt.core,'request',side_effect=AssertionError('No network')):
+            report=rt.evaluate_starting_fives(history,'2026-08-07')
+        again=rt.evaluate_starting_fives(list(reversed(history)),'2026-08-07')
+        self.assertEqual(report['summary'],again['summary'])
+        self.assertEqual(report['details'],again['details'])
+        self.assertEqual(history,original)
+    def test_latest_period_keeps_full_dates(self):
+        history=self.history()+game_rows('b','2026-08-07')+game_rows('c','2026-08-08')+game_rows('d','2026-08-08')
+        report=rt.evaluate_starting_fives(history,'2026-08-09')
+        self.assertEqual(report['evaluated_dates'],3);self.assertEqual(report['latest_dates'],1)
+        recent=[r for r in report['summary'] if r['Period']=='Newest quarter of dates']
+        self.assertEqual([r['Team lineups'] for r in recent],[4,4])

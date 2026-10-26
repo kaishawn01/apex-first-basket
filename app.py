@@ -489,6 +489,23 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
         else:st.info('Not enough eligible history to compare decay settings.')
     elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
+    if st.button('Test starting-lineup projections'):
+        with st.spinner('Replaying starting-five forecasts using earlier games…'):
+            st.session_state['lineup_validation']=research.evaluate_starting_fives(hist,day)
+    lineup_validation=st.session_state.get('lineup_validation')
+    if lineup_validation and lineup_validation['fingerprint']==research.fingerprint(hist) and lineup_validation['as_of']==day:
+        st.markdown('**Which starter projection matches the actual five?**')
+        if lineup_validation['summary']:
+            st.dataframe(pd.DataFrame(lineup_validation['summary']),hide_index=True,use_container_width=True)
+            st.caption('Both methods predict the same team lineups using five earlier recorded team games within 60 days, with the latest at most 30 days old. Last recorded five copies the most recent game. Recent start frequency chooses the five most frequent starters; ties favor last-game starters, then latest start date, then player ID. No same-day or later information selects players.')
+            st.caption('Exact five measures complete lineup matches. Starter slots matched measures the share of five positions correctly filled. First scorer covered measures whether the actual scorer was among the projected five, only for eligible winning-team lineups; it is not top-pick accuracy. A game can contribute one or two eligible team lineups.')
+            st.caption('This tests history-only projections. Historical pregame rosters, injuries and announcements are unavailable, so no current roster or hindsight actual-lineup filter is applied. Missing games and exclusion of nonstarter first scorers bias coverage. The newest quarter is descriptive, not an untouched test set. Neither method is automatically promoted to live projections.')
+            if lineup_validation['latest_dates']<30:st.warning('Fewer than 30 recent lineup-evaluation dates. Differences may be unstable.')
+            st.download_button('Download lineup projection summary CSV',pd.DataFrame(lineup_validation['summary']).to_csv(index=False).encode(),'apex_lineup_projection_summary.csv','text/csv')
+            st.download_button('Download lineup projection details CSV',pd.DataFrame(lineup_validation['details']).to_csv(index=False).encode(),'apex_lineup_projection_details.csv','text/csv')
+        else:st.info('No eligible lineup tests yet. Each team needs five earlier recorded games within 60 days and a latest game within 30 days.')
+        st.caption(f"Team lineups skipped for insufficient or stale history: {lineup_validation['skipped_team_lineups']}. Invalid historical games excluded: {lineup_validation['excluded_games']}.")
+    elif lineup_validation:st.info('History or analysis date changed. Run the starting-lineup projection test again.')
     if st.button('Test probability calibration'):
         progress=st.empty()
         with st.spinner('Testing probability adjustments using earlier dates…'):

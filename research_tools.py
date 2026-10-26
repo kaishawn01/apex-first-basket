@@ -976,3 +976,60 @@ def compare_temperature(history,min_training=100,model='baseline',progress=lambd
     return {'fingerprint':fingerprint(history),'min_training':min_training,'model':model,'summary':summary,
             'comparisons':comparisons,'details':details,'decisions':decisions,'learned_games':len(learned),
             'learned_dates':len({day for day,gid in learned}),'latest_dates':len(latest),'excluded_games':len(results['Unchanged']['excluded'])}
+
+
+def evaluate_starting_fives(history,as_of):
+    """Historical lineup forecasts using earlier dates only; no hindsight roster filter."""
+    date.fromisoformat(as_of)
+    valid,issues=audit(history)
+    byday=defaultdict(lambda:defaultdict(list))
+    for row in valid:
+        if row['date']<as_of:byday[row['date']][row['game_id']].append(row)
+    prior=defaultdict(list);details=[];skipped=0
+    labels=('Last recorded five','Recent start frequency')
+    for day in sorted(byday):
+        target=date.fromisoformat(day);cutoff=(target-timedelta(days=60)).isoformat()
+        for gid,game in sorted(byday[day].items()):
+            winner=next(r for r in game if int(r['first_scorer']))
+            for team in sorted({r['team'] for r in game}):
+                previous=sorted((g for g in prior[team] if g[0]['date']>=cutoff),key=lambda g:(g[0]['date'],g[0]['game_id']),reverse=True)[:5]
+                if len(previous)<5 or (target-date.fromisoformat(previous[0][0]['date'])).days>30:
+                    skipped+=1;continue
+                latest={r['player_id'] for r in previous[0]}
+                counts=defaultdict(int);last_start={};names={}
+                for old_game in previous:
+                    for row in old_game:
+                        pid=row['player_id'];counts[pid]+=1;names.setdefault(pid,row['player'])
+                        last_start.setdefault(pid,row['date'])
+                # Dates are ISO strings; use ordinals for descending chronological tie-breaking.
+                candidates=sorted(counts,key=lambda pid:(-counts[pid],-int(pid in latest),-date.fromisoformat(last_start[pid]).toordinal(),pid))[:5]
+                actual={r['player_id'] for r in game if r['team']==team}
+                for label,projected in zip(labels,(latest,set(candidates))):
+                    hits=len(projected&actual)
+                    details.append({'Method':label,'Game':gid,'Date':day,'Team':team,
+                                    'Latest training game':previous[0][0]['date'],'Earlier team games':len(previous),
+                                    'Correct starters':hits,'Exact five':int(hits==5),
+                                    'Winning team':team==winner['team'],
+                                    'First scorer covered':int(winner['player_id'] in projected) if team==winner['team'] else None,
+                                    'Projected player IDs':' / '.join(sorted(projected)),
+                                    'Projected players':' / '.join(names[pid] for pid in sorted(projected)),
+                                    'Actual player IDs':' / '.join(sorted(actual)),
+                                    'Missed starter IDs':' / '.join(sorted(actual-projected))})
+        # Same-day games never feed another game's starting-five forecast that day.
+        for game in byday[day].values():
+            for team in {r['team'] for r in game}:prior[team].append([r for r in game if r['team']==team])
+    dates=sorted({r['Date'] for r in details})
+    latest_dates=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[]
+    for period in ('All evaluated dates','Newest quarter of dates'):
+        for method in labels:
+            subset=[r for r in details if r['Method']==method and (period=='All evaluated dates' or r['Date'] in latest_dates)]
+            if not subset:continue
+            winning=[r for r in subset if r['Winning team']]
+            summary.append({'Method':method,'Period':period,'Team lineups':len(subset),'Dates':len({r['Date'] for r in subset}),
+                            'Exact five %':100*sum(r['Exact five'] for r in subset)/len(subset),
+                            'Starter slots matched %':100*sum(r['Correct starters'] for r in subset)/(5*len(subset)),
+                            'Eligible winning-team lineups':len(winning),
+                            'First scorer covered %':100*sum(r['First scorer covered'] for r in winning)/len(winning) if winning else None})
+    return {'fingerprint':fingerprint(history),'as_of':as_of,'summary':summary,'details':details,
+            'skipped_team_lineups':skipped,'excluded_games':len(issues),'evaluated_dates':len(dates),'latest_dates':len(latest_dates)}

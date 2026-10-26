@@ -299,3 +299,17 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
  assert any('Current roster unavailable: no automatic' in w.value for w in at.warning)
  assert all(cb.disabled for cb in at.checkbox if cb.label.startswith('I verified'))
  print('Roster failure UI passed: no automatic selections or confirmations.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Lineup test must not fetch APIs')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2026,10,25)).run()
+ next(b for b in at.button if b.label=='Test starting-lineup projections').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['lineup_validation']
+ assert len(report['summary'])==4
+ assert [r['Team lineups'] for r in report['summary'] if r['Period']=='All evaluated dates']==[70,70]
+ assert any(d.label=='Download lineup projection details CSV' for d in at.get('download_button'))
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2026,10,24)).run()
+ assert not any(d.label=='Download lineup projection details CSV' for d in at.get('download_button'))
+ assert any('Run the starting-lineup projection test again' in x.value for x in at.info)
+ print('Lineup validation UI passed: counts, export, no API calls and stale-date hiding.')
