@@ -882,8 +882,8 @@ class SignalComparisonTests(unittest.TestCase):
             self.assertEqual(blend,regular['games'])
             groups=[{(r['Game'],r['Date']) for r in report['details'] if r['Signal variant']==label} for label in ('Current blend','Opening shot only','First score only')]
             self.assertEqual(groups[0],groups[1]);self.assertEqual(groups[1],groups[2])
-            self.assertEqual(len(report['summary']),6)
-            self.assertEqual(len(report['recent_comparisons']),8)
+            self.assertEqual(len(report['summary']),8)
+            self.assertEqual(len(report['recent_comparisons']),12)
     def test_all_signal_variants_exclude_same_day_future_and_old_history(self):
         extra=game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
         for model in ('baseline','recent','lineup'):
@@ -899,3 +899,59 @@ class SignalComparisonTests(unittest.TestCase):
         other={'games':[],'excluded':[]}
         with patch.object(rt,'evaluate',side_effect=[first,other,other]):
             with self.assertRaisesRegex(ValueError,'identical'):rt.compare_scoring_signals([],1)
+
+class AdaptiveSignalTests(unittest.TestCase):
+    def results(self,dated_losses):
+        labels=('Current blend','Opening shot only','First score only')
+        return {label:{'games':[{'Date':day,'Game':gid,'Log loss':losses[i]} for day,gid,losses in dated_losses]} for i,label in enumerate(labels)}
+    def test_default_100_game_threshold_and_fallback(self):
+        from datetime import date,timedelta
+        values=[((date(2026,1,1)+timedelta(days=i)).isoformat(),str(i),(2.,1.,3.)) for i in range(101)]
+        games,decisions=rt.adaptive_signal_games(self.results(values))
+        self.assertTrue(all(r['Selected signal']=='Current blend' for r in games[:100]))
+        self.assertEqual(games[-1]['Selected signal'],'Opening shot only')
+        self.assertEqual(games[-1]['Selection training games'],100)
+        self.assertEqual(sum(r['Selection learned'] for r in games),1)
+    def test_same_date_and_future_outcomes_cannot_change_selection(self):
+        import copy
+        values=[('2026-10-01','a',(2.,1.,3.)),('2026-10-02','b',(.1,9.,2.)),('2026-10-02','c',(.1,9.,2.)),('2026-10-03','d',(5.,.1,4.))]
+        results=self.results(values);original=copy.deepcopy(results)
+        games,decisions=rt.adaptive_signal_games(results,1)
+        self.assertEqual([r['Selected signal'] for r in games[1:3]],['Opening shot only']*2)
+        self.assertEqual([r['Selection training games'] for r in games[1:3]],[1,1])
+        changed=copy.deepcopy(results)
+        for result in changed.values():
+            for row in result['games']:
+                if row['Date']>='2026-10-02':row['Log loss']=100.
+        new_games,new_decisions=rt.adaptive_signal_games(changed,1)
+        self.assertEqual(decisions[:2],new_decisions[:2])
+        self.assertEqual(results,original)
+        self.assertEqual(games[-1]['Selected signal'],'Current blend')
+    def test_expired_selection_history_dropped_and_boundary_included(self):
+        from datetime import date,timedelta
+        start=date(2025,1,1)
+        for age,expected in [(400,1),(401,0)]:
+            values=[(start.isoformat(),'old',(2.,1.,3.)),((start+timedelta(days=age)).isoformat(),'new',(2.,1.,3.))]
+            games,decisions=rt.adaptive_signal_games(self.results(values),1)
+            self.assertEqual(games[-1]['Selection training games'],expected)
+            self.assertEqual(games[-1]['Selection learned'],bool(expected))
+    def test_ties_prefer_current_blend(self):
+        values=[('2026-10-01','a',(1.,1.,1.)),('2026-10-02','b',(1.,1.,1.))]
+        games,_=rt.adaptive_signal_games(self.results(values),1)
+        self.assertTrue(games[-1]['Selection learned'])
+        self.assertEqual(games[-1]['Selected signal'],'Current blend')
+    def test_selector_returns_the_chosen_forecast_not_best_current_outcome(self):
+        values=[('2026-10-01','a',(2.,1.,3.)),('2026-10-02','b',(.1,9.,2.))]
+        games,_=rt.adaptive_signal_games(self.results(values),1)
+        self.assertEqual(games[-1]['Log loss'],9.)
+        self.assertEqual(games[-1]['Selected shot weight'],1.)
+    def test_empty_invalid_and_duplicate_inputs(self):
+        self.assertEqual(rt.adaptive_signal_games(self.results([])),([],[]))
+        results=self.results([('2026-10-01','a',(2.,1.,3.))])
+        for minimum in (0,True,1.5):
+            with self.assertRaises(ValueError):rt.adaptive_signal_games(results,minimum)
+        results['Current blend']['games'][0]['Log loss']=float('nan')
+        with self.assertRaises(ValueError):rt.adaptive_signal_games(results)
+        results=self.results([('2026-10-01','a',(2.,1.,3.))])
+        results['Current blend']['games']*=2
+        with self.assertRaisesRegex(ValueError,'identical'):rt.adaptive_signal_games(results)

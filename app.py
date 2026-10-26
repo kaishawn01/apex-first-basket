@@ -381,7 +381,7 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.session_state['evaluation']=research.evaluate(hist,warmup,model=selected_model)
     if st.button('Compare opening-shot vs first-score signals'):
         progress=st.empty()
-        with st.spinner('Testing the current blend and each signal separately…'):
+        with st.spinner('Testing fixed signals and earlier-date selection…'):
             st.session_state['signal_comparison']=research.compare_scoring_signals(hist,warmup,selected_model,progress.info)
     signals=st.session_state.get('signal_comparison')
     if signals and signals['fingerprint']==research.fingerprint(hist) and signals['min_training']==warmup and signals['model']==selected_model:
@@ -389,8 +389,12 @@ with st.expander('Backtest lab · test the model before trusting it'):
         if signals['summary']:
             st.dataframe(pd.DataFrame(signals['summary']),hide_index=True,use_container_width=True)
             st.caption('Same games, earlier-date training, team probabilities, priors and lineup rules. Only the player-signal blend changes: current 65% opening-shot / 35% first-score rates, opening-shot rates alone, or first-score rates alone. The weights mix smoothed rates before normalizing the five players; they are not shares of final win probability. The first-score signal is unconditional in baseline and conditional on the team scoring first in recent/lineup.')
+            st.caption('Earlier-date selector chooses among those three fixed blends using average log loss from prior evaluated games within 400 days. It requires 100 such games; before that it uses the current blend. All matchups on a date share a decision made before that date’s results. This selects a discrete blend, not continuously fitted weights.')
+            st.write(f"Adaptive decisions used sufficient earlier evidence for {signals['adaptive_learned_games']} evaluated games; remaining games used the fallback.")
+            st.dataframe(pd.DataFrame(signals['selection_decisions']),hide_index=True,use_container_width=True)
+            st.download_button('Download adaptive signal decisions CSV',pd.DataFrame(signals['selection_decisions']).to_csv(index=False).encode(),'apex_signal_decisions.csv','text/csv')
             st.dataframe(pd.DataFrame(signals['recent_comparisons']),hide_index=True,use_container_width=True)
-            st.caption('Recent differences are candidate minus current blend, with approximate 95% intervals resampling whole dates. The newest quarter is a rolling diagnostic, not an untouched final test set. This experiment does not fit weights, change live rankings or establish profit. Historical starter-selection bias remains.')
+            st.caption('Recent differences are candidate minus current blend, with approximate 95% intervals resampling whole dates. The newest quarter is a rolling diagnostic, not an untouched final test set. Intervals resample the already-produced forecasts; they do not retrain the selector or capture all selection uncertainty. This experiment does not change live rankings or establish profit. Historical starter-selection bias remains.')
             if signals['latest_dates']<30:st.warning('Fewer than 30 dates in the recent signal comparison. Differences can be unstable.')
             st.caption(f"Invalid historical games excluded: {signals['excluded_games']}.")
             st.download_button('Download signal comparison CSV',pd.DataFrame(signals['summary']).to_csv(index=False).encode(),'apex_signal_comparison.csv','text/csv')

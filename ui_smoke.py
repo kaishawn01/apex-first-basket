@@ -110,7 +110,9 @@ with patch.object(eng,'read_csv',return_value=history2):
   next(b for b in at.button if b.label=='Compare opening-shot vs first-score signals').click().run()
  assert not at.exception,list(at.exception)
  signal=at.session_state['signal_comparison']
- assert len(signal['summary'])==6
+ assert len(signal['summary'])==8
+ assert signal['adaptive_learned_games']==0
+ assert any(d.label=='Download adaptive signal decisions CSV' for d in at.get('download_button'))
  assert signal['model']=='baseline'
  assert next(s for s in at.selectbox if s.label=='Scoring model').value=='baseline'
  assert any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))

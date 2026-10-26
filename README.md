@@ -1,3 +1,13 @@
+APEX V2.24.0 — Test selection learned from earlier forecasts
+
+The signal-comparison experiment now includes Earlier-date selector. For each evaluation date it selects among the existing 65/35 blend, shot-only and score-only variants using their mean log loss on earlier evaluated games within the preceding 400 days. It requires at least 100 prior evaluated games, beyond the underlying model's training warmup. Before that it falls back to the current blend. Numerical ties prefer the current blend, then shot-only, then score-only. All games on one date receive the same selection before any outcomes from that date enter selection history.
+
+This is a discrete, global selection for the chosen model, not player-specific or continuously fitted weights. The report lists daily decisions, selection sample sizes, earlier losses and fallback usage, with CSV export. It compares the adaptive candidate on the same games and newest-quarter dates as fixed variants. Bootstrap intervals resample already-produced forecasts; they do not refit the selector or capture all selection uncertainty. Historical observed-starter/nonstarter-selection bias remains.
+
+The candidate runs only in Backtest lab. Live rankings and saved forward forecasts continue using the fixed 65/35 blend. The experiment makes no API calls and does not promote a model automatically. Predictive improvement must be measured on real history and then prospective data.
+
+Validation: 149 unit tests and all Streamlit smoke checks passed. Added checks cover the 100-game fallback threshold, same-day/future outcome isolation, 400-day selection boundaries, deterministic ties, immutable inputs, selecting the actual earlier-chosen forecast, invalid/duplicate inputs and decision exports. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.23.0 — Compare the two player signals
 
 Backtest lab now has Compare opening-shot vs first-score signals for the selected model. It evaluates the current 65/35 blend, opening-shot rates alone and first-score rates alone on identical historical games, with the same chronological 400-day training window, team probabilities, priors and lineup rules. Signal weights mix smoothed player rates before within-team normalization. The baseline first-score rate is unconditional; recent and lineup models use a conditional rate given the team scores first.

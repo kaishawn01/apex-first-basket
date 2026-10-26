@@ -583,8 +583,46 @@ def validation_report(history, min_training=100, progress=lambda text:None):
             'scoring_stages':stages,'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
 
 
+def adaptive_signal_games(results,min_selection_games=100):
+    """Choose among fixed blends using only earlier-date evaluated losses."""
+    labels=('Current blend','Opening shot only','First score only')
+    weights={'Current blend':.65,'Opening shot only':1.0,'First score only':0.0}
+    if isinstance(min_selection_games,bool) or not isinstance(min_selection_games,int) or min_selection_games<1:
+        raise ValueError('Selection requires a positive integer game minimum.')
+    indexed={label:{(r['Date'],r['Game']):r for r in results[label]['games']} for label in labels}
+    keys=set(indexed[labels[0]])
+    if any(set(indexed[label])!=keys or len(indexed[label])!=len(results[label]['games']) for label in labels):
+        raise ValueError('Adaptive selection requires identical games and dates.')
+    for label in labels:
+        for (day,gid),row in indexed[label].items():
+            date.fromisoformat(day)
+            if not math.isfinite(row['Log loss']) or row['Log loss']<0:
+                raise ValueError('Adaptive selection requires finite nonnegative log losses.')
+    byday=defaultdict(list)
+    for key in sorted(keys):byday[key[0]].append(key)
+    prior=[];chosen_games=[];decisions=[]
+    for day in sorted(byday):
+        cutoff=(date.fromisoformat(day)-timedelta(days=MODEL_DAYS)).isoformat()
+        prior=[key for key in prior if key[0]>=cutoff]
+        chosen='Current blend';learned=len(prior)>=min_selection_games
+        losses={label:sum(indexed[label][key]['Log loss'] for key in prior)/len(prior) for label in labels} if prior else {}
+        if learned:
+            best=min(losses.values())
+            # Prefer the current blend for numerical ties, then shot-only, score-only.
+            chosen=next(label for label in labels if losses[label]<=best+1e-12)
+        reason='Earlier-date loss comparison' if learned else 'Fallback: fewer than '+str(min_selection_games)+' prior evaluated games'
+        decisions.append({'Date':day,'Selected signal':chosen,'Selected shot weight':weights[chosen],
+                          'Selection training games':len(prior),'Selection training dates':len({key[0] for key in prior}),
+                          'Selection reason':reason,**{label+' prior log loss':losses.get(label) for label in labels}})
+        chosen_games.extend({**indexed[chosen][key],'Selected signal':chosen,'Selected shot weight':weights[chosen],
+                             'Selection training games':len(prior),'Selection learned':learned} for key in byday[day])
+        # Every matchup on a date gets the same decision before that date's outcomes.
+        prior.extend(byday[day])
+    return chosen_games,decisions
+
+
 def compare_scoring_signals(history,min_training=100,model='baseline',progress=lambda text:None):
-    """Fixed signal-removal experiment; does not fit weights or select a live model."""
+    """Fixed-signal and earlier-date adaptive experiments; never change live rankings."""
     variants={'Current blend':.65,'Opening shot only':1.0,'First score only':0.0}
     results={}
     for label,weight in variants.items():
@@ -593,6 +631,9 @@ def compare_scoring_signals(history,min_training=100,model='baseline',progress=l
     expected={(r['Game'],r['Date']) for r in results['Current blend']['games']}
     if any({(r['Game'],r['Date']) for r in result['games']}!=expected or len(result['games'])!=len(expected) for result in results.values()):
         raise ValueError('Signal comparisons require identical games and dates.')
+    adaptive,decisions=adaptive_signal_games(results)
+    results['Earlier-date selector']={'games':adaptive}
+    variants['Earlier-date selector']=None
     dates=sorted({d for g,d in expected})
     newest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
     summary=[];details=[];recent={}
@@ -603,8 +644,9 @@ def compare_scoring_signals(history,min_training=100,model='baseline',progress=l
             if subset:summary.append({'Signal variant':label,'Period':period,'Shot weight':variants[label],**evaluation_metrics(subset),**scoring_stage_summary(subset)})
         details.extend({'Signal variant':label,'Shot weight':variants[label],'Newest quarter':r['Date'] in newest,**r} for r in games)
     paired=[]
-    for label in ('Opening shot only','First score only'):
+    for label in ('Opening shot only','First score only','Earlier-date selector'):
         paired.extend({'Signal variant':label,**r} for r in compare_evaluations(recent['Current blend'],recent[label])['metrics'])
     return {'fingerprint':fingerprint(history),'model':model,'min_training':min_training,'summary':summary,
-            'details':details,'recent_comparisons':paired,'latest_dates':len(newest),
+            'details':details,'recent_comparisons':paired,'latest_dates':len(newest),'selection_decisions':decisions,
+            'adaptive_learned_games':sum(r['Selection learned'] for r in adaptive),
             'excluded_games':len(results['Current blend']['excluded'])}
