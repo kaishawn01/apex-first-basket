@@ -1266,3 +1266,32 @@ def scoring_model_scorecard(history,min_training=100,progress=lambda text:None):
         details.extend({'Model':model,'Challenger-active':(r['Date'],r['Game']) in active,**r} for r in result['games'])
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summaries,'paired':paired,'details':details,
             'coverage':coverage,'active_games':len(active),'excluded_games':len(results['baseline']['excluded'])}
+
+
+def scorecard_readings(scorecard, period):
+    """Describe paired evidence without choosing or promoting a model."""
+    readings=[]
+    for row in scorecard['paired']:
+        if row['Period']!=period:continue
+        difference=row['Candidate minus baseline'];low=row['95% lower'];high=row['95% upper']
+        direction=row['Better direction']
+        if direction not in ('Lower','Higher'):raise ValueError('Unknown metric direction.')
+        if not math.isfinite(difference):raise ValueError('Non-finite scorecard difference.')
+        if (low is None)!=(high is None):raise ValueError('Incomplete comparison interval.')
+        if low is not None and (not math.isfinite(low) or not math.isfinite(high) or low>high):
+            raise ValueError('Invalid comparison interval.')
+        better=difference<0 if direction=='Lower' else difference>0
+        point='Same on this sample' if difference==0 else ('Better on this sample' if better else 'Worse on this sample')
+        if row['Dates']<2 or low is None:
+            evidence='Too few dates for an interval'
+        elif low==high==difference==0:
+            evidence='No observed difference; future equivalence not established'
+        elif low<=0<=high:
+            evidence='Uncertain: interval includes no difference'
+        elif (high<0 if direction=='Lower' else low>0):
+            evidence='Interval favors this model on sampled dates'
+        else:
+            evidence='Interval favors Baseline on sampled dates'
+        readings.append({**row,'Sample result':point,'Evidence reading':evidence,
+                         'Date coverage':'Sparse: fewer than 30 dates' if row['Dates']<30 else '30+ dates; not a reliability guarantee'})
+    return readings

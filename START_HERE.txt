@@ -1,3 +1,13 @@
+APEX V2.42.0 — Plain-language scorecard interpretation
+
+The five-model scorecard now explains every paired metric for the selected period. Sample result describes the observed average; Evidence reading separately states whether the approximate date-bootstrap interval favors the model, favors Baseline, includes no difference, or cannot be estimated from the available dates. Lower-is-better probability errors and higher-is-better hit rates use their correct directions. Exact observed ties do not claim future equivalence. Invalid or incomplete numeric intervals are rejected.
+
+The report labels fewer than 30 dates as sparse, without treating 30 dates as proof of reliability. It explains that intervals are exploratory, unadjusted for multiple comparisons, and not probabilities of future success. Probability quality and top-pick accuracy remain separate metrics. Suggested next steps are reviewing newest-date performance, enriching missing evidence and collecting forward-journal forecasts. No model is automatically selected or promoted, and prediction formulas are unchanged.
+
+Download scorecard interpretation CSV includes the selected period, model, metric, numerical difference, interval, sample size and explanation. The interpretation and its download disappear when the selected period has no eligible games or the scorecard is stale. No extra API requests or model reruns are needed.
+
+Validation: 272 unit tests passed. Streamlit smoke checks cover interpretation display, selected-period downloads, empty periods and stale settings. Windows execution and real-user accuracy gains have not been tested.
+
 APEX V2.41.0 — Five-model scoring scorecard
 
 Backtest lab now includes Compare all five scoring models: Baseline, Recent form, Lineup context, Opening-shot conversion and Post-miss. Each model must evaluate identical games and dates. The report includes top-1/top-3 fractional hit rates, log loss, Brier score, scoring-stage diagnostics and differences against Baseline, with approximate paired date-bootstrap intervals.

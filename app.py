@@ -566,6 +566,12 @@ with st.expander('Backtest lab · test the model before trusting it'):
             if selected_summary:
                 st.dataframe(pd.DataFrame(selected_summary),hide_index=True,use_container_width=True)
                 st.dataframe(pd.DataFrame([r for r in scorecard['paired'] if r['Period']==scorecard_period]),hide_index=True,use_container_width=True)
+                st.markdown('**What these results mean**')
+                readings=research.scorecard_readings(scorecard,scorecard_period)
+                st.dataframe(pd.DataFrame(readings)[['Model','Metric','Sample result','Evidence reading','Date coverage']],hide_index=True,use_container_width=True)
+                st.caption('A better sample average can still have an uncertain difference. An interval favoring a model is exploratory evidence, not a probability that it will win or proof of future accuracy. Intervals are not adjusted for testing multiple models and metrics. Thirty dates is a display warning threshold, not a validation cutoff.')
+                st.info('Next step: compare the newest dates with the full sample, enrich missing opening data, and collect pregame forecasts in the forward journal. Judge each metric separately; better probability errors do not necessarily mean more top picks hit.')
+                st.download_button('Download scorecard interpretation CSV',pd.DataFrame(readings).to_csv(index=False).encode(),'apex_scorecard_interpretation.csv','text/csv')
                 if selected_summary[0]['Dates']<30:st.warning('Fewer than 30 dates in this comparison. Estimates and intervals can be unstable.')
             else:st.info('No games satisfy this period yet. Enrich earlier opening-shot and sequence data, then rerun the scorecard.')
             st.caption('Challenger-active means at least one known earlier conversion attempt among the selected players and at least ten known sequence games for each team. It does not establish adequate samples for every player or model reliability. All five models use the same selected games in each period; other periods retain fallback games.')

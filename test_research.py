@@ -1832,3 +1832,34 @@ class ScoringScorecardTests(unittest.TestCase):
         result=rt.scoring_model_scorecard(history,1)
         self.assertTrue(result['paired'])
         self.assertTrue(all(r['Dates']==1 and r['95% lower'] is None and r['95% upper'] is None for r in result['paired']))
+
+class ScorecardReadingTests(unittest.TestCase):
+    def reading(self,diff=-.1,low=-.2,high=-.01,direction='Lower',dates=40):
+        row={'Period':'all','Model':'recent','Metric':'Log loss','Candidate minus baseline':diff,'95% lower':low,'95% upper':high,'Better direction':direction,'Dates':dates,'Games':60}
+        return rt.scorecard_readings({'paired':[row]},'all')[0]
+    def test_lower_and_higher_metric_directions(self):
+        self.assertIn('favors this model',self.reading()['Evidence reading'])
+        self.assertIn('favors Baseline',self.reading(direction='Higher')['Evidence reading'])
+        self.assertEqual(self.reading(direction='Higher')['Sample result'],'Worse on this sample')
+        self.assertIn('favors this model',self.reading(.1,.01,.2,'Higher')['Evidence reading'])
+    def test_point_advantage_does_not_override_uncertainty(self):
+        row=self.reading(-.1,-.3,.1)
+        self.assertEqual(row['Sample result'],'Better on this sample')
+        self.assertIn('Uncertain',row['Evidence reading'])
+        self.assertIn('Uncertain',self.reading(-.1,-.3,0)['Evidence reading'])
+    def test_equal_results_do_not_claim_equivalence(self):
+        self.assertIn('future equivalence not established',self.reading(0,0,0)['Evidence reading'])
+    def test_one_date_and_sparse_date_labels(self):
+        self.assertEqual(self.reading(low=None,high=None,dates=1)['Evidence reading'],'Too few dates for an interval')
+        self.assertTrue(self.reading(dates=29)['Date coverage'].startswith('Sparse'))
+        self.assertIn('not a reliability guarantee',self.reading(dates=30)['Date coverage'])
+    def test_invalid_intervals_fail(self):
+        for args in ({'low':None},{'low':.2,'high':-.2},{'high':float('inf')},{'diff':float('nan')},{'direction':'unknown'}):
+            with self.assertRaises(ValueError):self.reading(**args)
+    def test_period_filter_and_no_mutation(self):
+        import copy
+        card=rt.scoring_model_scorecard(game_rows('a','2026-08-01')+game_rows('b','2026-08-02'),1)
+        before=copy.deepcopy(card)
+        rows=rt.scorecard_readings(card,'All evaluated dates')
+        self.assertEqual(len(rows),16);self.assertEqual(card,before)
+        self.assertEqual(rt.scorecard_readings(card,'Challenger-active games'),[])
