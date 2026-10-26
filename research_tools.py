@@ -194,7 +194,7 @@ def journal_connection(path=None):
     return conn
 
 
-def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=None,path=None,now=None):
+def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=None,path=None,now=None,model_forecasts=None):
     from datetime import timezone
     import math
     now=now or datetime.now(timezone.utc)
@@ -207,9 +207,27 @@ def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=Non
     if any(r['_game_id']!=game['gameId'] for r in rows):raise ValueError('Forecast belongs to a different game.')
     probs=[r['_probability'] for r in rows]
     if any(not math.isfinite(p) or p<=0 or p>=1 for p in probs) or abs(sum(probs)-1)>1e-8:raise ValueError('Forecast probabilities must be positive and sum to one.')
+    if model_forecasts is not None:
+        if set(model_forecasts)!={'baseline','recent','lineup'}:raise ValueError('A model comparison requires all three forecasts.')
+        expected={r['_player_id']:r['Team'] for r in rows}
+        for model,forecast in model_forecasts.items():
+            if len(forecast)!=10 or {r['_player_id']:r['Team'] for r in forecast}!=expected:
+                raise ValueError('All models must use the same ten starters and teams.')
+            if any(r.get('_research_only') or r['_game_id']!=game['gameId'] or r.get('Model')!=model for r in forecast):
+                raise ValueError('Invalid model comparison identity or research forecast.')
+            probs=[r['_probability'] for r in forecast]
+            if any(not math.isfinite(p) or p<=0 or p>=1 for p in probs) or abs(sum(probs)-1)>1e-8:
+                raise ValueError('Invalid model comparison probabilities.')
+        primary=rows[0].get('Model','baseline')
+        if primary not in model_forecasts or any(r.get('Model','baseline')!=primary for r in rows):
+            raise ValueError('Invalid selected model.')
+        saved={r['_player_id']:r['_probability'] for r in model_forecasts[primary]}
+        if any(abs(saved[r['_player_id']]-r['_probability'])>1e-12 for r in rows):
+            raise ValueError('Selected forecast does not match the comparison snapshot.')
     snapshot={'game_id':game['gameId'],'date':game['_date'],'start_time':game['start_time'],'saved_at':now.isoformat(),
               'model_version':model_version,'model':rows[0].get('Model','baseline'),'history_hash':history_hash,'injuries_checked_at':injury_time,
               'lineup_confirmation':'User confirmed','rows':rows}
+    if model_forecasts is not None:snapshot['model_forecasts']=model_forecasts
     conn=journal_connection(path)
     try:
         with conn:
@@ -296,7 +314,42 @@ def journal_table(records):
                       'Top prediction':' / '.join(tops),'Top probability %':100*best,
                       'Winner':outcome['winner'] if outcome else 'Pending',
                       'Top-1 credit':outcome['top1_credit'] if outcome else None,
+                      'Brier':outcome['brier'] if outcome else None,
+                      'Log loss':('Infinite (zero-probability winner)' if outcome['outside_field'] else outcome['log_loss']) if outcome else None,
                       'Lineup matched':outcome['lineup_matches'] if outcome else None,
                       'Outside field':outcome['outside_field'] if outcome else None,
                       'Sample holds':sum(r['Status'] in ('HOLD: SAMPLE','HOLD: WEIGHTED SAMPLE') for r in snap['rows'])})
     return table
+
+
+def journal_model_records(records, model):
+    """Score immutable pre-tip probabilities against the recorded actual winner."""
+    if model not in ('baseline','recent','lineup'):raise ValueError('Unknown journal model.')
+    result=[]
+    for record in records:
+        snap=record['snapshot']
+        if snap.get('model','baseline')==model:
+            result.append(record);continue
+        rows=snap.get('model_forecasts',{}).get(model)
+        if rows is None:continue  # Never manufacture historical challenger forecasts.
+        outcome=record['outcome']
+        if outcome is not None:
+            winner=outcome['winner_id'];probs={r['_player_id']:r['_probability'] for r in rows}
+            wp=probs.get(winner,0)
+            outcome={**outcome,'winner_probability':wp,'outside_field':winner not in probs,
+                     'top1_credit':top_k_credit(probs,winner,1),
+                     'brier':sum((p-int(pid==winner))**2 for pid,p in probs.items())+int(winner not in probs),
+                     'log_loss':-math.log(wp) if wp>0 else None}
+        result.append({'snapshot':{**snap,'model':model,'rows':rows},'outcome':outcome})
+    return result
+
+
+def forward_model_comparison(records):
+    """All models evaluated on exactly the same prospectively saved games."""
+    matched=[r for r in records if set(r['snapshot'].get('model_forecasts',{}))=={'baseline','recent','lineup'}]
+    summaries=[];details=[]
+    for model in ('baseline','recent','lineup'):
+        viewed=journal_model_records(matched,model)
+        summaries.append({'Model':model,**journal_summary(viewed)})
+        details.extend(journal_table(viewed))
+    return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details}

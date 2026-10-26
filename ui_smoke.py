@@ -32,10 +32,16 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
  assert not at.exception,list(at.exception)
  assert len(research.journal_records())==1
+ assert set(research.journal_records()[0]['snapshot']['model_forecasts'])=={'baseline','recent','lineup'}
+ assert any(d.label=='Download forward model comparison CSV' for d in at.get('download_button'))
  next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
  assert len(research.journal_records())==1
  assert any(d.label=='Download forward journal CSV' for d in at.get('download_button'))
- print('Journal UI passed: save, duplicate prevention, table, CSV export.')
+ next(s for s in at.selectbox if s.label=='Journal scoring model').set_value('recent').run()
+ assert not at.exception,list(at.exception)
+ journal=next(d.value for d in at.dataframe if 'Saved before tip' in d.value.columns)
+ assert set(journal['Model'])=={'recent'}
+ print('Journal UI passed: all-model save, comparison export, model filter, duplicate prevention.')
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value
  assert any('Inputs changed' in x.value for x in at.info)

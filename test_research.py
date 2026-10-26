@@ -294,3 +294,59 @@ class LineupScenarioTests(unittest.TestCase):
         for r in result['rows']:
             if r['Team']=='NYK':self.assertAlmostEqual(r['Change (percentage points)'],0)
         self.assertEqual(next(r['Injury'] for r in result['rows'] if r['Player']=='Replacement'),'Out')
+
+class MultiModelJournalTests(unittest.TestCase):
+    def setUp(self):
+        import copy
+        ForwardJournalTests.setUp(self)
+        self.bundle={m:[{**copy.deepcopy(r),'Model':m} for r in self.rows] for m in ('baseline','recent','lineup')}
+        for r in self.bundle['recent']:r['_probability']=.2 if r['_player_id']=='10' else .8/9
+    def save_bundle(self,path,bundle=None):
+        return rt.save_forecast(self.game,self.rows,{'BOS':True,'NYK':True},'2.8.0','history',path=path,now=self.now,model_forecasts=self.bundle if bundle is None else bundle)
+    def record(self):
+        return {'snapshot':{'game_id':'espn_123','model':'baseline','rows':self.rows,'model_forecasts':self.bundle,'model_version':'2.8.0','date':'2026-10-25','saved_at':self.now.isoformat()},'outcome':None}
+    def test_atomic_immutable_bundle(self):
+        import copy
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'journal';self.assertTrue(self.save_bundle(path))
+            saved=copy.deepcopy(rt.journal_records(path))
+            self.bundle['recent'][0]['Player']='Edited'
+            self.assertFalse(self.save_bundle(path))
+            self.assertEqual(saved,rt.journal_records(path))
+            self.assertEqual(set(saved[0]['snapshot']['model_forecasts']),{'baseline','recent','lineup'})
+    def test_bundle_identity_probability_and_primary_checks(self):
+        import copy
+        variants=[]
+        bad=copy.deepcopy(self.bundle);bad.pop('lineup');variants.append(bad)
+        bad=copy.deepcopy(self.bundle);bad['recent'][0]['_player_id']='wrong';variants.append(bad)
+        bad=copy.deepcopy(self.bundle);bad['recent'][0]['_probability']=float('nan');variants.append(bad)
+        bad=copy.deepcopy(self.bundle);bad['recent'][0]['_research_only']=True;variants.append(bad)
+        bad=copy.deepcopy(self.bundle);bad['baseline'][0]['_probability']+=.01;bad['baseline'][1]['_probability']-=.01;variants.append(bad)
+        with tempfile.TemporaryDirectory() as tmp:
+            for bundle in variants:
+                with self.assertRaises(ValueError):self.save_bundle(Path(tmp)/'journal',bundle)
+            self.assertFalse((Path(tmp)/'journal').exists())
+    def test_models_scored_from_saved_probabilities(self):
+        record=self.record()
+        record['outcome']=rt.outcome_from_summary(record['snapshot'],ForwardJournalTests.payload(self))
+        with patch.object(eng,'predict_first_score',side_effect=AssertionError('Never rerun model to grade')):
+            recent=rt.journal_model_records([record],'recent')[0]
+            comparison=rt.forward_model_comparison([record])
+        self.assertAlmostEqual(recent['outcome']['winner_probability'],.2)
+        self.assertAlmostEqual(recent['outcome']['log_loss'],-math.log(.2))
+        self.assertEqual(recent['outcome']['top1_credit'],1)
+        self.assertEqual([r['Settled games'] for r in comparison['summary']],[1,1,1])
+        self.assertEqual(len(comparison['details']),3)
+    def test_old_records_not_backfilled_or_compared(self):
+        old=self.record();old['snapshot'].pop('model_forecasts')
+        self.assertEqual(rt.journal_model_records([old],'recent'),[])
+        compared=rt.forward_model_comparison([old,self.record()])
+        self.assertEqual(compared['matched_games'],1);self.assertEqual(compared['excluded_games'],1)
+        self.assertEqual([r['Pending games'] for r in compared['summary']],[1,1,1])
+    def test_outside_field_loss_retained_for_every_model(self):
+        record=self.record();record['outcome']=rt.outcome_from_summary(record['snapshot'],ForwardJournalTests.payload(self,winner='99'))
+        comparison=rt.forward_model_comparison([record])
+        for r in comparison['summary']:
+            self.assertEqual(r['Outside-field winners'],1)
+            self.assertIn('Infinite',r['Log loss'])
+            self.assertEqual(r['Top-1 hit %'],0)

@@ -256,7 +256,7 @@ else:
                         st.download_button('Download lineup scenario CSV',scenario_frame.to_csv(index=False).encode(),'apex_lineup_scenario.csv','text/csv')
                     elif scenario:st.info('Scenario inputs changed. Compare starter change again.')
                 else:st.info('No unselected players are available in the loaded roster. Refresh the roster or choose another team.')
-        st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
+        st.caption('Saving records all three models with the same confirmed five, date and history before tip-off. The first saved forecast is permanent; later lineup edits do not change it. Comparison estimates need no extra API requests.')
         if st.button('Save confirmed forecasts to journal',disabled=analysis_mode=='Research matchup'):
             try:
                 live={g['gameId']:g for g in core.fresh_schedule(day)}
@@ -267,7 +267,8 @@ else:
                         st.warning(gid+': game started or is unavailable; not saved.');continue
                     rows=[r for r in result['rows'] if r['_game_id']==gid]
                     try:
-                        inserted=research.save_forecast(game,rows,confirmations.get(gid,{}),updater.current_version(),research.fingerprint(hist),inj.get('time'))
+                        bundle={m:(rows if m==selected_model else core.rank_game(hist,game,choices[gid],confirmations.get(gid,{}),{},reports,model=m)) for m in ('baseline','recent','lineup')}
+                        inserted=research.save_forecast(game,rows,confirmations.get(gid,{}),updater.current_version(),research.fingerprint(hist),inj.get('time'),model_forecasts=bundle)
                         saved+=int(inserted);duplicates+=int(not inserted)
                     except ValueError as exc:st.warning(str(exc))
                 st.success(f'Saved {saved} new forecasts. {duplicates} already had a saved forecast and were left unchanged.')
@@ -377,8 +378,16 @@ with st.expander('Forward-testing journal · actual future results'):
             versions=sorted({r['snapshot']['model_version'] for r in records})
             chosen=st.selectbox('Journal model version',['All versions']+versions)
             selected=records if chosen=='All versions' else [r for r in records if r['snapshot']['model_version']==chosen]
+            paired_forward=research.forward_model_comparison(selected)
+            st.markdown('**Forward model comparison · identical saved games**')
+            st.caption(f"{paired_forward['matched_games']} games have all three pre-tip forecasts. {paired_forward['excluded_games']} older or single-model games are excluded from this comparison, but remain in the journal.")
+            if paired_forward['matched_games']:
+                st.dataframe(pd.DataFrame(paired_forward['summary']),hide_index=True,use_container_width=True)
+                st.download_button('Download forward model comparison CSV',pd.DataFrame(paired_forward['details']).to_csv(index=False).encode(),'apex_forward_models.csv','text/csv')
+                st.caption('Compare within one software version for consistent model formulas. Small samples do not establish a better model; no default is changed automatically.')
             journal_model=st.selectbox('Journal scoring model',['All models','baseline','recent','lineup'])
-            if journal_model!='All models':selected=[r for r in selected if r['snapshot'].get('model','baseline')==journal_model]
+            if journal_model!='All models':selected=research.journal_model_records(selected,journal_model)
+            st.caption('All models shows one selected forecast per game. Choosing a model also includes its saved comparison forecasts, when available.')
             metrics=research.journal_summary(selected)
             j1,j2,j3=st.columns(3)
             j1.metric('Saved forecasts',metrics['Saved games'])

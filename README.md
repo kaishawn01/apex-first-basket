@@ -1,3 +1,11 @@
+APEX V2.8.0 — Compare models on future games
+
+Save confirmed forecasts to journal now atomically stores baseline, recent form and lineup context probabilities for the same ten starters before tip-off. It uses the same history, software version and save timestamp. No extra provider requests are needed for comparison estimates. Existing first-save protection applies to the entire bundle. Research matchups remain ineligible.
+
+After games finish, Check completed games for journal resolves the actual first scorer. Forward model comparison grades each model from its saved probabilities, without rerunning a current model or creating hindsight forecasts. All three rows use exactly the same saved games; pending games stay pending. Nonstarter winners, wrong predicted fives and sample/injury holds remain in results. Outside-field winners retain infinite log loss. CSV export includes one row per model per game.
+
+Old single-model records are preserved and excluded from the matched comparison; they are never backfilled. Choose a software version to compare consistent formulas. The model filter includes saved challenger forecasts where available; All models retains the one original selected forecast per game. No betting ROI or automatic model promotion is claimed. Local timestamps are not independently certified.
+
 APEX V2.7.0 — Lineup what-if comparisons
 
 Run rankings, then open Lineup what-if > compare one starter change. Choose a matchup, team, outgoing starter and an alternative from the loaded team roster. Compare starter change shows all players before/after, probability-point changes for retained starters, top estimates, sample counts and injury flags. Export a scenario CSV if needed. It works with baseline, recent form and lineup context.
