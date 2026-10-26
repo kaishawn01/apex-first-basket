@@ -351,7 +351,7 @@ with st.expander('Data quality & coverage'):
                 progress=st.empty()
                 with st.spinner('Checking replacement game data…'):
                     st.session_state['repair_report']=research.repair_history(repair_ids,progress=progress.info)
-                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report','signal_comparison'):st.session_state.pop(key,None)
+                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report','signal_comparison','research_export'):st.session_state.pop(key,None)
                 st.rerun()
             except (RuntimeError,ValueError,OSError) as exc:st.error(str(exc))
 
@@ -372,6 +372,20 @@ with st.expander('Data quality & coverage'):
         rows=[r for r in active if r['team']==team]
         coverage.append({'Team':team,'Games in 400-day window':len({r['game_id'] for r in rows}),'Games with opening-action proxy':proxy_coverage.get(team,{}).get('proxy_games',0),'Latest game':max((r['date'] for r in rows),default='None')})
     st.dataframe(pd.DataFrame(coverage),hide_index=True,use_container_width=True)
+
+with st.expander('Share research data · export for engine review'):
+    st.write('Create a data-only ZIP containing your saved game history, quality issues, team coverage and engine version. It does not include API-key files, settings, odds or your forward journal. Preparing it makes no API calls and does not upload anything.')
+    export_version=updater.current_version()
+    export_signature=(research.fingerprint(hist),day,selected_model,export_version)
+    if st.button('Prepare research export',disabled=not hist):
+        with st.spinner('Packaging history and quality report…'):
+            st.session_state['research_export']={'signature':export_signature,'data':research.research_export(hist,export_version,day,selected_model)}
+    export=st.session_state.get('research_export')
+    if export and export['signature']==export_signature:
+        st.download_button('Download research ZIP',export['data'],f'apex_research_{day}.zip','application/zip')
+        st.caption('Review the ZIP before sharing. Flagged rows remain included for diagnosis; your local history is unchanged. You can attach this ZIP in our chat when you want me to evaluate changes using your saved games.')
+    elif export:st.info('History, date, model or version changed. Prepare a fresh research export.')
+    elif not hist:st.info('Sync or import some history before preparing an export.')
 
 with st.expander('Backtest lab · test the model before trusting it'):
     st.write('Walk-forward testing predicts each game using earlier dates only. The 400-day window matches dashboard rankings. Same-day results never enter training.')

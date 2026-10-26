@@ -1,3 +1,13 @@
+APEX V2.26.0 — Export reproducible research data
+
+A new Share research data section prepares a data-only ZIP on demand. It contains saved history in known history columns, a quality-issue CSV, valid team coverage for the selected date's 400-day window, engine/model/date metadata, a readme and SHA-256 checksums. Flagged rows remain included for diagnosis. Export does not modify or repair local history.
+
+The exporter builds files in memory from the provided history and explicit settings. It does not read API-key files, environment variables, app configuration, odds or the forward journal. Extra history columns are omitted. No API request, upload, backtest or background job is triggered. The download becomes stale when history, analysis date, model or version changes. Review the archive before sharing it; it is a research dataset, not an app backup. Matching engine version and an explicit evaluation training minimum are needed for reproducible comparisons.
+
+This makes it possible to review actual saved-game evidence before changing prediction formulas. It does not establish accuracy, validate betting returns or change the live model.
+
+Validation: 159 unit tests and all Streamlit smoke checks passed. Added checks cover archive member allowlisting, SHA-256 checksums, CSV round trips, excluded extra fields, no file/API reads during export, preserved flagged rows, date-window coverage, empty data, invalid settings, download availability and stale-date invalidation. Windows execution was not tested here.
+
 APEX V2.25.0 — Separate adaptive decisions from fallback performance
 
 Signal comparison now includes an adaptive-performance section restricted to games where the selector had the required 100 earlier evaluated games within its 400-day window. Every fixed variant and the selector are measured on exactly that same subset. Eligibility is determined from prior sample size, never the current outcome. A learned decision to keep the current blend remains included; the report does not cherry-pick games where the selector switches.

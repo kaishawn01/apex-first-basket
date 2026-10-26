@@ -16,7 +16,16 @@ game={'gameId':'espn_test','_date':'2027-01-02','start_time':'2027-01-02T23:00:0
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
  at=AppTest.from_file(str(root/'app.py')).run()
  assert not at.exception,list(at.exception)
+ with patch.object(core,'request',side_effect=AssertionError('Research export must not fetch APIs')):
+  next(b for b in at.button if b.label=='Prepare research export').click().run()
+ assert not at.exception,list(at.exception)
+ assert any(d.label=='Download research ZIP' for d in at.get('download_button'))
+ import io,zipfile
+ with zipfile.ZipFile(io.BytesIO(at.session_state['research_export']['data'])) as archive:
+  assert 'history.csv' in archive.namelist()
  at.date_input[0].set_value(date(2027,1,2)).run()
+ assert any('Prepare a fresh research export' in x.value for x in at.info)
+ assert not any(d.label=='Download research ZIP' for d in at.get('download_button'))
  next(b for b in at.button if 'Load slate' in b.label).click().run()
  assert not at.exception,list(at.exception)
  assert len(at.multiselect)==2

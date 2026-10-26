@@ -672,3 +672,59 @@ def compare_scoring_signals(history,min_training=100,model='baseline',progress=l
             'details':details,'recent_comparisons':paired,'latest_dates':len(newest),'selection_decisions':decisions,
             'adaptive_learned_games':sum(r['Selection learned'] for r in adaptive),'active_selection':adaptive_active_report(results),
             'excluded_games':len(results['Current blend']['excluded'])}
+
+
+def research_export(history,engine_version,analysis_day,model='baseline'):
+    """Build an explicit data-only review archive in memory; never read app files."""
+    import io
+    import csv
+    import zipfile
+    import re
+    if not re.fullmatch(r'\d+\.\d+\.\d+',engine_version):raise ValueError('Invalid engine version.')
+    date.fromisoformat(analysis_day)
+    if model not in ('baseline','recent','lineup'):raise ValueError('Unknown model.')
+    # Only known history columns are exported. Extra row fields, settings,
+    # journal entries, source paths, environment variables and key files are absent.
+    rows=[{field:'' if row.get(field) is None else str(row.get(field,'')) for field in eng.FIELDS} for row in history]
+    valid,issues=audit(rows)
+    active=history_window(valid,analysis_day)
+    observed=eng.opening_shot_games(active)
+    proxy=eng.team_stats(active)
+    coverage=[]
+    for team in sorted(eng.TEAMS):
+        team_rows=[r for r in active if r['team']==team]
+        games={r['game_id'] for r in team_rows}
+        coverage.append({'Team':team,'Games in 400-day window':len(games),
+                         'Observed opening-shot games':sum((gid,team) in observed for gid in games),
+                         'Opening-action proxy games':proxy.get(team,{}).get('proxy_games',0),
+                         'Latest valid game':max((r['date'] for r in team_rows),default='')})
+    def csv_bytes(fields,records):
+        stream=io.StringIO(newline='')
+        writer=csv.DictWriter(stream,fieldnames=fields,extrasaction='ignore')
+        writer.writeheader();writer.writerows(records)
+        return stream.getvalue().encode('utf-8')
+    metadata={'export_schema':1,'engine_version':engine_version,'analysis_day':analysis_day,'selected_model':model,
+              'created_utc':datetime.now(ZoneInfo('UTC')).isoformat(),'model_window_days':MODEL_DAYS,
+              'history_rows':len(rows),'history_games':len({r['game_id'] for r in rows}),
+              'valid_games':len({r['game_id'] for r in valid}),'flagged_games':len(issues),
+              'exported_history_fingerprint':fingerprint(rows),
+              'first_valid_date':min((r['date'] for r in valid),default=None),
+              'last_valid_date':max((r['date'] for r in valid),default=None)}
+    files={'history.csv':csv_bytes(eng.FIELDS,rows),
+           'quality_issues.csv':csv_bytes(['game_id','reason'],issues),
+           'team_coverage.csv':csv_bytes(['Team','Games in 400-day window','Observed opening-shot games','Opening-action proxy games','Latest valid game'],coverage),
+           'metadata.json':json.dumps(metadata,indent=2).encode('utf-8'),
+           'READ_ME.txt':('APEX data-only research export\n\n'
+                          'history.csv contains all saved rows in known history columns, including flagged games. No rows are repaired or deleted by export.\n'
+                          'quality_issues.csv lists validation failures. team_coverage.csv uses only valid games within 400 days before the analysis date.\n'
+                          'metadata.json identifies the engine version, selected model, analysis date and exported data fingerprint.\n'
+                          'checksums.json contains SHA-256 hashes of every other file. These check bytes, not source authenticity.\n'
+                          'This archive is not an app backup. It contains no program files, API-key files, environment configuration, odds cache or forward journal.\n'
+                          'No API calls, uploads or model evaluations occur when preparing it. Review before sharing.\n'
+                          'To reproduce research, use this engine version and pass history rows to research_tools.evaluate, validation_report or compare_scoring_signals with an explicit training minimum.\n'
+                          'Historical starter-only selection and missing-play limitations still apply. This archive does not establish predictive accuracy or profit.\n').encode('utf-8')}
+    files['checksums.json']=json.dumps({name:hashlib.sha256(content).hexdigest() for name,content in files.items()},indent=2).encode('utf-8')
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as archive:
+        for name,content in files.items():archive.writestr(name,content)
+    return output.getvalue()

@@ -999,3 +999,54 @@ class ActiveAdaptiveReportTests(unittest.TestCase):
         self.assertEqual(report['active_selection']['games'],4)
         self.assertEqual(report['active_selection']['fallback_games'],100)
         self.assertEqual([r['Evaluated games'] for r in report['active_selection']['summary']],[4]*4)
+
+class ResearchExportTests(unittest.TestCase):
+    def unpack(self,rows,day='2026-10-21'):
+        import io,zipfile
+        return zipfile.ZipFile(io.BytesIO(rt.research_export(rows,'2.26.0',day)))
+    def test_explicit_members_checksums_and_roundtrip(self):
+        import csv,io,json,hashlib
+        rows=game_rows('a','2026-10-20')
+        with self.unpack(rows) as archive:
+            self.assertEqual(set(archive.namelist()),{'history.csv','quality_issues.csv','team_coverage.csv','metadata.json','READ_ME.txt','checksums.json'})
+            for name,digest in json.loads(archive.read('checksums.json')).items():
+                self.assertEqual(hashlib.sha256(archive.read(name)).hexdigest(),digest)
+            exported=list(csv.DictReader(io.StringIO(archive.read('history.csv').decode())))
+            meta=json.loads(archive.read('metadata.json'))
+            self.assertEqual(len(exported),10)
+            self.assertEqual(rt.audit(exported)[1],[])
+            self.assertEqual(meta['exported_history_fingerprint'],rt.fingerprint(exported))
+            self.assertEqual(meta['valid_games'],1)
+    def test_extra_fields_settings_and_files_are_not_read(self):
+        import copy
+        rows=game_rows('a','2026-10-20');rows[0]['api_key']='SECRET_EXTRA_FIELD'
+        original=copy.deepcopy(rows)
+        with patch.object(Path,'read_text',side_effect=AssertionError('No file reads')),patch.object(rt.core,'request',side_effect=AssertionError('No API calls')):
+            with self.unpack(rows) as archive:
+                self.assertTrue(all(b'SECRET_EXTRA_FIELD' not in archive.read(name) for name in archive.namelist()))
+        self.assertEqual(rows,original)
+    def test_flagged_rows_preserved_but_excluded_from_coverage(self):
+        import csv,io,json
+        rows=game_rows('good','2026-10-20')+game_rows('bad','2026-10-19')
+        rows[-1]['player_id']=rows[-2]['player_id']
+        with self.unpack(rows) as archive:
+            exported=list(csv.DictReader(io.StringIO(archive.read('history.csv').decode())))
+            issues=list(csv.DictReader(io.StringIO(archive.read('quality_issues.csv').decode())))
+            coverage=list(csv.DictReader(io.StringIO(archive.read('team_coverage.csv').decode())))
+            self.assertEqual(len(exported),20);self.assertEqual(issues[0]['game_id'],'bad')
+            self.assertEqual(next(r for r in coverage if r['Team']=='BOS')['Games in 400-day window'],'1')
+            self.assertEqual(json.loads(archive.read('metadata.json'))['flagged_games'],1)
+    def test_coverage_excludes_same_day_future_and_old_games(self):
+        import csv,io
+        rows=sum((game_rows(str(i),day) for i,day in enumerate(('2026-10-20','2026-10-21','2026-10-22','2020-01-01'))),[])
+        with self.unpack(rows) as archive:
+            coverage=list(csv.DictReader(io.StringIO(archive.read('team_coverage.csv').decode())))
+            bos=next(r for r in coverage if r['Team']=='BOS')
+            self.assertEqual(bos['Games in 400-day window'],'1')
+            self.assertEqual(bos['Observed opening-shot games'],'1')
+    def test_empty_and_invalid_settings(self):
+        import json
+        with self.unpack([]) as archive:self.assertEqual(json.loads(archive.read('metadata.json'))['history_rows'],0)
+        with self.assertRaises(ValueError):rt.research_export([],'not-a-version','2026-10-21')
+        with self.assertRaises(ValueError):rt.research_export([],'2.26.0','bad-date')
+        with self.assertRaises(ValueError):rt.research_export([],'2.26.0','2026-10-21','unknown')
