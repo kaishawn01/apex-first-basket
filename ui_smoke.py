@@ -112,3 +112,14 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert any('Scenario inputs changed' in x.value for x in at.info)
  assert not any('Scenario role' in d.value.columns for d in at.dataframe)
  print('Scenario UI passed: comparison, export, unchanged rankings, no journal writes, stale scenario hidden.')
+
+ assert any(d.label=='Download player evidence CSV' for d in at.get('download_button'))
+ evidence=next(d.value for d in at.dataframe if 'Opening-shot rate %' in d.value.columns)
+ assert list(evidence['Starts'])==[1,1,1]
+ inspect=next(s for s in at.selectbox if s.label=='Inspect ranked player')
+ inspect.set_value((game_id:='research_BOS_NYK_2027-01-02','11')).run()
+ assert not at.exception,list(at.exception)
+ evidence=next(d.value for d in at.dataframe if 'Opening-shot rate %' in d.value.columns)
+ assert evidence['Game first scores'].sum()==0
+ assert at.session_state['results']['rows']==original_results
+ print('Player evidence UI passed: history table, player switching, CSV export, rankings preserved.')

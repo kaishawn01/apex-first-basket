@@ -350,3 +350,52 @@ class MultiModelJournalTests(unittest.TestCase):
             self.assertEqual(r['Outside-field winners'],1)
             self.assertIn('Infinite',r['Log loss'])
             self.assertEqual(r['Top-1 hit %'],0)
+
+class PlayerEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.rows=game_rows('one','2026-10-20')
+        self.five=[r for r in self.rows if r['team']=='BOS']
+    def test_raw_counts_and_conditional_denominators(self):
+        result=rt.player_evidence(self.rows,'2026-10-21','BOS','10',self.five)
+        stats=result['summary'][-1]
+        self.assertEqual(stats['Starts'],1);self.assertEqual(stats['Team opening shots'],1)
+        self.assertEqual(stats['Game first scores'],1)
+        self.assertEqual(stats['Share when team scored first %'],100)
+        self.assertEqual(result['days_since_last_start'],1)
+        nyk=[r for r in self.rows if r['team']=='NYK']
+        stats=rt.player_evidence(self.rows,'2026-10-21','NYK','20',nyk)['summary'][-1]
+        self.assertEqual(stats['First-score rate %'],0)
+        self.assertIsNone(stats['Share when team scored first %'])
+    def test_windows_and_no_future_leakage(self):
+        from datetime import date,timedelta
+        target=date(2026,10,21)
+        rows=[r for i in range(1,36) for r in game_rows(str(i),(target-timedelta(days=i)).isoformat())]
+        rows+=game_rows('same',target.isoformat())+game_rows('future',(target+timedelta(days=1)).isoformat())
+        rows+=game_rows('old',(target-timedelta(days=401)).isoformat())
+        result=rt.player_evidence(rows,target.isoformat(),'BOS','10',self.five)
+        self.assertEqual([r['Starts'] for r in result['summary']],[10,30,35])
+        self.assertEqual(len(result['games']),35)
+        self.assertEqual(result['games'][0]['Date'],'2026-10-20')
+    def test_empty_sample_rates_are_missing_not_zero(self):
+        result=rt.player_evidence([],'2026-10-21','BOS','10',self.five)
+        self.assertIsNone(result['last_start'])
+        self.assertIsNone(result['summary'][0]['First-score rate %'])
+        self.assertEqual(result['games'],[])
+    def test_previous_team_starts_not_used(self):
+        transferred=game_rows('other','2026-10-19')
+        for r in transferred:
+            if r['team']=='BOS':r['team']='CHI'
+            if r['opponent']=='BOS':r['opponent']='CHI'
+        result=rt.player_evidence(self.rows+transferred,'2026-10-21','BOS','10',self.five)
+        self.assertEqual(result['other_team_starts'],1)
+        self.assertEqual(result['summary'][-1]['Starts'],1)
+    def test_similar_lineup_and_invalid_input(self):
+        changed=[dict(p) for p in self.five];changed[-1]['player_id']='new'
+        result=rt.player_evidence(self.rows,'2026-10-21','BOS','10',changed)
+        self.assertEqual(result['games'][0]['Selected starters in this game'],4)
+        self.assertEqual(result['summary'][0]['Similar-lineup starts'],1)
+        changed[-2]['player_id']='new2'
+        self.assertEqual(rt.player_evidence(self.rows,'2026-10-21','BOS','10',changed)['summary'][0]['Similar-lineup starts'],0)
+        with self.assertRaises(ValueError):rt.player_evidence(self.rows,'2026-10-21','BOS','absent',self.five)
+        bad=[dict(r) for r in self.rows];bad[0]['first_scorer']=0
+        with self.assertRaises(ValueError):rt.player_evidence(bad,'2026-10-21','BOS','10',self.five)

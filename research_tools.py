@@ -353,3 +353,34 @@ def forward_model_comparison(records):
         summaries.append({'Model':model,**journal_summary(viewed)})
         details.extend(journal_table(viewed))
     return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details}
+
+
+def player_evidence(history, target_day, team, player_id, selected_five):
+    """Raw same-team starting-game evidence, separate from smoothed forecasts."""
+    selected={p['player_id'] for p in selected_five}
+    if len(selected_five)!=5 or len(selected)!=5 or player_id not in selected:
+        raise ValueError('Choose a player from a valid selected starting five.')
+    valid,issues=audit(history_window(history,target_day))
+    if issues:raise ValueError('History failed validation. Review Data quality before inspecting evidence.')
+    team_games=defaultdict(set)
+    for r in valid:
+        if r['team']==team:team_games[r['game_id']].add(r['player_id'])
+    rows=sorted([r for r in valid if r['team']==team and r['player_id']==player_id],key=lambda r:(r['date'],r['game_id']),reverse=True)
+    def summarize(label,records):
+        n=len(records);shots=sum(int(r['first_team_shot']) for r in records)
+        scores=sum(int(r['first_scorer']) for r in records)
+        opportunities=sum(int(r['team_scored_first']) for r in records)
+        return {'Window':label,'Starts':n,'Team opening shots':shots,'Opening-shot rate %':100*shots/n if n else None,
+                'Game first scores':scores,'First-score rate %':100*scores/n if n else None,
+                'Team scored first':opportunities,'Share when team scored first %':100*scores/opportunities if opportunities else None,
+                'Similar-lineup starts':sum(len(team_games[r['game_id']] & selected)>=4 for r in records)}
+    logs=[{'Date':r['date'],'Game':r['game_id'],'Opponent':r['opponent'],
+           'Took team first shot':bool(int(r['first_team_shot'])),
+           'Scored game first points':bool(int(r['first_scorer'])),
+           'Scored game first field goal':bool(int(r['first_fg_scorer'])),
+           'Team scored first':bool(int(r['team_scored_first'])),
+           'Selected starters in this game':len(team_games[r['game_id']] & selected)} for r in rows]
+    last=rows[0]['date'] if rows else None
+    return {'summary':[summarize('Last 10 recorded starts',rows[:10]),summarize('Last 30 recorded starts',rows[:30]),summarize('400-day model window',rows)],
+            'games':logs,'last_start':last,'days_since_last_start':(date.fromisoformat(target_day)-date.fromisoformat(last)).days if last else None,
+            'other_team_starts':sum(r['player_id']==player_id and r['team']!=team for r in valid)}

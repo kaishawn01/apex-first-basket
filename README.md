@@ -1,3 +1,9 @@
+APEX V2.9.0 — Player evidence explorer
+
+After Run rankings, open Player evidence and choose a ranked player. Inspect the last 10 and 30 recorded starts and the full 400-day model window: team opening-shot attempts, game first scores, conditional share when the team scores first, similar-lineup counts, and a game-by-game CSV. The view shows the last recorded same-team start and how many other-team starts were excluded.
+
+Only valid, earlier-date same-team history is used. Missing opportunities produce blank rates, not zeros. Opening shots refer to field-goal attempts; first points include free throws. The game log separately identifies the first field-goal scorer. These are raw observed rates, not smoothed predictions or causal explanations. Recorded starts may omit games and retain historical starter-selection bias. Inspecting evidence does not change model formulas, lineups, rankings or journal forecasts.
+
 APEX V2.8.0 — Compare models on future games
 
 Save confirmed forecasts to journal now atomically stores baseline, recent form and lineup context probabilities for the same ten starters before tip-off. It uses the same history, software version and save timestamp. No extra provider requests are needed for comparison estimates. Existing first-save protection applies to the entire bundle. Research matchups remain ineligible.

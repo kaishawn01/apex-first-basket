@@ -224,6 +224,27 @@ else:
         if selected_model=='lineup':st.caption('Similar-lineup starts include past games with at least four selected starters. Exact fives receive full weight; four-player matches receive half, with a 90-day recency half-life. Zero context uses recent-form rates. These are historical counts, not confidence guarantees.')
         st.caption('First-score probability combines team-first probability and within-team share. These are model estimates, not verified opening plays. A top-three hit is a coverage measure, not betting profit.')
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
+        with st.expander('Player evidence · inspect the history behind a ranking'):
+            evidence_rows={(r['_game_id'],r['_player_id']):r for r in result['rows']}
+            if evidence_rows:
+                evidence_key=st.selectbox('Inspect ranked player',list(evidence_rows),format_func=lambda key:evidence_rows[key]['Player']+' · '+evidence_rows[key]['Matchup'])
+                picked=evidence_rows[evidence_key]
+                try:
+                    evidence=research.player_evidence(hist,day,picked['Team'],picked['_player_id'],choices[picked['_game_id']][picked['Team']])
+                    st.write(f"Selected model: {selected_model} · First-score estimate: {picked['Model %']:.2f}% · Team-first estimate: {picked['Team first %']:.2f}% · Within-team share: {picked['Within-team share %']:.2f}%")
+                    st.caption('Raw historical rates below are not forecast probabilities. Last 10 and last 30 mean recorded starts in the 400-day window, not all appearances or necessarily every game played. Only earlier dates and this team are used.')
+                    if evidence['last_start']:
+                        st.write(f"Last recorded start for this team: {evidence['last_start']} ({evidence['days_since_last_start']} days before the analysis date).")
+                    else:st.warning('No recorded starts for this player on this team in the model window. The estimate relies on model priors and the selected five.')
+                    if evidence['other_team_starts']:st.caption(f"{evidence['other_team_starts']} starts on other teams are excluded from this player’s model history.")
+                    st.dataframe(pd.DataFrame(evidence['summary']),hide_index=True,use_container_width=True)
+                    st.caption('Team opening shots count field-goal attempts, not free throws. Game first points include free throws. Conditional scoring share divides by games in which the team scored first; a blank rate means no such opportunities. Similar lineups contain at least four selected starters.')
+                    if evidence['games']:
+                        evidence_frame=pd.DataFrame(evidence['games'])
+                        st.dataframe(evidence_frame,hide_index=True,use_container_width=True)
+                        st.download_button('Download player evidence CSV',evidence_frame.to_csv(index=False).encode(),'apex_player_evidence.csv','text/csv')
+                    st.caption('History excludes games whose first scorer was not a starter. These observed rates inherit that selection bias and do not establish a betting edge.')
+                except (ValueError,KeyError) as exc:st.error(str(exc))
         with st.expander('Lineup what-if · compare one starter change'):
             st.caption('Hypothetical research only. This does not change your selected five, confirmations, rankings or journal. The model holds team-first probability fixed; this is not an estimate of the full causal impact of an absence.')
             eligible=[g for g in games if g['gameId'] in {r['_game_id'] for r in result['rows']}]
