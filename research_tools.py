@@ -1074,7 +1074,7 @@ def compare_opening_conversion(history,min_training=100):
             'known_attempts':len(known),'known_makes':sum(int(r['first_team_shot_made']) for r in known),'latest_dates':len(latest)}
 
 
-def enrich_opening_results(game_ids,progress=lambda text:None):
+def enrich_opening_results(game_ids,progress=lambda text:None,_batch_backup=None):
     """Add only missing opening-shot results after checking all existing outcome facts."""
     import os,re,tempfile
     selected=list(dict.fromkeys(game_ids))
@@ -1123,8 +1123,13 @@ def enrich_opening_results(game_ids,progress=lambda text:None):
         enriched=[{**r,**updates.get(r['game_id'],{}).get(r['player_id'],{})} for r in history]
         _,bad=audit(enriched)
         if bad:raise ValueError('Enriched history failed validation; nothing was written.')
-        fd,name=tempfile.mkstemp(prefix='history_before_opening_results_',suffix='.csv',dir=eng.DATA);backup=Path(name)
-        with os.fdopen(fd,'wb') as stream:stream.write(original);stream.flush();os.fsync(stream.fileno())
+        if _batch_backup is None:
+            fd,name=tempfile.mkstemp(prefix='history_before_opening_results_',suffix='.csv',dir=eng.DATA);backup=Path(name)
+            with os.fdopen(fd,'wb') as stream:stream.write(original);stream.flush();os.fsync(stream.fileno())
+        else:
+            backup=Path(_batch_backup)
+            if backup.parent.resolve()!=eng.DATA.resolve() or not backup.name.startswith('history_before_opening_results_') or not backup.is_file():
+                raise ValueError('Batch backup is missing or invalid; history was not written.')
         fields=list(history[0])
         for field in ('first_team_shot_made','opening_score_path'):
             if field not in fields:fields.append(field)
@@ -1148,3 +1153,72 @@ def compare_post_miss(history,min_training=100):
     valid,_=audit(history);paths={r['game_id']:r.get('opening_score_path','') for r in valid}
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'details':details,'comparisons':comparisons,
             'eligible_games':len(eligible),'path_counts':{path:sum(v==path for v in paths.values()) for path in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')}}
+
+
+def opening_enrichment_candidates(history,today):
+    """Only valid, earlier-date saved ESPN games with unresolved opening data."""
+    import re
+    date.fromisoformat(today)
+    valid,issues=audit(history)
+    if issues:raise ValueError('Repair invalid history before running batch enrichment.')
+    groups=defaultdict(list)
+    for row in valid:groups[row['game_id']].append(row)
+    result=[]
+    for gid,rows in groups.items():
+        if not re.fullmatch(r'espn_\d+',gid) or rows[0]['date']>=today:continue
+        missing_shots=sum(int(r['first_team_shot'])==1 and str(r.get('first_team_shot_made','')) not in ('0','1') for r in rows)
+        missing_path=rows[0].get('opening_score_path','') not in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')
+        if missing_shots or missing_path:result.append({'game_id':gid,'date':rows[0]['date'],'missing_shots':missing_shots,'missing_path':missing_path})
+    return sorted(result,key=lambda r:(r['date'],r['game_id']),reverse=True)
+
+
+def read_opening_attempts(path):
+    if not path.exists():return {}
+    try:
+        record=json.loads(path.read_text());attempts=record['attempts']
+        if record.get('schema')!=1 or record.get('kind')!='opening_enrichment' or not isinstance(attempts,dict):raise ValueError()
+        if any(not isinstance(gid,str) or not gid or isinstance(n,bool) or not isinstance(n,int) or n<0 for gid,n in attempts.items()):raise ValueError()
+        return attempts
+    except (ValueError,KeyError,TypeError,AttributeError):raise ValueError('Opening-data retry tracker is invalid; no batch requests were made.')
+
+
+def write_opening_attempts(path,attempts):
+    import os,tempfile
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=path.parent,prefix='opening_attempts_',suffix='.tmp',delete=False) as stream:
+            temporary=Path(stream.name)
+            json.dump({'schema':1,'kind':'opening_enrichment','attempts':attempts},stream)
+            stream.flush();os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None and temporary.exists():temporary.unlink()
+
+
+def enrich_opening_batch(limit=20,progress=lambda text:None):
+    """Checkpoint each game, sharing one backup and persisting fair retry priority."""
+    if isinstance(limit,bool) or not isinstance(limit,int) or not 1<=limit<=50:raise ValueError('Batch size must be an integer from 1 to 50.')
+    today=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    history=eng.read_csv(eng.HISTORY)
+    candidates=opening_enrichment_candidates(history,today)
+    tracker=eng.DATA/'opening_enrichment_attempts.json';attempts=read_opening_attempts(tracker)
+    selected=sorted(candidates,key=lambda r:(attempts.get(r['game_id'],0),-date.fromisoformat(r['date']).toordinal(),r['game_id']))[:limit]
+    report={'attempted':0,'enriched_games':0,'added_results':0,'added_paths':0,'errors':[],'backup':None,
+            'retry_attempted':sum(attempts.get(r['game_id'],0)>0 for r in selected),'remaining':len(candidates),
+            'never_attempted_remaining':sum(attempts.get(r['game_id'],0)==0 for r in candidates)}
+    if not selected:return report
+    expected=eng.HISTORY.read_bytes();backup=None
+    for index,row in enumerate(selected,1):
+        gid=row['game_id'];progress(f'Opening-data batch {index}/{len(selected)} · {gid}')
+        if eng.HISTORY.read_bytes()!=expected:raise ValueError('History changed between batch games. Earlier saved results remain; stop other imports before retrying.')
+        attempts[gid]=attempts.get(gid,0)+1
+        write_opening_attempts(tracker,attempts)  # Persist before starting the request, including interrupted attempts.
+        single=enrich_opening_results([gid],_batch_backup=backup)
+        expected=eng.HISTORY.read_bytes()
+        for field in ('attempted','enriched_games','added_results','added_paths'):report[field]+=single[field]
+        report['errors'].extend(single['errors'])
+        if single['backup']:backup=eng.DATA/single['backup'];report['backup']=single['backup']
+    remaining=opening_enrichment_candidates(eng.read_csv(eng.HISTORY),today)
+    report['remaining']=len(remaining)
+    report['never_attempted_remaining']=sum(attempts.get(r['game_id'],0)==0 for r in remaining)
+    return report

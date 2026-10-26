@@ -1681,3 +1681,100 @@ class PostMissModelTests(unittest.TestCase):
             enriched=eng.read_csv(path)
             self.assertEqual({r['opening_score_path'] for r in enriched},{expected})
             self.assertEqual([str(r['first_team_shot_made']) for r in rows],[r['first_team_shot_made'] for r in enriched])
+
+class OpeningEnrichmentBatchTests(unittest.TestCase):
+    def setUp(self):
+        import copy
+        fixture=OpeningResultEnrichmentTests();fixture.setUp()
+        self.payloads={};self.rows=[]
+        for i in (1,2,3):
+            day=f'2025-10-{19+i:02d}'
+            payload=copy.deepcopy(fixture.payload);payload['header']['id']=str(i)
+            payload['header']['competitions'][0].update(id=str(i),date=day+'T23:00:00Z')
+            self.payloads[str(i)]=payload
+            for original in fixture.rows:
+                row={**original,'game_id':f'espn_{i}','date':day}
+                row.pop('opening_score_path',None);row.pop('first_team_shot_made',None)
+                self.rows.append(row)
+    def prepare(self,tmp):
+        path=Path(tmp)/'history.csv';eng.write_csv(path,list(self.rows[0]),self.rows);return path
+    def test_completed_games_skipped_and_one_backup_per_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);before=path.read_bytes();calls=[]
+            def request(url,params):calls.append(params['event']);return self.payloads[params['event']]
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=request):
+                first=rt.enrich_opening_batch(2)
+                self.assertEqual(first['enriched_games'],2);self.assertEqual(first['remaining'],1)
+                self.assertEqual(len(list(Path(tmp).glob('history_before_opening_results_*.csv'))),1)
+                self.assertEqual((Path(tmp)/first['backup']).read_bytes(),before)
+                second=rt.enrich_opening_batch(2);empty=rt.enrich_opening_batch(2)
+            self.assertEqual(calls,['3','2','1'])
+            self.assertEqual(second['remaining'],0);self.assertEqual(empty['attempted'],0)
+    def test_failures_do_not_starve_unattempted_games(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);calls=[]
+            def request(url,params):
+                gid=params['event'];calls.append(gid)
+                if gid in ('3','2'):raise RuntimeError('Unavailable')
+                return self.payloads[gid]
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=request):
+                first=rt.enrich_opening_batch(2);second=rt.enrich_opening_batch(1);third=rt.enrich_opening_batch(2)
+            self.assertEqual(calls,['3','2','1','3','2'])
+            self.assertEqual(first['never_attempted_remaining'],1)
+            self.assertEqual(second['enriched_games'],1)
+            self.assertEqual(third['retry_attempted'],2)
+            self.assertEqual(rt.read_opening_attempts(Path(tmp)/'opening_enrichment_attempts.json'),{'espn_3':2,'espn_2':2,'espn_1':1})
+    def test_interruption_preserves_success_and_attempt_priority(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);calls=[]
+            def interrupted(url,params):
+                calls.append(params['event'])
+                if params['event']=='2':raise KeyboardInterrupt()
+                return self.payloads[params['event']]
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=interrupted):
+                with self.assertRaises(KeyboardInterrupt):rt.enrich_opening_batch(3)
+                pending=rt.opening_enrichment_candidates(eng.read_csv(path),'2026-10-26')
+                self.assertEqual({r['game_id'] for r in pending},{'espn_1','espn_2'})
+            def resumed(url,params):calls.append(params['event']);return self.payloads[params['event']]
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=resumed):
+                report=rt.enrich_opening_batch(1)
+            self.assertEqual(calls,['3','2','1']);self.assertEqual(report['enriched_games'],1)
+    def test_tracker_write_failure_prevents_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);before=path.read_bytes()
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt,'write_opening_attempts',side_effect=OSError('Disk full')),patch.object(rt.core,'request') as request:
+                with self.assertRaises(OSError):rt.enrich_opening_batch(1)
+                request.assert_not_called()
+            self.assertEqual(path.read_bytes(),before)
+    def test_invalid_tracker_fails_before_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);tracker=Path(tmp)/'opening_enrichment_attempts.json';before=path.read_bytes()
+            for record in ({'schema':1,'kind':'wrong','attempts':{}},{'schema':1,'kind':'opening_enrichment','attempts':{'espn_1':True}},{'schema':1,'kind':'opening_enrichment','attempts':{'espn_1':-1}}):
+                tracker.write_text(__import__('json').dumps(record))
+                with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request') as request:
+                    with self.assertRaisesRegex(ValueError,'tracker'):rt.enrich_opening_batch()
+                    request.assert_not_called()
+            self.assertEqual(path.read_bytes(),before)
+    def test_candidates_exclude_today_future_and_non_espn(self):
+        rows=[{**r,'game_id':r['game_id'].replace('espn_1','legacy_1')} for r in self.rows]
+        pending=rt.opening_enrichment_candidates(rows,'2025-10-22')
+        self.assertEqual([r['game_id'] for r in pending],['espn_2'])
+        rows[0]['first_scorer']='bad'
+        with self.assertRaises(ValueError):rt.opening_enrichment_candidates(rows,'2026-10-26')
+    def test_concurrent_change_between_games_stops_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=self.prepare(tmp);calls=[]
+            def progress(message):
+                if '2/2' in message:path.write_bytes(path.read_bytes()+b'\n')
+            def request(url,params):calls.append(params['event']);return self.payloads[params['event']]
+            with patch.object(eng,'HISTORY',path),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request',side_effect=request):
+                with self.assertRaisesRegex(ValueError,'History changed between'):rt.enrich_opening_batch(2,progress)
+            self.assertEqual(calls,['3']);self.assertTrue(path.read_bytes().endswith(b'\n\n'))
+    def test_empty_queue_and_invalid_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(eng,'HISTORY',Path(tmp)/'absent.csv'),patch.object(eng,'DATA',Path(tmp)),patch.object(rt.core,'request') as request:
+                self.assertEqual(rt.enrich_opening_batch()['remaining'],0)
+                for limit in (0,51,True,1.5):
+                    with self.assertRaises(ValueError):rt.enrich_opening_batch(limit)
+                request.assert_not_called()
+            self.assertEqual(list(Path(tmp).iterdir()),[])

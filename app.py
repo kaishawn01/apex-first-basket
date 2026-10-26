@@ -418,6 +418,16 @@ with st.expander('Build deeper history · prior-season import'):
 with st.expander('Opening-shot conversion · enrich saved history'):
     missing_results=sorted({r['game_id'] for r in hist if ((str(r.get('first_team_shot',''))=='1' and str(r.get('first_team_shot_made','')) not in ('0','1')) or r.get('opening_score_path','') not in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')) and r.get('date','')<datetime.now(ZoneInfo('America/New_York')).date().isoformat()},reverse=True)
     st.caption('New imports record the opening field-goal result when explicit. Older missing results stay unknown. Enrichment also records whether scoring began before a field-goal attempt, on the opening make, or after the opening miss. Enrichment rechecks saved ESPN games and adds only missing shot outcomes; changed starters, dates or existing scoring facts block that game. A backup is created before writing. This uses public ESPN requests, not paid odds calls.')
+    st.markdown('**Resume automatic game selection**')
+    st.caption('Runs only when clicked. Unattempted games go first, newest first, then retries with fewer attempts. Each successful game is saved before the next request, with one backup per batch. Failed or unresolved games remain retryable. Stop other imports while this runs.')
+    opening_batch_size=st.selectbox('Opening-data batch size',[10,20,50],index=1)
+    if st.button('Enrich next batch of saved games'):
+        try:
+            progress=st.empty()
+            with st.spinner('Enriching saved opening data… keep this window open.'):
+                st.session_state['opening_enrichment']=research.enrich_opening_batch(opening_batch_size,progress.info)
+            st.rerun()
+        except (OSError,ValueError) as exc:st.error(str(exc))
     enrich_ids=st.multiselect('Saved games to enrich with opening-shot results',missing_results,max_selections=20)
     if st.button('Enrich selected opening-shot results',disabled=not enrich_ids):
         try:
@@ -430,6 +440,8 @@ with st.expander('Opening-shot conversion · enrich saved history'):
     if enrichment:
         st.write(f"Added {enrichment['added_results']} opening-shot outcomes across {enrichment['enriched_games']} games.")
         st.caption(f"Added scoring paths for {enrichment.get('added_paths',0)} games.")
+        if 'remaining' in enrichment:
+            st.caption(f"Batch attempted {enrichment['attempted']} games, including {enrichment['retry_attempted']} retries. {enrichment['remaining']} eligible games still need opening data; {enrichment['never_attempted_remaining']} have not been attempted by the batch queue.")
         if enrichment['backup']:st.caption('Backup: '+enrichment['backup'])
         if enrichment['errors']:st.dataframe(pd.DataFrame(enrichment['errors']),hide_index=True,use_container_width=True)
 

@@ -394,3 +394,22 @@ with patch.object(eng,'read_csv',return_value=sequence_history),patch.object(cor
  assert not any(d.label=='Download post-miss model predictions CSV' for d in at.get('download_button'))
  assert any('Run the post-miss model test again' in x.value for x in at.info)
  print('Post-miss model UI passed: path counts, empty/active reports, exports and stale settings.')
+
+from test_research import OpeningEnrichmentBatchTests
+batch_fixture=OpeningEnrichmentBatchTests();batch_fixture.setUp()
+with tempfile.TemporaryDirectory() as folder:
+ path=batch_fixture.prepare(folder)
+ with patch.object(eng,'DATA',Path(folder)),patch.object(eng,'HISTORY',path),patch.object(core,'request',side_effect=lambda url,params:batch_fixture.payloads[params['event']]):
+  at=AppTest.from_file(str(root/'app.py')).run()
+  assert next(s for s in at.selectbox if s.label=='Opening-data batch size').value==20
+  next(b for b in at.button if b.label=='Enrich next batch of saved games').click().run()
+  assert not at.exception,list(at.exception)
+  report=at.session_state['opening_enrichment']
+  assert report['enriched_games']==3 and report['remaining']==0
+  assert any('0 eligible games still need opening data' in x.value for x in at.caption)
+  assert len(list(Path(folder).glob('history_before_opening_results_*.csv')))==1
+  with patch.object(core,'request',side_effect=AssertionError('Completed queue must not fetch')):
+   next(b for b in at.button if b.label=='Enrich next batch of saved games').click().run()
+  assert not at.exception,list(at.exception)
+  assert at.session_state['opening_enrichment']['attempted']==0
+  print('Opening batch UI passed: defaults, automatic selection, checkpointing, shared backup and completed queue.')
