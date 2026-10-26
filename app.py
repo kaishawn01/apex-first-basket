@@ -391,6 +391,18 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.caption('Same games, earlier-date training, team probabilities, priors and lineup rules. Only the player-signal blend changes: current 65% opening-shot / 35% first-score rates, opening-shot rates alone, or first-score rates alone. The weights mix smoothed rates before normalizing the five players; they are not shares of final win probability. The first-score signal is unconditional in baseline and conditional on the team scoring first in recent/lineup.')
             st.caption('Earlier-date selector chooses among those three fixed blends using average log loss from prior evaluated games within 400 days. It requires 100 such games; before that it uses the current blend. All matchups on a date share a decision made before that date’s results. This selects a discrete blend, not continuously fitted weights.')
             st.write(f"Adaptive decisions used sufficient earlier evidence for {signals['adaptive_learned_games']} evaluated games; remaining games used the fallback.")
+            active=signals['active_selection']
+            st.markdown('**Adaptive performance after enough selection history**')
+            if active['games']:
+                st.caption(f"{active['games']} identical games across {active['dates']} dates for every variant. {active['fallback_games']} fallback games are excluded from this section only; full-period results above still include them.")
+                st.dataframe(pd.DataFrame(active['summary']),hide_index=True,use_container_width=True)
+                st.dataframe(pd.DataFrame(active['comparison']),hide_index=True,use_container_width=True)
+                st.caption('Differences are selector minus current blend on exactly the same games. Eligibility depends only on earlier sample size, not on the current result or whether the selector chose a different blend. A learned decision to retain the current blend is included.')
+                st.dataframe(pd.DataFrame(active['choices']),hide_index=True,use_container_width=True)
+                if active['dates']<30:st.warning('Fewer than 30 dates with enough selection history. Adaptive performance is still uncertain.')
+                st.download_button('Download active adaptive summary CSV',pd.DataFrame(active['summary']).to_csv(index=False).encode(),'apex_active_adaptive_summary.csv','text/csv')
+                st.download_button('Download active adaptive predictions CSV',pd.DataFrame(active['details']).to_csv(index=False).encode(),'apex_active_adaptive_predictions.csv','text/csv')
+            else:st.info('No games yet had 100 earlier evaluated games available for selection. The adaptive results currently reflect fallback behavior; they do not test learned choices yet.')
             st.dataframe(pd.DataFrame(signals['selection_decisions']),hide_index=True,use_container_width=True)
             st.download_button('Download adaptive signal decisions CSV',pd.DataFrame(signals['selection_decisions']).to_csv(index=False).encode(),'apex_signal_decisions.csv','text/csv')
             st.dataframe(pd.DataFrame(signals['recent_comparisons']),hide_index=True,use_container_width=True)

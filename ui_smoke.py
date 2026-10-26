@@ -117,6 +117,16 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert next(s for s in at.selectbox if s.label=='Scoring model').value=='baseline'
  assert any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))
  assert any(d.label=='Download signal predictions CSV' for d in at.get('download_button'))
+ assert any('do not test learned choices yet' in x.value for x in at.info)
+ long_history=[r for i in range(135) for r in game_rows(str(i),(date(2026,1,1)+timedelta(days=i)).isoformat())]
+ at.session_state['signal_comparison']=research.compare_scoring_signals(long_history,30,'baseline')
+ with patch.object(eng,'read_csv',return_value=long_history):
+  at.run()
+ assert not at.exception,list(at.exception)
+ assert any(d.label=='Download active adaptive summary CSV' for d in at.get('download_button'))
+ assert any(d.label=='Download active adaptive predictions CSV' for d in at.get('download_button'))
+ assert at.session_state['signal_comparison']['active_selection']['games']==5
+
  next(s for s in at.selectbox if s.label=='Scoring model').set_value('recent').run()
  assert any('Run the signal comparison again' in x.value for x in at.info)
  assert not any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))

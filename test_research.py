@@ -955,3 +955,47 @@ class AdaptiveSignalTests(unittest.TestCase):
         results=self.results([('2026-10-01','a',(2.,1.,3.))])
         results['Current blend']['games']*=2
         with self.assertRaisesRegex(ValueError,'identical'):rt.adaptive_signal_games(results)
+
+class ActiveAdaptiveReportTests(unittest.TestCase):
+    def results(self):
+        base={'Top-1 credit':0.,'Top-3 credit':0.,'Log loss':2.,'Brier':.9,
+              'Team log loss':.5,'Within-team log loss':1.5,
+              'Team top-1 credit':1.,'Within-winning-team top-1 credit':0.}
+        games=[{**base,'Date':f'2026-10-{i+1:02d}','Game':str(i)} for i in range(3)]
+        results={label:{'games':[dict(r) for r in games]} for label in ('Current blend','Opening shot only','First score only')}
+        results['Earlier-date selector']={'games':[{**r,'Selection learned':i>0,'Selected signal':'Current blend' if i<2 else 'Opening shot only'} for i,r in enumerate(games)]}
+        return results
+    def test_identical_active_games_include_learned_current_blend(self):
+        report=rt.adaptive_active_report(self.results())
+        self.assertEqual(report['games'],2);self.assertEqual(report['dates'],2)
+        self.assertEqual(report['fallback_games'],1)
+        self.assertEqual([r['Evaluated games'] for r in report['summary']],[2]*4)
+        for label in ('Current blend','Opening shot only','First score only','Earlier-date selector'):
+            self.assertEqual({r['Game'] for r in report['details'] if r['Signal variant']==label},{'1','2'})
+        self.assertEqual([r['Games'] for r in report['choices']],[1,1,0])
+        self.assertTrue(all(r['Candidate minus baseline']==0 for r in report['comparison']))
+    def test_current_outcome_never_changes_eligibility(self):
+        results=self.results();results['Earlier-date selector']['games'][1]['Log loss']=10.
+        report=rt.adaptive_active_report(results)
+        self.assertEqual(report['games'],2)
+        loss=next(r for r in report['comparison'] if r['Metric']=='Log loss')
+        self.assertAlmostEqual(loss['Candidate minus baseline'],4.)
+    def test_all_fallback_and_empty_have_no_learned_metrics(self):
+        results=self.results()
+        for r in results['Earlier-date selector']['games']:r['Selection learned']=False
+        report=rt.adaptive_active_report(results)
+        self.assertEqual(report['summary'],[]);self.assertEqual(report['comparison'],[])
+        self.assertEqual(report['games'],0);self.assertEqual(report['fallback_games'],3)
+        for value in results.values():value['games']=[]
+        self.assertEqual(rt.adaptive_active_report(results)['fallback_games'],0)
+    def test_inconsistent_active_sets_rejected(self):
+        results=self.results();results['Opening shot only']['games'].pop()
+        with self.assertRaisesRegex(ValueError,'identical'):rt.adaptive_active_report(results)
+    def test_real_walk_forward_report_crosses_selection_threshold(self):
+        from datetime import date,timedelta
+        history=[r for i in range(105) for r in game_rows(str(i),(date(2026,1,1)+timedelta(days=i)).isoformat())]
+        report=rt.compare_scoring_signals(history,1)
+        self.assertEqual(report['adaptive_learned_games'],4)
+        self.assertEqual(report['active_selection']['games'],4)
+        self.assertEqual(report['active_selection']['fallback_games'],100)
+        self.assertEqual([r['Evaluated games'] for r in report['active_selection']['summary']],[4]*4)

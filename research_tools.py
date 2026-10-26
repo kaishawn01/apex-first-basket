@@ -621,6 +621,28 @@ def adaptive_signal_games(results,min_selection_games=100):
     return chosen_games,decisions
 
 
+def adaptive_active_report(results):
+    """Evaluate all variants on the pre-outcome subset with sufficient selection history."""
+    adaptive=results['Earlier-date selector']['games']
+    keys={(r['Date'],r['Game']) for r in adaptive if r['Selection learned']}
+    summary=[];details=[];selected={}
+    for label,result in results.items():
+        subset=[r for r in result['games'] if (r['Date'],r['Game']) in keys]
+        if len(subset)!=len(keys) or {(r['Date'],r['Game']) for r in subset}!=keys:
+            raise ValueError('Active selection comparison requires identical games and dates.')
+        selected[label]={'games':subset}
+        if subset:summary.append({'Signal variant':label,**evaluation_metrics(subset),**scoring_stage_summary(subset)})
+        details.extend({'Signal variant':label,**r} for r in subset)
+    choices=[]
+    for label in ('Current blend','Opening shot only','First score only'):
+        subset=[r for r in adaptive if r['Selection learned'] and r['Selected signal']==label]
+        choices.append({'Selected signal':label,'Games':len(subset),'Dates':len({r['Date'] for r in subset})})
+    paired=compare_evaluations(selected['Current blend'],selected['Earlier-date selector'])
+    return {'games':len(keys),'dates':len({d for d,g in keys}),
+            'fallback_games':len(adaptive)-len(keys),'summary':summary,'details':details,
+            'choices':choices,'comparison':paired['metrics']}
+
+
 def compare_scoring_signals(history,min_training=100,model='baseline',progress=lambda text:None):
     """Fixed-signal and earlier-date adaptive experiments; never change live rankings."""
     variants={'Current blend':.65,'Opening shot only':1.0,'First score only':0.0}
@@ -648,5 +670,5 @@ def compare_scoring_signals(history,min_training=100,model='baseline',progress=l
         paired.extend({'Signal variant':label,**r} for r in compare_evaluations(recent['Current blend'],recent[label])['metrics'])
     return {'fingerprint':fingerprint(history),'model':model,'min_training':min_training,'summary':summary,
             'details':details,'recent_comparisons':paired,'latest_dates':len(newest),'selection_decisions':decisions,
-            'adaptive_learned_games':sum(r['Selection learned'] for r in adaptive),
+            'adaptive_learned_games':sum(r['Selection learned'] for r in adaptive),'active_selection':adaptive_active_report(results),
             'excluded_games':len(results['Current blend']['excluded'])}

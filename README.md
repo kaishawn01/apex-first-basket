@@ -1,3 +1,13 @@
+APEX V2.25.0 — Separate adaptive decisions from fallback performance
+
+Signal comparison now includes an adaptive-performance section restricted to games where the selector had the required 100 earlier evaluated games within its 400-day window. Every fixed variant and the selector are measured on exactly that same subset. Eligibility is determined from prior sample size, never the current outcome. A learned decision to keep the current blend remains included; the report does not cherry-pick games where the selector switches.
+
+The section shows matched metrics, selector-minus-current-blend date-bootstrap intervals, counts of each chosen signal, eligible dates and excluded fallback games. Summary and per-game CSV exports are available. If all games used fallback, the app explicitly says that learned choices have not yet been tested. Full-period and recent-period results continue to include fallback games so total performance stays visible. Intervals use already-produced forecasts and do not include all uncertainty from the selection process.
+
+This adds no model tuning, prediction changes, live selection or API requests. The experimental selector remains in Backtest lab. Historical starter-selection bias, small samples and dependence across dates remain limitations.
+
+Validation: 154 unit tests and all Streamlit smoke checks passed. Added checks cover identical eligible game sets, retained learned choices of the current blend, eligibility independent of current outcomes, all-fallback/empty cases, mismatch rejection, real walk-forward crossing of the selection threshold, and both fallback/active dashboard displays and exports. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.24.0 — Test selection learned from earlier forecasts
 
 The signal-comparison experiment now includes Earlier-date selector. For each evaluation date it selects among the existing 65/35 blend, shot-only and score-only variants using their mean log loss on earlier evaluated games within the preceding 400 days. It requires at least 100 prior evaluated games, beyond the underlying model's training warmup. Before that it falls back to the current blend. Numerical ties prefer the current blend, then shot-only, then score-only. All games on one date receive the same selection before any outcomes from that date enter selection history.
