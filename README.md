@@ -1,3 +1,13 @@
+APEX V2.21.0 — Diagnose team versus player scoring errors
+
+Full model validation now separates each historical prediction into the probability of the winning team scoring first and the winner's conditional share within that team. The two log losses add to the original ten-player log loss. Stage summaries compare team loss with a 50/50 baseline and within-team loss with an equal-five baseline, on both all evaluated dates and the newest quarter, for all three models.
+
+Team hit rate and conditional player hit rate use fractional tie credit. Conditional player accuracy is evaluated within the actual winning team on every evaluated game, not just games where the model picked the right team; it is a retrospective diagnostic, not independently achievable live accuracy. Raw losses have different baselines and should not be compared as if both tasks had the same difficulty. The new scoring-stage CSV and expanded game-by-game CSV support inspection. Empty history returns empty diagnostics.
+
+The report reuses the same chronological predictions, with no additional API requests, model tuning, probability changes or automated model promotion. Historical observed-starter and nonstarter-exclusion limitations remain. These diagnostics can identify which component needs work, but do not establish a profitable edge.
+
+Validation: 130 unit tests and all Streamlit smoke checks passed. Added tests cover equal baselines, ties, correct-team/wrong-player and wrong-team/right-conditional-player cases, exact log-loss decomposition, identical period counts, invalid probability rejection and dashboard export. Windows execution was not tested here.
+
 APEX V2.20.0 — Warn on thin usable shot history
 
 Dashboard rankings now mark HOLD: SHOT COVERAGE when the existing lineup, injury and total-sample checks pass but a player has fewer than eight observed opening-shot starts. Recent-form and lineup models also require at least eight decayed observed starts, using their 90-day half-life. These are heuristic sample safeguards, not statistically validated accuracy thresholds. The lineup model's coverage safeguard uses overall observed-start decay; it does not imply sufficient similar-lineup evidence, which remains separately displayed.

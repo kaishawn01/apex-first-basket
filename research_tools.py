@@ -177,6 +177,36 @@ def compare_evaluations(baseline, candidate, draws=1000):
     return {'games':n,'dates':len(days),'metrics':report}
 
 
+def scoring_stage_metrics(probabilities, player_teams, winner):
+    """Factor a ten-player forecast into team and conditional player probabilities."""
+    if set(probabilities)!=set(player_teams) or winner not in probabilities:
+        raise ValueError('Stage diagnostics require matching player IDs and an in-field winner.')
+    if len(probabilities)!=10 or len(set(player_teams.values()))!=2 or any(list(player_teams.values()).count(t)!=5 for t in set(player_teams.values())):
+        raise ValueError('Stage diagnostics require two teams of five.')
+    if any(not math.isfinite(p) or p<=0 for p in probabilities.values()) or abs(sum(probabilities.values())-1)>1e-8:
+        raise ValueError('Stage diagnostics require positive normalized probabilities.')
+    teams=defaultdict(float)
+    for pid,p in probabilities.items():teams[player_teams[pid]]+=p
+    winning_team=player_teams[winner];team_p=teams[winning_team]
+    conditional={pid:p/team_p for pid,p in probabilities.items() if player_teams[pid]==winning_team}
+    return {'Winning team probability':team_p,'Winner share within team':conditional[winner],
+            'Team top-1 credit':top_k_credit(teams,winning_team,1),
+            'Within-winning-team top-1 credit':top_k_credit(conditional,winner,1),
+            'Team log loss':-math.log(team_p),'Within-team log loss':-math.log(conditional[winner])}
+
+
+def scoring_stage_summary(games):
+    if not games:return {}
+    n=len(games)
+    team=sum(r['Team log loss'] for r in games)/n
+    player=sum(r['Within-team log loss'] for r in games)/n
+    return {'Games':n,'Team hit %':100*sum(r['Team top-1 credit'] for r in games)/n,
+            'Player hit % within actual winning team':100*sum(r['Within-winning-team top-1 credit'] for r in games)/n,
+            'Team log loss':team,'Within-team log loss':player,
+            'Team loss minus 50/50':team-math.log(2),
+            'Within-team loss minus equal five':player-math.log(5)}
+
+
 def evaluate(rows,min_training=100,model="baseline"):
     if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
@@ -196,7 +226,7 @@ def evaluate(rows,min_training=100,model="baseline"):
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games,**scoring_stage_metrics(probs,{r['player_id']:r['team'] for r in game},winner['player_id'])})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
@@ -528,13 +558,14 @@ def validation_report(history, min_training=100, progress=lambda text:None):
             raise ValueError('Validation models did not evaluate identical games and dates.')
     dates=sorted({day for gid,day in expected})
     recent_dates=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
-    summary=[];monthly=[];details=[];latest={};reliability=[]
+    summary=[];monthly=[];details=[];latest={};reliability=[];stages=[]
     for model,result in results.items():
         games=result['games'];newest=[r for r in games if r['Date'] in recent_dates]
         latest[model]={'games':newest}
         for label,subset in [('All evaluated dates',games),('Newest quarter of dates',newest)]:
             if subset:
                 metrics=evaluation_metrics(subset)
+                stages.append({'Model':model,'Period':label,**scoring_stage_summary(subset)})
                 reliability.extend({'Model':model,'Period':label,**r} for r in pick_reliability(subset))
                 summary.append({'Model':model,'Period':label,'First date':min(r['Date'] for r in subset),'Last date':max(r['Date'] for r in subset),**metrics,
                                 'Log loss minus equal baseline':metrics['Log loss']-math.log(10),
@@ -548,4 +579,4 @@ def validation_report(history, min_training=100, progress=lambda text:None):
         comparison=compare_evaluations(latest['baseline'],latest[model])
         paired.extend({'Candidate':model,**r} for r in comparison['metrics'])
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'monthly':monthly,'details':details,
-            'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
+            'scoring_stages':stages,'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}

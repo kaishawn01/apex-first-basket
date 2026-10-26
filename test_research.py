@@ -747,3 +747,48 @@ class OpeningShotCoverageTests(unittest.TestCase):
             self.assertEqual({r['opening_shot_observed'] for r in rows if r['team']=='NYK'},{0})
             self.assertFalse(rt.audit(rows)[1])
             self.assertEqual(sum(r['first_team_shot'] for r in rows),int(pid=='10'))
+
+class ScoringStageTests(unittest.TestCase):
+    def setUp(self):
+        self.teams={str(i):'BOS' if i<5 else 'NYK' for i in range(10)}
+    def test_uniform_baselines_and_ties(self):
+        result=rt.scoring_stage_metrics({str(i):.1 for i in range(10)},self.teams,'0')
+        self.assertAlmostEqual(result['Team top-1 credit'],.5)
+        self.assertAlmostEqual(result['Within-winning-team top-1 credit'],.2)
+        self.assertAlmostEqual(result['Team log loss'],math.log(2))
+        self.assertAlmostEqual(result['Within-team log loss'],math.log(5))
+        summary=rt.scoring_stage_summary([result])
+        self.assertAlmostEqual(summary['Team loss minus 50/50'],0)
+        self.assertAlmostEqual(summary['Within-team loss minus equal five'],0)
+    def test_correct_team_wrong_player_and_exact_loss_decomposition(self):
+        probs={str(i):.05 for i in range(10)}
+        probs['0']=.45;probs['1']=.15
+        result=rt.scoring_stage_metrics(probs,self.teams,'1')
+        self.assertEqual(result['Team top-1 credit'],1)
+        self.assertEqual(result['Within-winning-team top-1 credit'],0)
+        self.assertAlmostEqual(result['Winning team probability'],.75)
+        self.assertAlmostEqual(result['Winner share within team'],.2)
+        self.assertAlmostEqual(result['Team log loss']+result['Within-team log loss'],-math.log(.15))
+    def test_wrong_team_still_evaluates_actual_winning_team_player(self):
+        probs={str(i):.05 for i in range(10)};probs['0']=.45;probs['5']=.15
+        result=rt.scoring_stage_metrics(probs,self.teams,'5')
+        self.assertEqual(result['Team top-1 credit'],0)
+        self.assertEqual(result['Within-winning-team top-1 credit'],1)
+        self.assertAlmostEqual(result['Winner share within team'],.15/.35)
+    def test_all_models_periods_preserve_total_loss_and_counts(self):
+        rows=sum((game_rows(str(i),f'2026-08-{i+1:02d}') for i in range(8)),[])
+        report=rt.validation_report(rows,1)
+        for stage in report['scoring_stages']:
+            summary=next(r for r in report['summary'] if r['Model']==stage['Model'] and r['Period']==stage['Period'])
+            self.assertEqual(stage['Games'],summary['Evaluated games'])
+            self.assertAlmostEqual(stage['Team log loss']+stage['Within-team log loss'],summary['Log loss'])
+        for game in report['details']:
+            self.assertAlmostEqual(game['Team log loss']+game['Within-team log loss'],game['Log loss'])
+    def test_invalid_inputs_and_empty_history(self):
+        probs={str(i):.1 for i in range(10)}
+        for bad in ({**probs,'0':0},{**probs,'0':float('nan')},{**probs,'0':.2}):
+            with self.assertRaises(ValueError):rt.scoring_stage_metrics(bad,self.teams,'0')
+        with self.assertRaises(ValueError):rt.scoring_stage_metrics(probs,self.teams,'outside')
+        with self.assertRaises(ValueError):rt.scoring_stage_metrics(probs,{k:'BOS' for k in probs},'0')
+        self.assertEqual(rt.scoring_stage_summary([]),{})
+        self.assertEqual(rt.validation_report([],1)['scoring_stages'],[])
