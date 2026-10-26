@@ -1,3 +1,9 @@
+APEX V2.15.0 — Faster chronological prediction batches
+
+Backtests now prepare date-specific team statistics once for all games on that date. Player calculations use the relevant team history instead of repeatedly scanning the entire league. The single-game predictor uses the same batch implementation. No persistent prediction cache is introduced: changing history or the target date rebuilds the inputs. Same-day and future results remain excluded. Model formulas and defaults are unchanged.
+
+Validation: 103 unit tests and all Streamlit smoke checks passed. Exact probabilities matched the previous full-history implementation on a synthetic benchmark with 1,425 historical games, 15 matchups and all three models. Median batch time over three runs was 1.006 seconds before versus 0.105 seconds after (about 9.6x) in the Linux Python test environment. This measures the prediction batch, not end-to-end dashboard or full-season backtest time; Windows and real-history results will vary. This release improves computation speed, not established predictive accuracy.
+
 APEX V2.14.0 — Eastern-date and fresh-schedule guards
 
 Dashboard date queries now retain only games whose timezone-aware start actually falls on the chosen Eastern date. UTC midnight rollover is handled explicitly. Missing timezones, invalid matchups and conflicting duplicate game entries are rejected; identical duplicates are collapsed.

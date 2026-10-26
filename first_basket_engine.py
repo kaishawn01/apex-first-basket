@@ -765,23 +765,35 @@ def lineup_player_weights(history, starters, team, target_day):
     return [(r[0],r[1]/total,*r[2:]) for r in raw]
 
 
-def predict_first_score(history, lineups, target_day, model="baseline"):
-    """Shared dashboard/backtest probabilities; never train on the target date."""
+def predict_matchups(history, matchups, target_day, model="baseline"):
+    """Build date-specific statistics once, then score each matchup independently."""
     if model not in ('baseline','recent','lineup'):raise ValueError('Unknown model.')
-    if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
-        raise ValueError('Two teams with five starters each are required.')
-    ids=[p['player_id'] for players in lineups.values() for p in players]
-    if len(set(ids))!=10:raise ValueError('Ten distinct player IDs are required.')
     target=date.fromisoformat(target_day)
+    for lineups in matchups.values():
+        if len(lineups)!=2 or any(len(players)!=5 for players in lineups.values()):
+            raise ValueError('Two teams with five starters each are required.')
+        ids=[p['player_id'] for players in lineups.values() for p in players]
+        if len(set(ids))!=10:raise ValueError('Ten distinct player IDs are required.')
+    if not matchups:return {}
     prior=[r for r in history if 0<(target-date.fromisoformat(r['date'])).days<=400]
-    a,b=sorted(lineups)
+    by_team=defaultdict(list)
+    for row in prior:by_team[row['team']].append(row)
     stats=recent_team_stats(prior,target_day) if model!='baseline' else team_stats(prior)
-    pa=recent_first_team_probability(a,b,stats) if model!='baseline' else first_team_probability(a,b,stats)
-    probabilities={}
-    for team,pt in ((a,pa),(b,1-pa)):
-        weights=(lineup_player_weights(prior,lineups[team],team,target_day) if model=='lineup' else recent_player_weights(prior,lineups[team],team,target_day) if model=='recent' else player_weights(prior,lineups[team],team))
-        probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
-    return probabilities
+    results={}
+    for game_id,lineups in matchups.items():
+        a,b=sorted(lineups)
+        pa=recent_first_team_probability(a,b,stats) if model!='baseline' else first_team_probability(a,b,stats)
+        probabilities={}
+        for team,pt in ((a,pa),(b,1-pa)):
+            team_history=by_team.get(team,[])
+            weights=(lineup_player_weights(team_history,lineups[team],team,target_day) if model=='lineup' else recent_player_weights(team_history,lineups[team],team,target_day) if model=='recent' else player_weights(team_history,lineups[team],team))
+            probabilities.update({player['player_id']:pt*share for player,share,*_ in weights})
+        results[game_id]=probabilities
+    return results
+
+
+def predict_first_score(history, lineups, target_day, model="baseline"):
+    return predict_matchups(history,{'single':lineups},target_day,model)['single']
 
 
 if __name__ == "__main__":

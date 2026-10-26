@@ -36,7 +36,7 @@ class ResearchTests(unittest.TestCase):
             seen.append({r['date'] for r in train});return original(train)
         with patch.object(eng,'team_stats',side_effect=spy): result=rt.evaluate(rows,1)
         self.assertEqual(result['metrics']['Evaluated games'],2)
-        self.assertEqual(seen,[{'2026-10-20'},{'2026-10-20'}])
+        self.assertEqual(seen,[{'2026-10-20'}])
     def test_equal_model_baseline_and_ties(self):
         rows=game_rows('a','2026-10-20')+game_rows('b','2026-10-21')
         def equal(history,players,team):return [(p,.2,0,0,0) for p in players]
@@ -534,3 +534,38 @@ class FullValidationTests(unittest.TestCase):
         other={'games':[],'excluded':[]}
         with patch.object(rt,'evaluate',side_effect=[first,other,other]):
             with self.assertRaisesRegex(ValueError,'identical'):rt.validation_report([],1)
+
+class BatchPredictionTests(unittest.TestCase):
+    def setUp(self):
+        self.history=game_rows('old','2026-10-20')+game_rows('older','2026-10-19')
+        self.five={t:[dict(r) for r in self.history[:10] if r['team']==t] for t in ('BOS','NYK')}
+    def reference(self,history,lineups,target,model):
+        prior=rt.history_window(history,target)
+        a,b=sorted(lineups)
+        stats=eng.team_stats(prior) if model=='baseline' else eng.recent_team_stats(prior,target)
+        pa=eng.first_team_probability(a,b,stats) if model=='baseline' else eng.recent_first_team_probability(a,b,stats)
+        result={}
+        for team,pt in ((a,pa),(b,1-pa)):
+            weights=eng.player_weights(prior,lineups[team],team) if model=='baseline' else eng.recent_player_weights(prior,lineups[team],team,target) if model=='recent' else eng.lineup_player_weights(prior,lineups[team],team,target)
+            result.update({p['player_id']:pt*w for p,w,*_ in weights})
+        return result
+    def test_matches_previous_full_history_calculation(self):
+        import copy
+        alt=copy.deepcopy(self.five);alt['BOS'][-1]['player_id']='99'
+        history=self.history+game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('old','2020-01-01')
+        for model in ('baseline','recent','lineup'):
+            result=eng.predict_matchups(history,{'a':self.five,'b':alt},'2026-10-21',model)
+            for gid,five in [('a',self.five),('b',alt)]:
+                self.assertEqual(result[gid],self.reference(history,five,'2026-10-21',model))
+                self.assertAlmostEqual(sum(result[gid].values()),1)
+    def test_statistics_built_once_per_batch(self):
+        with patch.object(eng,'team_stats',wraps=eng.team_stats) as stats:
+            eng.predict_matchups(self.history,{'a':self.five,'b':self.five},'2026-10-21')
+            self.assertEqual(stats.call_count,1)
+    def test_history_changes_are_not_cached_between_calls(self):
+        first=eng.predict_matchups([],{'a':self.five},'2026-10-21')
+        second=eng.predict_matchups(self.history,{'a':self.five},'2026-10-21')
+        self.assertNotEqual(first,second)
+    def test_empty_batch_and_invalid_lineups(self):
+        self.assertEqual(eng.predict_matchups([],{},'2026-10-21'),{})
+        with self.assertRaises(ValueError):eng.predict_matchups([],{'a':{'BOS':[]}},'2026-10-21')

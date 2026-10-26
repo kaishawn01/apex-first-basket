@@ -180,17 +180,18 @@ def evaluate(rows,min_training=100,model="baseline"):
     prior=[]; results=[]; calibration=[]
     for day in sorted(byday):
         train=history_window(prior,day)
-        if len({r['game_id'] for r in train})>=min_training:
+        training_games=len({r['game_id'] for r in train})
+        if training_games>=min_training:
+            matchups={gid:{t:[r for r in game if r['team']==t] for t in {r['team'] for r in game}} for gid,game in byday[day].items()}
+            predictions=eng.predict_matchups(train,matchups,day,model)
             for gid,game in byday[day].items():
-                teams=sorted({r['team'] for r in game})
-                lineups={t:[r for r in game if r['team']==t] for t in teams}
-                probs=eng.predict_first_score(train,lineups,day,model)
+                probs=predictions[gid]
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':len({r['game_id'] for r in train})})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
