@@ -489,6 +489,27 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
         else:st.info('Not enough eligible history to compare decay settings.')
     elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
+    if st.button('Test probability calibration'):
+        progress=st.empty()
+        with st.spinner('Testing probability adjustments using earlier dates…'):
+            st.session_state['temperature_comparison']=research.compare_temperature(hist,warmup,selected_model,progress.info)
+    temperature_report=st.session_state.get('temperature_comparison')
+    if temperature_report and temperature_report['fingerprint']==research.fingerprint(hist) and temperature_report['min_training']==warmup and temperature_report['model']==selected_model:
+        st.markdown('**Are the probabilities too confident or too flat?**')
+        if temperature_report['summary']:
+            st.dataframe(pd.DataFrame(temperature_report['summary']),hide_index=True,use_container_width=True)
+            st.caption('Unchanged uses temperature 1; softer uses 1.25; sharper uses 0.8. Every forecast still sums to 100%. These transformations preserve player order: they test probability quality, not a new top-player selection strategy. Tiny numerical ties can affect fractional tie credit.')
+            st.caption('Earlier-date adjustment chooses the lowest earlier log loss from the three fixed options. It needs at least 100 earlier evaluated games across 30 distinct dates within 400 days; until then it keeps probabilities unchanged. All games on one date use the same decision before that date’s results. Numerical selection ties prefer unchanged probabilities.')
+            st.write(f"Games after selection warmup: {temperature_report['learned_games']} across {temperature_report['learned_dates']} dates.")
+            if not temperature_report['learned_games']:st.info('The selector has not reached its learning minimum. Its results currently reflect unchanged probabilities, not learned adjustments.')
+            elif temperature_report['learned_dates']<30:st.warning('Fewer than 30 evaluation dates after selection warmup. Adjusted performance remains uncertain.')
+            st.dataframe(pd.DataFrame(temperature_report['comparisons']),hide_index=True,use_container_width=True)
+            st.caption('Compare log loss and Brier: lower is better. Differences are candidate minus unchanged on identical games. Approximate 95% intervals resample whole dates but do not retrain the selector. Repeated experiments, dependence across dates and historical lineup-selection bias limit conclusions. The newest quarter is a diagnostic, not an untouched test set. These are calibration candidates, not proof of calibrated probabilities. Live rankings and saved forecasts are unchanged.')
+            st.download_button('Download probability calibration summary CSV',pd.DataFrame(temperature_report['summary']).to_csv(index=False).encode(),'apex_temperature_summary.csv','text/csv')
+            st.download_button('Download probability calibration predictions CSV',pd.DataFrame(temperature_report['details']).to_csv(index=False).encode(),'apex_temperature_predictions.csv','text/csv')
+            st.download_button('Download probability adjustment decisions CSV',pd.DataFrame(temperature_report['decisions']).to_csv(index=False).encode(),'apex_temperature_decisions.csv','text/csv')
+        else:st.info('Not enough eligible history to test probability calibration.')
+    elif temperature_report:st.info('History, model or training minimum changed. Run the probability calibration test again.')
     if st.button('Run full model validation'):
         progress=st.empty()
         with st.spinner('Evaluating all three models…'):

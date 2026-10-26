@@ -1,3 +1,13 @@
+APEX V2.35.0 — Earlier-date probability adjustment experiment
+
+Backtest lab adds Test probability calibration for the selected baseline, recent or lineup model. It compares unchanged (temperature 1), softer (1.25) and sharper (0.8) forecasts on identical chronological games, plus an earlier-date selector. The selector needs 100 earlier evaluated games across 30 dates within 400 days and chooses the option with lowest prior log loss. Before that minimum it uses unchanged probabilities. Same-day outcomes never enter that date's choice; numerical ties favor unchanged. All forecasts remain positive and normalized. Temperature scaling preserves player order and is aimed at probability quality, not a different top pick.
+
+Reports show all evaluated dates, the newest quarter of dates and the same games after selection warmup for every variant, with log loss, Brier, hit metrics, date counts, approximate paired date-bootstrap intervals and CSV exports of summaries, predictions and selection decisions. No learned-history performance is claimed before the selector's minimum. Inputs changing hide old reports. Live probabilities and the forward journal are unchanged.
+
+This is a calibration candidate, not a demonstrated accuracy gain. Intervals do not refit the selector and do not capture all selection uncertainty. Repeated experiments, date dependence, observed historical starters and excluded nonstarter first scorers remain limitations. A favorable historical score does not establish calibrated probabilities, future performance or profit.
+
+Validation: 219 unit tests and all Streamlit smoke checks passed. New checks cover normalization, ordering, invalid parameters, unchanged default results, same-day/future leakage, game/date learning minimums, rolling-window expiry, deterministic tie selection, identical evaluation sets, learned-only comparisons, no API calls, exports and stale-report hiding. Windows execution and real-user prediction improvements were not tested here.
+
 APEX V2.34.0 — Safer starter projections with recent lineup evidence
 
 Starter projections now use the latest valid audited earlier game, restricted to the loaded roster, only when that game is at most 30 days before the selected date. Stale history or a failed roster fetch produces no automatic selections. Last-game players absent from the roster leave explicit vacancies; the app does not silently pick replacements. The 30-day cutoff is a review guardrail, not a validated accuracy threshold. Existing selections remain user-controlled until a slate reload resets them.

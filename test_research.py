@@ -1348,3 +1348,89 @@ class EqualBenchmarkEvidenceTests(unittest.TestCase):
             self.assertAlmostEqual(evidence[0]['Model minus equal'],summary['Log loss minus equal baseline'])
             self.assertAlmostEqual(evidence[1]['Model minus equal'],summary['Brier minus equal baseline'])
         self.assertEqual(rt.validation_report([],2)['equal_benchmark_evidence'],[])
+
+class TemperatureCalibrationTests(unittest.TestCase):
+    def probabilities(self):return {str(i):(.28 if i==0 else .08) for i in range(10)}
+    def variants(self):
+        from datetime import date,timedelta
+        result={label:{'games':[]} for label in rt.TEMPERATURES}
+        for i in range(32):
+            for j in range(4):
+                for label in result:
+                    result[label]['games'].append({'Date':(date(2026,1,1)+timedelta(days=i)).isoformat(),
+                         'Game':f'{i}_{j}','Log loss':{'Unchanged':2.,'Softer':1.,'Sharper':3.}[label]})
+        return result
+    def test_scaling_normalizes_preserves_order_and_identity(self):
+        source=self.probabilities();copy=dict(source)
+        self.assertEqual(rt.temper_probabilities(source),source)
+        soft=rt.temper_probabilities(source,1.25);sharp=rt.temper_probabilities(source,.8)
+        self.assertLess(soft['0'],source['0']);self.assertGreater(sharp['0'],source['0'])
+        for probs in (soft,sharp):
+            self.assertAlmostEqual(sum(probs.values()),1)
+            self.assertEqual(max(probs,key=probs.get),'0')
+            self.assertTrue(all(p>0 for p in probs.values()))
+            self.assertEqual(len(set(probs[str(i)] for i in range(1,10))),1)
+        self.assertEqual(source,copy)
+    def test_reject_invalid_temperature_and_fields(self):
+        for value in (0,-1,2.1,.49,float('nan'),float('inf'),True,'1'):
+            with self.assertRaises(ValueError):rt.temper_probabilities(self.probabilities(),value)
+        for probs in ({'a':1}, {str(i):0 for i in range(10)}, {str(i):float('nan') for i in range(10)}):
+            with self.assertRaises(ValueError):rt.temper_probabilities(probs)
+    def test_default_warmup_needs_games_and_distinct_dates(self):
+        selected,decisions=rt.adaptive_temperature_games(self.variants())
+        self.assertTrue(all(not d['Selection learned'] for d in decisions[:30]))
+        self.assertEqual(decisions[29]['Selection training games'],116)
+        self.assertTrue(decisions[30]['Selection learned'])
+        self.assertEqual(decisions[30]['Selected adjustment'],'Softer')
+        self.assertEqual(sum(r['Selection learned'] for r in selected),8)
+    def test_same_day_and_future_results_cannot_change_earlier_choice(self):
+        import copy
+        original=self.variants();changed=copy.deepcopy(original)
+        a,decisions=rt.adaptive_temperature_games(original)
+        target=decisions[30]['Date']
+        for label in changed:
+            for row in changed[label]['games']:
+                if row['Date']>=target:row['Log loss']=20. if label=='Softer' else 0.
+        _,after=rt.adaptive_temperature_games(changed)
+        self.assertEqual(decisions[:31],after[:31])
+        today=[r for r in a if r['Date']==target]
+        self.assertEqual(len(today),4)
+        self.assertEqual({r['Selected adjustment'] for r in today},{'Softer'})
+    def test_selection_window_expires_and_ties_prefer_unchanged(self):
+        data={label:{'games':[{'Date':'2024-01-01','Game':'old','Log loss':1.},
+                            {'Date':'2026-01-01','Game':'new','Log loss':1.},
+                            {'Date':'2026-01-02','Game':'next','Log loss':1.}]} for label in rt.TEMPERATURES}
+        _,decisions=rt.adaptive_temperature_games(data,1,1)
+        self.assertEqual(decisions[1]['Selection training games'],0)
+        self.assertFalse(decisions[1]['Selection learned'])
+        self.assertTrue(decisions[2]['Selection learned'])
+        self.assertEqual(decisions[2]['Selected adjustment'],'Unchanged')
+    def test_bad_comparison_inputs_rejected(self):
+        import copy
+        data=self.variants();bad=copy.deepcopy(data);bad['Softer']['games'].pop()
+        with self.assertRaises(ValueError):rt.adaptive_temperature_games(bad)
+        bad=copy.deepcopy(data);bad['Softer']['games'][0]['Log loss']=float('nan')
+        with self.assertRaises(ValueError):rt.adaptive_temperature_games(bad)
+        for n in (0,True,1.5):
+            with self.assertRaises(ValueError):rt.adaptive_temperature_games(data,n)
+        empty={label:{'games':[]} for label in rt.TEMPERATURES}
+        self.assertEqual(rt.adaptive_temperature_games(empty),([],[]))
+    def test_report_matches_default_metrics_without_network(self):
+        rows=[r for i in range(8) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        with patch.object(rt.core,'request',side_effect=AssertionError('No network')):
+            result=rt.compare_temperature(rows,2)
+        default=rt.evaluate(rows,2)
+        entry=next(r for r in result['summary'] if r['Variant']=='Unchanged' and r['Period']=='All evaluated dates')
+        self.assertAlmostEqual(entry['Log loss'],default['metrics']['Log loss'])
+        self.assertEqual(result['learned_games'],0)
+        self.assertEqual(len(result['summary']),8)
+        sets=[{r['Game'] for r in result['details'] if r['Variant']==label} for label in (*rt.TEMPERATURES,'Earlier-date adjustment')]
+        self.assertTrue(all(ids==sets[0] for ids in sets))
+        self.assertEqual(rt.compare_temperature([],2)['summary'],[])
+    def test_learned_subset_uses_identical_games_for_every_variant(self):
+        rows=[r for i in range(32) for j in range(4) for r in game_rows(f'{i}_{j}',f'2026-08-{i+1:02d}' if i<31 else '2026-09-01')]
+        result=rt.compare_temperature(rows,1)
+        learned=[r for r in result['summary'] if r['Period']=='After selection warmup']
+        self.assertEqual(result['learned_games'],4)
+        self.assertEqual([r['Evaluated games'] for r in learned],[4]*4)
+        self.assertEqual(result['learned_dates'],1)

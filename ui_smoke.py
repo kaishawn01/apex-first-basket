@@ -147,9 +147,17 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert not at.exception,list(at.exception)
  comparison=next(d.value for d in at.dataframe if 'Model' in d.value.columns and set(d.value['Model'])=={'baseline','lineup'})
  assert list(comparison['Evaluated games'])==[10,10]
+ with patch.object(core,'request',side_effect=AssertionError('Calibration test must not fetch APIs')):
+  next(b for b in at.button if b.label=='Test probability calibration').click().run()
+ assert not at.exception,list(at.exception)
+ calibration=at.session_state['temperature_comparison']
+ assert len(calibration['summary'])==8
+ assert calibration['learned_games']==0
+ assert any('not learned adjustments' in x.value for x in at.info)
+ assert any(d.label=='Download probability adjustment decisions CSV' for d in at.get('download_button'))
  next(b for b in at.button if b.label=='Run full model validation').click().run()
  assert not at.exception,list(at.exception)
- validation=next(d.value for d in at.dataframe if 'Period' in d.value.columns)
+ validation=next(d.value for d in at.dataframe if 'Period' in d.value.columns and 'Model' in d.value.columns)
  assert len(validation)==6
  assert list(validation[validation['Period']=='Newest quarter of dates']['Evaluated games'])==[3,3,3]
  assert any(d.label=='Download full validation CSV' for d in at.get('download_button'))
@@ -166,6 +174,8 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert any('Run full model validation again' in x.value for x in at.info)
  assert not any('Period' in d.value.columns for d in at.dataframe)
  assert not any(d.label=='Download equal-chance evidence CSV' for d in at.get('download_button'))
+ assert not any(d.label=='Download probability adjustment decisions CSV' for d in at.get('download_button'))
+ assert any('Run the probability calibration test again' in x.value for x in at.info)
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  with patch.object(core,'request',side_effect=AssertionError('Signal experiment must not fetch APIs')):
   next(b for b in at.button if b.label=='Compare opening-shot vs first-score signals').click().run()

@@ -272,7 +272,22 @@ def scoring_stage_summary(games):
             'Within-team loss minus equal five':player-math.log(5)}
 
 
-def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90.0):
+def temper_probabilities(probabilities,temperature=1.0):
+    """Positive temperature scaling preserves player order and normalizes the field."""
+    if isinstance(temperature,bool) or not isinstance(temperature,(int,float)) or not math.isfinite(temperature) or not .5<=temperature<=2:
+        raise ValueError('Temperature must be finite and between 0.5 and 2.')
+    if len(probabilities)!=10 or any(not math.isfinite(p) or p<=0 for p in probabilities.values()) or abs(sum(probabilities.values())-1)>1e-8:
+        raise ValueError('Temperature scaling requires ten positive normalized probabilities.')
+    if temperature==1:return dict(probabilities)
+    logits={pid:math.log(p)/temperature for pid,p in probabilities.items()}
+    peak=max(logits.values());weights={pid:math.exp(v-peak) for pid,v in logits.items()}
+    if any(w==0 for w in weights.values()):raise ValueError('Temperature scaling underflowed; probabilities are too extreme.')
+    total=sum(weights.values())
+    return {pid:w/total for pid,w in weights.items()}
+
+
+def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90.0,temperature=1.0):
+    temper_probabilities({str(i):.1 for i in range(10)},temperature)
     eng.validate_half_life(half_life)
     eng.validate_shot_weight(shot_weight)
     if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
@@ -287,7 +302,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
             matchups={gid:{t:[r for r in game if r['team']==t] for t in {r['team'] for r in game}} for gid,game in byday[day].items()}
             predictions=eng.predict_matchups(train,matchups,day,model,shot_weight=shot_weight,half_life=half_life)
             for gid,game in byday[day].items():
-                probs=predictions[gid]
+                probs=temper_probabilities(predictions[gid],temperature)
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
@@ -303,7 +318,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90
         if subset: bins.append({'Probability band':f'{lo:.0%}–{min(hi,1):.0%}','Player predictions':len(subset),'Mean predicted %':100*sum(p for p,y in subset)/len(subset),'Observed first-score %':100*sum(y for p,y in subset)/len(subset)})
     n=len(results)
     metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Top-3 hit %':100*sum(r['Top-3 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
-    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model,'shot_weight':shot_weight,'half_life':half_life}
+    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model,'shot_weight':shot_weight,'half_life':half_life,'temperature':temperature}
 
 # Forward journal: local, immutable pregame forecasts; outcomes are stored separately.
 def journal_connection(path=None):
@@ -897,3 +912,67 @@ def check_season_coverage(history,season_end,analysis_day,progress=lambda text:N
     games,warnings=season_index(season_end,progress)
     report=schedule_history_coverage(history,games,analysis_day)
     return {**report,'season_end':season_end,'schedule_warnings':warnings}
+
+
+TEMPERATURES={'Unchanged':1.0,'Softer':1.25,'Sharper':.8}
+
+
+def adaptive_temperature_games(results,min_selection_games=100,min_selection_dates=30):
+    """Choose only from earlier-date out-of-sample forecasts, before seeing today's outcomes."""
+    for value in (min_selection_games,min_selection_dates):
+        if isinstance(value,bool) or not isinstance(value,int) or value<1:raise ValueError('Selection minimums must be positive integers.')
+    labels=tuple(TEMPERATURES)
+    indexed={label:{(r['Date'],r['Game']):r for r in results[label]['games']} for label in labels}
+    keys=set(indexed[labels[0]])
+    if any(set(indexed[label])!=keys or len(indexed[label])!=len(results[label]['games']) for label in labels):raise ValueError('Temperature variants require identical games and dates.')
+    if len({gid for day,gid in keys})!=len(keys):raise ValueError('Duplicate evaluation game IDs.')
+    for label in labels:
+        for (day,gid),row in indexed[label].items():
+            date.fromisoformat(day)
+            if not math.isfinite(row['Log loss']) or row['Log loss']<0:raise ValueError('Selection requires finite nonnegative log loss.')
+    byday=defaultdict(list)
+    for key in sorted(keys):byday[key[0]].append(key)
+    prior=[];chosen_games=[];decisions=[]
+    for day in sorted(byday):
+        cutoff=(date.fromisoformat(day)-timedelta(days=MODEL_DAYS)).isoformat()
+        prior=[key for key in prior if key[0]>=cutoff]
+        dates=len({key[0] for key in prior})
+        learned=len(prior)>=min_selection_games and dates>=min_selection_dates
+        losses={label:sum(indexed[label][key]['Log loss'] for key in prior)/len(prior) for label in labels} if prior else {}
+        chosen='Unchanged'
+        if learned:
+            best=min(losses.values());chosen=next(label for label in labels if losses[label]<=best+1e-12)
+        decision={'Date':day,'Selected adjustment':chosen,'Temperature':TEMPERATURES[chosen],
+                  'Selection training games':len(prior),'Selection training dates':dates,'Selection learned':learned,
+                  'Selection reason':'Earlier-date log-loss comparison' if learned else f'Fallback: needs {min_selection_games} earlier evaluated games across {min_selection_dates} dates',
+                  **{label+' prior log loss':losses.get(label) for label in labels}}
+        decisions.append(decision)
+        chosen_games.extend({**indexed[chosen][key],**decision} for key in byday[day])
+        prior.extend(byday[day])
+    return chosen_games,decisions
+
+
+def compare_temperature(history,min_training=100,model='baseline',progress=lambda text:None):
+    results={}
+    for label,temperature in TEMPERATURES.items():
+        progress('Testing '+label.lower()+' probabilities…')
+        results[label]=evaluate(history,min_training,model,temperature=temperature)
+    adaptive,decisions=adaptive_temperature_games(results)
+    results['Earlier-date adjustment']={'games':adaptive}
+    dates=sorted({r['Date'] for r in adaptive})
+    latest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    learned={(r['Date'],r['Game']) for r in adaptive if r['Selection learned']}
+    summary=[];details=[];comparisons=[]
+    periods=(('All evaluated dates',lambda r:True),('Newest quarter of dates',lambda r:r['Date'] in latest),
+             ('After selection warmup',lambda r:(r['Date'],r['Game']) in learned))
+    for period,include in periods:
+        subsets={label:[r for r in result['games'] if include(r)] for label,result in results.items()}
+        for label,subset in subsets.items():
+            if subset:summary.append({'Variant':label,'Period':period,'Dates':len({r['Date'] for r in subset}),**evaluation_metrics(subset)})
+        for label in ('Softer','Sharper','Earlier-date adjustment'):
+            comparison=compare_evaluations({'games':subsets['Unchanged']},{'games':subsets[label]})
+            comparisons.extend({'Variant':label,'Period':period,'Games':comparison['games'],'Dates':comparison['dates'],**r} for r in comparison['metrics'])
+    for label,result in results.items():details.extend({'Variant':label,**r} for r in result['games'])
+    return {'fingerprint':fingerprint(history),'min_training':min_training,'model':model,'summary':summary,
+            'comparisons':comparisons,'details':details,'decisions':decisions,'learned_games':len(learned),
+            'learned_dates':len({day for day,gid in learned}),'latest_dates':len(latest),'excluded_games':len(results['Unchanged']['excluded'])}
