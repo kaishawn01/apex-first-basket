@@ -578,6 +578,13 @@ with st.expander('Forward-testing journal · actual future results'):
                 st.dataframe(pd.DataFrame(paired_forward['summary']),hide_index=True,use_container_width=True)
                 st.download_button('Download forward model comparison CSV',pd.DataFrame(paired_forward['details']).to_csv(index=False).encode(),'apex_forward_models.csv','text/csv')
                 st.caption('Compare within one software version for consistent model formulas. Small samples do not establish a better model; no default is changed automatically.')
+                st.markdown('**Saved predictions versus equal chances**')
+                if paired_forward['equal_benchmark_evidence']:
+                    st.dataframe(pd.DataFrame(paired_forward['equal_benchmark_evidence']),hide_index=True,use_container_width=True)
+                    st.download_button('Download forward equal-chance evidence CSV',pd.DataFrame(paired_forward['equal_benchmark_evidence']).to_csv(index=False).encode(),'apex_forward_equal_chance_evidence.csv','text/csv')
+                    st.caption('The reference assigns 10% to each of the same ten saved players. If someone outside those ten scores first, both forecasts miss: reference top-one/top-three credit is zero and reference Brier is 1.1. Both log losses are infinite, so their difference and interval are undefined for the entire sample; those games stay in Brier and hit-rate comparisons. No winner is dropped to obtain a finite log-loss result.')
+                    st.caption('Differences use the same settled saved games and frozen probabilities, with approximate 95% intervals resampling whole dates. Lower error is better; higher hit-rate percentage-point differences are better. One date has no interval; few dates can give unstable or deceptively narrow intervals. Only saved games are represented. Repeated comparisons, dependence across dates and mixed software versions limit interpretation. These results do not establish calibration or profit and do not change the live model.')
+                else:st.info('Equal-chance evidence will appear after three-model saved forecasts have completed outcomes.')
                 st.markdown('**Pregame pick reliability · settled games only**')
                 if paired_forward['pick_reliability']:
                     st.dataframe(pd.DataFrame(paired_forward['pick_reliability']),hide_index=True,use_container_width=True)

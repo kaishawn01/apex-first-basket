@@ -87,6 +87,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  journal=next(d.value for d in at.dataframe if 'Saved before tip' in d.value.columns)
  assert set(journal['Model'])=={'recent'}
  assert any('Pick reliability will appear' in x.value for x in at.info)
+ assert not any(d.label=='Download forward equal-chance evidence CSV' for d in at.get('download_button'))
  saved=research.journal_records()
  probabilities={r['_player_id']:r['_probability'] for r in saved[0]['snapshot']['rows']}
  import math
@@ -101,6 +102,17 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
   reliability=next(d.value for d in at.dataframe if 'Outside-field winners' in d.value.columns and 'Band' in d.value.columns)
   assert set(reliability['Model'])=={'baseline','recent','lineup'}
   assert all(reliability['Games']==1)
+  assert any(d.label=='Download forward equal-chance evidence CSV' for d in at.get('download_button'))
+  evidence=next(d.value for d in at.dataframe if 'Model minus equal' in d.value.columns)
+  assert len(evidence)==12 and set(evidence['Games'])=={1}
+  saved[0]['outcome']={**saved[0]['outcome'],'winner_id':'999','outside_field':True,'top1_credit':0.,'brier':1+sum(p*p for p in probabilities.values()),'log_loss':None,'lineup_matches':False}
+  at.run()
+  assert not at.exception,list(at.exception)
+  evidence=next(d.value for d in at.dataframe if 'Model minus equal' in d.value.columns)
+  assert all(evidence['Outside-field winners']==1)
+  assert all(evidence[evidence['Metric']=='Log loss']['Reading'].str.startswith('Undefined difference'))
+  assert any('No winner is dropped' in x.value for x in at.caption)
+
  print('Journal UI passed: all-model save, comparison export, model filter, duplicate prevention.')
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value

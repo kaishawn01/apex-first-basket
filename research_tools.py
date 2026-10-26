@@ -180,9 +180,11 @@ def top_k_credit(probabilities, winner, k):
     return max(0.0,min(1.0,(k-ahead)/tied))
 
 
-def compare_evaluations(baseline, candidate, draws=1000):
+def compare_evaluations(baseline, candidate, draws=1000, metrics=('Log loss','Brier','Top-1 credit','Top-3 credit')):
     """Paired date-cluster bootstrap: candidate minus baseline, per-game mean."""
     import random
+    if not metrics or len(set(metrics))!=len(metrics) or any(m not in ('Log loss','Brier','Top-1 credit','Top-3 credit') for m in metrics):
+        raise ValueError('Choose unique supported comparison metrics.')
     def indexed(result):
         games=result['games'];index={r['Game']:r for r in games}
         if len(index)!=len(games):raise ValueError('Duplicate evaluation games.')
@@ -192,12 +194,14 @@ def compare_evaluations(baseline, candidate, draws=1000):
     byday=defaultdict(list)
     for gid in sorted(a):
         if a[gid]['Date']!=b[gid]['Date']:raise ValueError('Evaluation dates do not match.')
-        byday[a[gid]['Date']].append({metric:b[gid][metric]-a[gid][metric] for metric in ('Log loss','Brier','Top-1 credit','Top-3 credit')})
+        differences={metric:b[gid][metric]-a[gid][metric] for metric in metrics}
+        if any(not math.isfinite(v) for v in differences.values()):raise ValueError('Comparison metrics must be finite.')
+        byday[a[gid]['Date']].append({m:0.0 if abs(v)<1e-12 else v for m,v in differences.items()})
     days=sorted(byday);n=len(a);report=[]
     if not n:return {'games':0,'dates':0,'metrics':[]}
     if draws<100:raise ValueError('Use at least 100 bootstrap draws.')
     rng=random.Random(250)
-    samples={m:[] for m in ('Log loss','Brier','Top-1 credit','Top-3 credit')}
+    samples={m:[] for m in metrics}
     if len(days)>=2:
         for _ in range(draws):
             selected=[r for day in rng.choices(days,k=len(days)) for r in byday[day]]
@@ -217,6 +221,10 @@ def equal_benchmark_evidence(games):
     reference=[{'Game':r['Game'],'Date':r['Date'],'Log loss':math.log(10),
                 'Brier':.9,'Top-1 credit':.1,'Top-3 credit':.3} for r in games]
     comparison=compare_evaluations({'games':reference},{'games':games})
+    return benchmark_evidence_rows(comparison)
+
+
+def benchmark_evidence_rows(comparison):
     evidence=[]
     for row in comparison['metrics']:
         low,high=row['95% lower'],row['95% upper']
@@ -472,16 +480,46 @@ def forward_pick_games(records):
     return games
 
 
+def forward_equal_evidence(records):
+    """Grade a uniform forecast over the saved field; retain every settled winner."""
+    games=[];reference=[];outside=0;mismatches=0
+    for record in records:
+        outcome=record['outcome']
+        if outcome is None:continue
+        snap=record['snapshot'];rows=snap['rows']
+        probs={r['_player_id']:r['_probability'] for r in rows}
+        if len(rows)!=10 or len(probs)!=10 or any(not math.isfinite(p) or p<=0 for p in probs.values()) or abs(sum(probs.values())-1)>1e-8:
+            raise ValueError('Forward evidence requires ten unique positive normalized probabilities.')
+        winner=outcome['winner_id'];missing=winner not in probs
+        outside+=int(missing);mismatches+=int(not outcome['lineup_matches'])
+        common={'Game':snap['game_id'],'Date':snap['date']}
+        games.append({**common,'Log loss':-math.log(probs[winner]) if not missing else None,
+                      'Brier':sum((p-int(pid==winner))**2 for pid,p in probs.items())+int(missing),
+                      'Top-1 credit':top_k_credit(probs,winner,1),'Top-3 credit':top_k_credit(probs,winner,3)})
+        reference.append({**common,'Log loss':math.log(10) if not missing else None,
+                          'Brier':1.1 if missing else .9,'Top-1 credit':0. if missing else .1,
+                          'Top-3 credit':0. if missing else .3})
+    metrics=('Brier','Top-1 credit','Top-3 credit') if outside else ('Log loss','Brier','Top-1 credit','Top-3 credit')
+    comparison=compare_evaluations({'games':reference},{'games':games},metrics=metrics)
+    evidence=benchmark_evidence_rows(comparison)
+    if outside:
+        evidence.insert(0,{'Metric':'Log loss','Model minus equal':None,'95% lower':None,'95% upper':None,
+                           'Better direction':'Lower','Games':comparison['games'],'Dates':comparison['dates'],
+                           'Reading':'Undefined difference: both forecasts have infinite log loss for outside-field winners'})
+    return [{**r,'Outside-field winners':outside,'Lineup mismatches':mismatches} for r in evidence]
+
+
 def forward_model_comparison(records):
     """All models evaluated on exactly the same prospectively saved games."""
     matched=[r for r in records if set(r['snapshot'].get('model_forecasts',{}))=={'baseline','recent','lineup'}]
-    summaries=[];details=[];reliability=[]
+    summaries=[];details=[];reliability=[];evidence=[]
     for model in ('baseline','recent','lineup'):
         viewed=journal_model_records(matched,model)
         summaries.append({'Model':model,**journal_summary(viewed)})
+        evidence.extend({'Model':model,**r} for r in forward_equal_evidence(viewed))
         details.extend(journal_table(viewed))
         reliability.extend({'Model':model,**r} for r in pick_reliability(forward_pick_games(viewed)))
-    return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details,'pick_reliability':reliability}
+    return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details,'pick_reliability':reliability,'equal_benchmark_evidence':evidence}
 
 
 def player_evidence(history, target_day, team, player_id, selected_five):

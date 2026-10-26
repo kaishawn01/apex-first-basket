@@ -423,6 +423,68 @@ class MultiModelJournalTests(unittest.TestCase):
         self.assertEqual(rt.forward_model_comparison([old,self.record()])['pick_reliability'],[])
         self.assertEqual(rt.forward_model_comparison([])['pick_reliability'],[])
 
+class ForwardEqualEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture=MultiModelJournalTests();self.fixture.setUp()
+    def record(self,winner='10',gid='espn_123',day='2026-10-25'):
+        import copy
+        record=copy.deepcopy(self.fixture.record())
+        record['outcome']=rt.outcome_from_summary(record['snapshot'],ForwardJournalTests.payload(self.fixture,winner=winner))
+        record['snapshot'].update(game_id=gid,date=day)
+        return record
+    def test_uniform_model_equals_reference(self):
+        rows=rt.forward_equal_evidence([self.record(),self.record(gid='b',day='2026-10-26')])
+        self.assertEqual(len(rows),4)
+        for row in rows:
+            self.assertAlmostEqual(row['Model minus equal'],0)
+            self.assertEqual(row['Dates'],2)
+            self.assertIn('includes zero',row['Reading'])
+    def test_outside_winner_kept_and_loss_difference_undefined(self):
+        records=[self.record(),self.record('99','b','2026-10-26')]
+        rows=rt.forward_equal_evidence(records)
+        self.assertEqual(rows[0]['Metric'],'Log loss');self.assertIsNone(rows[0]['Model minus equal'])
+        self.assertIn('Undefined difference',rows[0]['Reading'])
+        for row in rows:
+            self.assertEqual(row['Games'],2);self.assertEqual(row['Outside-field winners'],1)
+        for row in rows[1:]:self.assertAlmostEqual(row['Model minus equal'],0)
+    def test_actual_saved_probabilities_and_no_mutation_or_network(self):
+        import copy
+        records=[self.record()];original=copy.deepcopy(records)
+        with patch.object(eng,'predict_matchups',side_effect=AssertionError('No rerun')),patch.object(rt.core,'request',side_effect=AssertionError('No API')):
+            result=rt.forward_model_comparison(records)
+        self.assertEqual(records,original)
+        recent=[r for r in result['equal_benchmark_evidence'] if r['Model']=='recent']
+        self.assertAlmostEqual(recent[0]['Model minus equal'],-math.log(.2)-math.log(10))
+        self.assertAlmostEqual(recent[2]['Model minus equal'],90)
+        self.assertTrue(all(r['95% lower'] is None for r in recent))
+    def test_pending_and_legacy_not_in_matched_evidence(self):
+        old=self.record();old['snapshot'].pop('model_forecasts')
+        result=rt.forward_model_comparison([old,self.fixture.record()])
+        self.assertEqual(result['equal_benchmark_evidence'],[])
+        self.assertEqual(rt.forward_equal_evidence([]),[])
+    def test_lineup_mismatch_stays_and_duplicate_ids_rejected(self):
+        record=self.record();record['outcome']['lineup_matches']=False
+        rows=rt.forward_equal_evidence([record])
+        self.assertTrue(all(r['Lineup mismatches']==1 for r in rows))
+        with self.assertRaisesRegex(ValueError,'Duplicate'):rt.forward_equal_evidence([record,record])
+    def test_nonuniform_outside_winner_brier_penalty(self):
+        viewed=rt.journal_model_records([self.record('99')],'recent')
+        rows=rt.forward_equal_evidence(viewed)
+        expected=.2**2+9*(.8/9)**2-.1
+        self.assertAlmostEqual(rows[1]['Model minus equal'],expected)
+        self.assertEqual(rows[2]['Model minus equal'],0)
+        self.assertEqual(rows[3]['Model minus equal'],0)
+    def test_invalid_saved_probability_field_rejected(self):
+        for value in (0,float('nan'),-1):
+            record=self.record();record['snapshot']['rows'][0]['_probability']=value
+            with self.assertRaisesRegex(ValueError,'normalized'):rt.forward_equal_evidence([record])
+    def test_selected_comparison_metrics(self):
+        a={'games':[{'Game':'a','Date':'2026-10-25','Brier':.9}]}
+        result=rt.compare_evaluations(a,a,metrics=('Brier',))
+        self.assertEqual(len(result['metrics']),1)
+        for metrics in ((),('Unknown',),('Brier','Brier')):
+            with self.assertRaises(ValueError):rt.compare_evaluations(a,a,metrics=metrics)
+
 class PlayerEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.rows=game_rows('one','2026-10-20')

@@ -1,3 +1,13 @@
+APEX V2.33.0 — Forward evidence from saved pre-tip forecasts
+
+The forward journal now compares all three models with equal probabilities over the same saved ten players, using identical settled games. It reports log-loss, Brier and top-one/top-three differences, approximate 95% date-cluster bootstrap intervals, game/date counts, outside-field winners, lineup mismatches and plain-language readings. A CSV export follows the journal version filter. Pending and legacy single-model games are excluded from this matched comparison and remain in the journal.
+
+Outside-field winners remain in every finite-metric comparison. For those games, the equal reference has zero top-k credit and Brier 1.1, rather than the in-field 10%/30% credit and Brier 0.9. Both forecasts assign the winner zero probability: sample log losses are infinite and their difference is undefined. The report explicitly withholds the log-loss difference and interval for the whole sample instead of dropping these games. Stored forecasts and outcomes are unchanged; no prediction rerun, API call, ranking change or automatic model promotion occurs.
+
+Intervals reuse 1,000 deterministic date-cluster bootstrap draws. One date has no interval; small samples can give misleadingly narrow intervals. Only saved games are represented. Across-date dependence, repeated testing and mixed model versions limit interpretation. Equal chances are a simple benchmark, not market odds. Favorable results do not establish calibration, future accuracy or profit.
+
+Validation: 203 unit tests and all Streamlit smoke checks passed. Added checks cover frozen forecasts, no network or prediction reruns, pending/legacy exclusions, outside-field scoring, undefined loss differences, invalid fields, duplicate games, CSV display and retained lineup mismatches. Comparison differences smaller than 1e-12 are treated as numerical equality to avoid reporting floating-point roundoff as an advantage. Windows execution and real-user prediction accuracy were not tested here.
+
 APEX V2.32.0 — Evidence against equal first-score chances
 
 Full model validation now compares each model with a fixed 10%-per-starter forecast on exactly the same games, for all evaluated dates and the newest quarter of dates. The report includes log loss, Brier, top-one and top-three differences; game/date counts; approximate 95% date-cluster bootstrap intervals; and a plain-language reading for each metric. Top-k ties use fractional credit. Intervals containing zero are labeled inconclusive, including exact equality. A single evaluation date has no interval. A CSV export is available and existing history/training-setting staleness guards apply.
