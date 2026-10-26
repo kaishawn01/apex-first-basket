@@ -31,8 +31,10 @@ def current_version(root=ROOT):
 
 
 def fetch(url):
+    import ssl
+    import certifi
     try:
-        with urlopen(Request(url,headers={'User-Agent':'APEX-Updater/2.2','Accept':'application/vnd.github+json'}),timeout=30) as response:
+        with urlopen(Request(url,headers={'User-Agent':'APEX-Updater/2.2','Accept':'application/vnd.github+json'}),timeout=30, context=ssl.create_default_context(cafile=certifi.where())) as response:
             body=response.read(MAX_FILE+1)
         if len(body)>MAX_FILE: raise ValueError('Update file exceeds allowed size.')
         return body
