@@ -100,3 +100,56 @@ class SummaryIdentityTests(unittest.TestCase):
         game={'gameId':'espn_401809955'}
         for c in competitors:game[c['homeAway']+'Team']={'teamTricode':eng.espn_team(c['team'])}
         with self.assertRaises(ValueError):eng.validate_espn_summary(game,payload)
+
+class ScheduleIntegrityTests(unittest.TestCase):
+    def event(self,gid='123',start='2026-10-27T02:00:00Z',status='STATUS_SCHEDULED'):
+        return {'id':gid,'date':start,'season':{'type':2},'status':{'type':{'name':status,'completed':status=='STATUS_FINAL'}},'competitions':[{'competitors':[{'homeAway':'home','team':{'abbreviation':'BOS'}},{'homeAway':'away','team':{'abbreviation':'NY'}}]}]}
+    def test_utc_rollover_and_eastern_filter(self):
+        import dashboard_core as core
+        from unittest.mock import patch
+        payload={'events':[self.event('1','2026-10-27T02:00:00Z'),self.event('2','2026-10-27T15:00:00Z')]}
+        with patch.object(core,'request',return_value=payload):games=core.fresh_schedule('2026-10-26')
+        self.assertEqual([g['gameId'] for g in games],['espn_1'])
+        self.assertEqual(games[0]['_date'],'2026-10-26')
+        winter=eng.parse_espn_schedule({'events':[self.event('3','2027-01-02T04:30:00Z')]})[0]
+        self.assertEqual(winter['_date'],'2027-01-01')
+    def test_naive_time_and_conflicting_duplicates_rejected(self):
+        with self.assertRaises(ValueError):eng.parse_espn_schedule({'events':[self.event(start='2026-10-26T19:00:00')]})
+        with self.assertRaises(ValueError):eng.parse_espn_schedule({'events':[self.event(),self.event(start='2026-10-27T03:00:00Z')]})
+        self.assertEqual(len(eng.parse_espn_schedule({'events':[self.event(),self.event()]})),1)
+    def test_upcoming_rejects_incoherent_cached_or_started_game(self):
+        from datetime import datetime,timezone
+        now=datetime(2026,10,26,22,tzinfo=timezone.utc)
+        g=eng.parse_espn_schedule({'events':[self.event()]})[0]
+        self.assertTrue(eng.game_is_upcoming(g,now))
+        for change in ({'_date':'2026-10-27'},{'_schedule_cached':True},{'start_time':'bad'},{'start_time':'2026-10-26T19:00:00'},{'research_only':True},{'gameStatus':2}):
+            self.assertFalse(eng.game_is_upcoming({**g,**change},now))
+        self.assertFalse(eng.game_is_upcoming(g,datetime(2026,10,27,2,tzinfo=timezone.utc)))
+    def test_postponed_and_cancelled_not_upcoming(self):
+        for status in ('STATUS_POSTPONED','STATUS_CANCELED','STATUS_IN_PROGRESS'):
+            g=eng.parse_espn_schedule({'events':[self.event(status=status)]})[0]
+            self.assertNotEqual(g['gameStatus'],1)
+    def test_empty_response_does_not_reuse_cached_slate(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            cache=Path(tmp)/'schedule.json';cache.write_text(json.dumps(eng.parse_espn_schedule({'events':[self.event()]})))
+            with patch.object(eng,'SCHEDULE_CACHE',cache),patch.object(eng,'get_json',return_value={'events':[]}):
+                self.assertEqual(eng.schedule('2026-10-26'),[])
+    def test_offline_pregame_schedule_never_falls_back(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            cache=Path(tmp)/'schedule.json';cache.write_text(json.dumps(eng.parse_espn_schedule({'events':[self.event()]})))
+            with patch.object(eng,'SCHEDULE_CACHE',cache),patch.object(eng,'get_json',side_effect=eng.requests.ConnectionError()):
+                with self.assertRaisesRegex(RuntimeError,'Cached games cannot'):eng.schedule('2026-10-26')
+    def test_sync_cache_contains_only_completed_games_in_window(self):
+        import tempfile
+        from unittest.mock import patch
+        today=eng.datetime.now(eng.ZoneInfo('America/New_York')).date().isoformat()
+        cached=[{'gameId':'espn_1','_date':today,'gameStatus':3},{'gameId':'espn_2','_date':today,'gameStatus':1},{'gameId':'espn_3','_date':'2000-01-01','gameStatus':3}]
+        with tempfile.TemporaryDirectory() as tmp:
+            cache=Path(tmp)/'schedule.json';cache.write_text(json.dumps(cached))
+            with patch.object(eng,'SCHEDULE_CACHE',cache),patch.object(eng,'get_json',side_effect=eng.requests.ConnectionError()):games=eng.schedule()
+            self.assertEqual([g['gameId'] for g in games],['espn_1'])
+            self.assertTrue(games[0]['_schedule_cached'])

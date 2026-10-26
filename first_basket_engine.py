@@ -21,7 +21,7 @@ import sys
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -105,19 +105,40 @@ def espn_team(team):
     return code
 
 
+def game_is_upcoming(game, now=None):
+    """Require a coherent, timezone-aware future start and fresh scheduled status."""
+    try:
+        if game.get('research_only') or game.get('_schedule_cached') or game.get('gameStatus')!=1:return False
+        start=datetime.fromisoformat(game['start_time'].replace('Z','+00:00'))
+        now=now or datetime.now(timezone.utc)
+        if start.tzinfo is None or now.tzinfo is None:return False
+        if start.astimezone(ZoneInfo('America/New_York')).date().isoformat()!=game['_date']:return False
+        return start>now
+    except (KeyError,TypeError,ValueError,AttributeError):return False
+
+
 def parse_espn_schedule(payload):
-    games = []
+    games = {}
     for event in payload.get("events", []):
         if event.get("season", {}).get("type") != 2:
             continue
+        if len(event['competitions'])!=1:raise ValueError('Schedule has an ambiguous competition.')
         comp = event["competitions"][0]
         sides = {c["homeAway"]: {"teamTricode": espn_team(c["team"])} for c in comp["competitors"]}
+        if len(comp['competitors'])!=2 or set(sides)!={'home','away'} or sides['home']==sides['away']:
+            raise ValueError('Schedule has an invalid matchup.')
         state = event.get("status", comp.get("status", {})).get("type", {})
-        status = 3 if state.get("completed") else 1 if state.get("name") == "STATUS_SCHEDULED" else 2
-        day = datetime.fromisoformat(event["date"].replace("Z", "+00:00")).astimezone(ZoneInfo("America/New_York")).date().isoformat()
-        games.append({"gameId": "espn_" + event["id"], "_date": day,
-                      "gameStatus": status, "homeTeam": sides["home"], "awayTeam": sides["away"]})
-    return games
+        status = 3 if state.get("completed") is True else 1 if state.get("name") == "STATUS_SCHEDULED" else 2
+        start=datetime.fromisoformat(event["date"].replace("Z", "+00:00"))
+        if start.tzinfo is None:raise ValueError('Schedule start time has no timezone.')
+        day=start.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+        gid='espn_'+str(event['id'])
+        if not re.fullmatch(r'espn_\d+',gid):raise ValueError('Invalid schedule event ID.')
+        game={"gameId":gid,"_date":day,'start_time':start.isoformat(),
+              "gameStatus":status,"homeTeam":sides["home"],"awayTeam":sides["away"]}
+        if gid in games and games[gid]!=game:raise ValueError('Conflicting schedule entries for one game.')
+        games[gid]=game
+    return list(games.values())
 
 
 def schedule(target_day=None):
@@ -128,6 +149,7 @@ def schedule(target_day=None):
     start = max(date(year, 10, 1), today - timedelta(days=45)) if target_day is None else target
     end = today if target_day is None else target
     games = {}
+    range_start=start
     try:
         while start <= end:
             stop = start
@@ -135,18 +157,20 @@ def schedule(target_day=None):
             payload = get_json(ESPN_BASE + "/scoreboard", params={
                 "dates": start.strftime("%Y%m%d") if start == stop else start.strftime("%Y%m%d") + "-" + stop.strftime("%Y%m%d"), "limit": 1000})
             for g in parse_espn_schedule(payload):
-                games[g["gameId"]] = g
+                if g["_date"]==start.isoformat():games[g["gameId"]] = g
             start = stop + timedelta(days=1)
-        if not games:
-            raise ValueError("ESPN returned no regular-season games for the requested dates")
         result = list(games.values())
         SCHEDULE_CACHE.write_text(json.dumps(result), encoding="utf-8")
         print(f"ESPN schedule loaded: {len(result)} games.")
         return result
-    except (requests.RequestException, KeyError, ValueError) as exc:
+    except (requests.RequestException, KeyError, ValueError, TypeError) as exc:
+        if target_day is not None:
+            raise RuntimeError('Fresh schedule unavailable. Cached games cannot be used for pregame rankings.') from exc
         if SCHEDULE_CACHE.exists():
-            print("ESPN unavailable; using cached schedule. Status and start times may be stale.")
-            return json.loads(SCHEDULE_CACHE.read_text(encoding="utf-8"))
+            cached=json.loads(SCHEDULE_CACHE.read_text(encoding="utf-8"))
+            eligible=[{**g,'_schedule_cached':True} for g in cached if range_start.isoformat()<=g.get('_date','')<=end.isoformat() and g.get('gameStatus')==3]
+            print('ESPN unavailable; using cached completed games within the requested history window. Summaries will be revalidated.')
+            return eligible
         raise RuntimeError(f"ESPN schedule unavailable: {exc}") from exc
 
 
@@ -556,7 +580,7 @@ def show_picks(args):
         return
     target_day = args.date or datetime.now(ZoneInfo("America/New_York")).date().isoformat()
     games = schedule(target_day)
-    matchup_games = [g for g in games if g.get("_date") == target_day and int(g.get("gameStatus", 0)) == 1]
+    matchup_games = [g for g in games if g.get("_date") == target_day and game_is_upcoming(g)]
     if not matchup_games:
         print(f"No scheduled, unstarted NBA regular-season games found on {target_day}.")
         return

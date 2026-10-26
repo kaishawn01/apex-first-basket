@@ -23,16 +23,11 @@ def request(url, params=None, key=None):
 
 def fresh_schedule(day):
     payload = request(eng.ESPN_BASE + "/scoreboard", {"dates": day.replace("-", ""), "limit": 1000})
-    games = eng.parse_espn_schedule(payload)
-    dates = {"espn_" + x["id"]: x["date"] for x in payload.get("events", [])}
-    for g in games:
-        g["start_time"] = dates[g["gameId"]]
-    return games
+    return [g for g in eng.parse_espn_schedule(payload) if g['_date']==day]
 
 
 def upcoming(g, now=None):
-    now = now or datetime.now(timezone.utc)
-    return g["gameStatus"] == 1 and datetime.fromisoformat(g["start_time"].replace("Z", "+00:00")) > now
+    return eng.game_is_upcoming(g,now)
 
 
 def roster(team):

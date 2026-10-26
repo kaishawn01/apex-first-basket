@@ -1,3 +1,11 @@
+APEX V2.14.0 — Eastern-date and fresh-schedule guards
+
+Dashboard date queries now retain only games whose timezone-aware start actually falls on the chosen Eastern date. UTC midnight rollover is handled explicitly. Missing timezones, invalid matchups and conflicting duplicate game entries are rejected; identical duplicates are collapsed.
+
+Dashboard and legacy command-line picks share a start guard: scheduled status, a coherent Eastern game date, an aware future start, and no cached/research marker. Postponed, canceled and started games cannot pass as upcoming. Fresh empty responses remain empty instead of falling back to an old slate. Legacy pregame queries now require a fresh schedule.
+
+When historical sync cannot reach the schedule feed, cache fallback is restricted to completed games within that sync window, and each downloaded summary is still checked for completed status and correct identity before saving. This improves input correctness; it does not change scoring formulas or establish predictive improvement.
+
 APEX V2.13.0 — Full chronological model validation
 
 Backtest lab > Run full model validation evaluates baseline, recent form and lineup context on identical games. It reports overall results, the newest quarter of evaluation dates, monthly results, paired recent differences with date-bootstrap intervals, and game-by-game and summary CSV exports. The newest period is fixed at 25% of distinct evaluation dates rounded up; games on the same date remain together.
