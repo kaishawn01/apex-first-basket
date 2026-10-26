@@ -53,6 +53,11 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not at.exception,list(at.exception)
  ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
  assert len(ranking)==10
+ leaders=next(d.value for d in at.dataframe if 'Top candidates' in d.value.columns)
+ assert len(leaders)==1
+ assert abs(leaders.iloc[0]['Each leader %']-max(r['_probability'] for r in at.session_state['results']['rows'])*100)<1e-10
+ assert leaders.iloc[0]['Leader status']=='HOLD: SAMPLE'
+ assert any(d.label=='Download top candidates CSV' for d in at.get('download_button'))
  assert all(ranking['Observed opening-shot starts']==1)
  assert all(ranking['Weighted observed shot starts']<1)
  assert all(ranking['Shot coverage note']=='Below 8 observed opening-shot starts')
@@ -94,6 +99,8 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value
  assert any('Inputs changed' in x.value for x in at.info)
  assert not any('Range (percentage points)' in d.value.columns for d in at.dataframe)
+ assert not any('Top candidates' in d.value.columns for d in at.dataframe)
+ assert not any(d.label=='Download top candidates CSV' for d in at.get('download_button'))
  print('UI checks passed: launch, projected five, confirmations, ranking table, edit reset, stale-results guard.')
 
 from datetime import timedelta

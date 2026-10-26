@@ -259,3 +259,32 @@ def compare_model_forecasts(bundle):
     return {'rows':sorted(rows,key=lambda r:(-r['Baseline %'],r['Team'],r['Player'])),
             'leaders':summary,'shared_top':[indexed['baseline'][pid]['Player'] for pid in sorted(common)],
             'all_tied':all(len(leaders[m])==10 for m in models)}
+
+
+def matchup_leader_board(rows):
+    """Summarize each displayed matchup without hiding tied or held leaders."""
+    import math
+    from collections import defaultdict
+    games=defaultdict(list)
+    for row in rows:games[row['_game_id']].append(row)
+    board=[]
+    for gid,players in games.items():
+        teams={r['Team'] for r in players}
+        if len(players)!=10 or len({r['_player_id'] for r in players})!=10 or len(teams)!=2 or any(sum(r['Team']==t for r in players)!=5 for t in teams):
+            raise ValueError('Leader board requires ten distinct players, five per team.')
+        if len({r['Model'] for r in players})!=1 or len({r['Matchup'] for r in players})!=1:
+            raise ValueError('Leader board requires one model and matchup label per game.')
+        probabilities=[r['_probability'] for r in players]
+        if any(not math.isfinite(p) or not 0<p<1 for p in probabilities) or abs(sum(probabilities)-1)>1e-8:
+            raise ValueError('Leader board requires normalized positive probabilities.')
+        best=max(probabilities)
+        leaders=sorted([r for r in players if abs(r['_probability']-best)<1e-12],key=lambda r:(r['Team'],r['Player'],r['_player_id']))
+        board.append({'Game':gid,'Matchup':players[0]['Matchup'],'Model':players[0]['Model'],
+                      'Top candidates':' / '.join(r['Player']+' ('+r['Team']+')' for r in leaders),
+                      'Each leader %':100*best,'Tied leaders':len(leaders),
+                      'Gap to runner-up pp':0.0 if len(leaders)>1 else 100*(best-sorted(probabilities,reverse=True)[1]),
+                      'Leader status':' / '.join(sorted({r['Status'] for r in leaders})),
+                      'Leader injury review':' / '.join(sorted({r['Injury'] for r in leaders})),
+                      'Fewest leader starts':min(r['Starts'] for r in leaders),
+                      'Fewest observed shot starts':min(r['Observed opening-shot starts'] for r in leaders)})
+    return sorted(board,key=lambda r:(-r['Each leader %'],r['Matchup'],r['Game']))

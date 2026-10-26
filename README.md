@@ -1,3 +1,11 @@
+APEX V2.30.0 — Top first-score candidates at a glance
+
+After Run rankings, a new board above the full player table shows each matchup's leading player(s), individual model probability, gap to the runner-up, tie count, leader status, injury-review label and minimum leader sample counts. Matchups are ordered by their highest individual probability using full precision. All tied leaders remain visible; a ten-player tie is explicitly called out rather than choosing a name by row order. Each leader's probability is not the combined chance of the listed players.
+
+The board uses the exact displayed ranking rows and selected model; it makes no prediction reruns or API calls. Existing result-signature guards hide it after inputs change. A CSV export includes game IDs for identification. Full rankings, model comparisons and journal saving remain available below. Held candidates are not silently replaced by lower-ranked players. The board does not claim confidence, value or improved accuracy, and free throws still count as the first score.
+
+Validation: 182 unit tests and all Streamlit smoke checks passed. Added checks cover ten-way ties, full-precision ordering, retained hold/injury flags, multiple matchups, unchanged inputs, malformed groups, displayed probabilities, CSV availability and stale-input hiding. Windows execution was not tested here.
+
 APEX V2.29.0 — Check training-history gaps against the schedule
 
 Build deeper history now offers Check saved history against season schedule. It compares the selected prior season's indexed completed games within the analysis date's 400-day window with saved records. The report separates usable saved games, missing games, invalid saved games and saved date/team mismatches. It includes per-team counts and coverage percentages plus a game-level CSV export. Games on/after today or the analysis date are excluded; identical schedule duplicates collapse and conflicting duplicates are rejected.

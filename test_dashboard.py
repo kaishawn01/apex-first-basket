@@ -133,3 +133,51 @@ class ShotCoverageGuardTests(unittest.TestCase):
             rows=self.rank(model)
             record={'snapshot':{'game_id':self.game['gameId'],'date':self.game['_date'],'model_version':'2.20.0','model':model,'saved_at':'test','rows':rows},'outcome':None}
             self.assertEqual(rt.journal_table([record])[0]['Sample holds'],5)
+
+class MatchupLeaderBoardTests(unittest.TestCase):
+    def setUp(self):
+        fixture=DashboardTests();fixture.setUp()
+        self.rows=c.rank_game([],fixture.game,fixture.lineups,{}, {},[])
+    def test_all_ten_tied_and_holds_preserved(self):
+        board=c.matchup_leader_board(self.rows)
+        self.assertEqual(len(board),1)
+        self.assertEqual(board[0]['Tied leaders'],10)
+        self.assertAlmostEqual(board[0]['Each leader %'],10)
+        self.assertEqual(board[0]['Gap to runner-up pp'],0)
+        self.assertEqual(board[0]['Leader status'],'HOLD: LINEUP')
+        for row in self.rows:self.assertIn(row['Player'],board[0]['Top candidates'])
+    def test_full_precision_beats_display_rounding(self):
+        self.rows[0]['_probability']+=.000001
+        self.rows[1]['_probability']-=.000001
+        board=c.matchup_leader_board(self.rows)[0]
+        self.assertEqual(board['Tied leaders'],1)
+        self.assertIn(self.rows[0]['Player'],board['Top candidates'])
+        self.assertAlmostEqual(board['Gap to runner-up pp'],.0001)
+    def test_tied_leaders_keep_distinct_flags_without_promoting_other_player(self):
+        for i,row in enumerate(self.rows):row['_probability']=.2 if i<2 else .6/8
+        self.rows[0]['Status']='HOLD: SHOT COVERAGE';self.rows[1]['Status']='HOLD: SAMPLE'
+        self.rows[0]['Injury']='Questionable';self.rows[1]['Injury']='Out'
+        board=c.matchup_leader_board(self.rows)[0]
+        self.assertEqual(board['Tied leaders'],2)
+        self.assertAlmostEqual(board['Each leader %'],20)
+        self.assertEqual(board['Gap to runner-up pp'],0)
+        self.assertIn('HOLD: SHOT COVERAGE',board['Leader status'])
+        self.assertIn('Out',board['Leader injury review'])
+    def test_multiple_games_sorted_and_no_input_mutation(self):
+        import copy
+        other=copy.deepcopy(self.rows)
+        for i,row in enumerate(other):
+            row['_game_id']='espn_2';row['Matchup']='Other matchup';row['_probability']=.2 if i==0 else .8/9
+        rows=self.rows+other;original=copy.deepcopy(rows)
+        board=c.matchup_leader_board(rows)
+        self.assertEqual(board[0]['Game'],'espn_2')
+        self.assertEqual(len(board),2)
+        self.assertEqual(rows,original)
+    def test_invalid_groups_and_empty(self):
+        import copy
+        self.assertEqual(c.matchup_leader_board([]),[])
+        variants=[self.rows[:-1]]
+        for field,value in [('_player_id',self.rows[1]['_player_id']),('_probability',float('nan')),('_probability',.5),('Model','other'),('Team','ATL')]:
+            rows=copy.deepcopy(self.rows);rows[0][field]=value;variants.append(rows)
+        for rows in variants:
+            with self.assertRaises(ValueError):c.matchup_leader_board(rows)

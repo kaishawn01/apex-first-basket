@@ -221,6 +221,16 @@ else:
     result=st.session_state.get('results')
     if result and result['signature']==signature:
         st.caption('Rankings generated: '+result['time']+' • Model EV uses uncalibrated estimates, not proven value.')
+        leaders=core.matchup_leader_board(result['rows'])
+        st.markdown('**Top first-score candidates · by matchup**')
+        if leaders:
+            leader_frame=pd.DataFrame(leaders)
+            st.dataframe(leader_frame.drop(columns=['Game']),hide_index=True,use_container_width=True)
+            st.caption('One row per matchup, ordered by its highest individual estimate. Every tied leader is included; Each leader % is an individual probability, not the chance that any listed player scores. A larger gap is not proof of confidence or value. Rankings use full precision, so close estimates can look equal after display rounding. Free throws count.')
+            if any(r['Tied leaders']==10 for r in leaders):st.info('At least one matchup ties all ten players. The model has no unique top candidate for that game.')
+            st.download_button('Download top candidates CSV',leader_frame.to_csv(index=False).encode(),'apex_top_candidates.csv','text/csv')
+        else:st.info('No matchups produced rankings. Reload the slate and review the game status.')
+        st.markdown('**Full player rankings**')
         frame=pd.DataFrame([{k:v for k,v in r.items() if not k.startswith('_')} for r in result['rows']])
         st.dataframe(frame,hide_index=True,use_container_width=True)
         if selected_model=='lineup':st.caption('Similar-lineup starts include past games with at least four selected starters. Exact fives receive full weight; four-player matches receive half, with a 90-day recency half-life. Zero context uses recent-form rates. These are historical counts, not confidence guarantees.')
