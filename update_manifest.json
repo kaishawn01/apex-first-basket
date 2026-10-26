@@ -1,26 +1,26 @@
 {
-  "version": "2.2.0",
+  "version": "2.3.0",
   "files": {
     ".gitignore": "eaf33bc9a2246b9c1f1cdf5c0bfa24a938bca4b4adf11344e8a0ec11e6ea530d",
-    "GITHUB_SETUP.txt": "9ff751f9a4f6b4947d617667788c2f7b1124d4df8deb6016874b5b9ea2624faf",
-    "README.md": "ae46409fd5b640e0decc9fb3282bf8d3556ce82c3e9a14c28765dbe5ae4581c1",
+    "GITHUB_SETUP.txt": "b214dafaceef8bfe728f7d0030b62a3bd81655c3805dd900212b86c93e17eb30",
+    "README.md": "a8fe4d7c8230cdf2f3dd59cc4124f06cf57e163949813d8ce39a64b4845fa0f2",
     "RESTORE_APEX.bat": "8c55339a54fca931fb749d181bb5b5524f4f3b31d1436d1d184b11fedabaa531",
     "START_APEX.bat": "69e6ba6a14a9aa2833e1d0865f90d6425fe611b5641e920b7267d6777550494c",
-    "START_HERE.txt": "cf0f5d4e34cfa7a9030ddcc55eb40675acf16c7bec9096884273ae030a2d2115",
-    "VERSION": "c4a2383a03bdb6739d16a0e24058e4b9c7da4e63d203e0be2f448868cc03c530",
-    "app.py": "5bdc8a4f735c610679d8da5b2c8d5788ccd22f5927c0472851e63d37914ce43f",
+    "START_HERE.txt": "f2fdaea92bb87d3f820ea0125c946ebac5fe34a8b8e02abec7e2f66b313d8d88",
+    "VERSION": "a42caf4a54bbbe27aa45b6efbc6356c5e299b19763e728b6cdb7201b02ebbe36",
+    "app.py": "834c74a75ff2b6e4cab33edfb44d3a03428ee8793bae853b0615616e35ec3e53",
     "build_manifest.py": "27ecd04e30ba5d2794e64d7ffbe2767cdc72c73ba7c3420eeecf37a784a9f20f",
-    "dashboard_core.py": "b32402b5c1a63089d2d7d1a82d183b0684bb644ecccd87fa2ebff0046bfab928",
+    "dashboard_core.py": "eeaf3efe2272a0948a4f0071690f0939af6e441e7e3945bdb87e5f22587ca6e4",
     "espn_test_fixture.json": "a4e608701398983bb25bc7778de137cc1f6e1b78ba0ac73f0e9d8889e7f0f296",
     "first_basket_engine.py": "db362be7828b48736f3253c24b09e9ff32d4bb8cace28e2fc02e8e20c7b70557",
     "launcher.py": "6127a2a146cd3abf72af3b34450ff13fde810a975882618b47493c4e4497fd49",
     "requirements.txt": "805261a099292f4dee655260228fa6eeed02de81969795be3159a1c8db609f90",
-    "research_tools.py": "1c6966a0a8b7f73479d46e524d397a70e3eb5778d309d3f9332d8763c40882c1",
+    "research_tools.py": "d8850e3bdbdb2ec5407c3fb0d39335e78a3d96f8855e1ebed6ae0b760c212325",
     "test_dashboard.py": "11b82cb81280079bc18469f51e1d2fc0e25f7dfe26b5e7d7c30a55b28fd7c1db",
     "test_engine.py": "07129fa4b026d4c0dc6b9cbfe4752577b09f5e33062238d2c5b533d425d21b6e",
-    "test_research.py": "8eed370bbd7a67eeca7b468587bfebd2a62001965d04a1f229ed5ffe4698e177",
+    "test_research.py": "7f6c4fe9cbe421230d8a4dad76e10afa3aac0309b25b3ced78f8de154892f495",
     "test_updater.py": "28bc754b0a06075849485c5c718039c567281e2ff2be44dcde166351e574217d",
-    "ui_smoke.py": "12a59f010598f138ac313209b4334b52a1ad50a5bfb1d0e08d59ac6a4c07a16d",
-    "updater.py": "e372b2bee19b37f7fd4b19edff4f6b311d445e741502380a509be560f53dbc6b"
+    "ui_smoke.py": "f4a3d33d090ef41e3ae295c7c76c7bcb4df4d48bbf6ffceb3f80363a46c20657",
+    "updater.py": "72c384bc17430068bfacb1cff88e7f8d87b474aab4b3df3d75753d41ec4d8da5"
   }
 }

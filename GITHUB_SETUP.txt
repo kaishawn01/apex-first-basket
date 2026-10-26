@@ -1,4 +1,25 @@
-APEX 2.2 — ONE-TIME GITHUB SETUP
+APEX 2.3.0 — PUBLISH THIS UPGRADE
+
+This folder contains only changed release files plus update_manifest.json.
+Upload ALL files inside this folder to the ROOT of:
+https://github.com/kaishawn01/apex-first-basket
+Use Add file > Upload files, then Commit changes to main.
+Do not delete the other files already in the repository.
+
+After publication, use your EXISTING APEX app:
+Settings > App updates > Check for updates
+Download update for next launch
+Close the APEX command window, then reopen START_APEX.bat.
+The header should show V2.3.0. No manual copy into your app folder is needed.
+
+The model and updater run locally; publishing code does not upload your keys,
+history or forward journal. The update package contains none of those items.
+
+New feature: confirm lineups, run rankings, and Save confirmed forecasts to
+journal before tip-off. Later, open Forward-testing journal and check completed
+games. This records actual future forecast performance, not betting profit.
+
+ORIGINAL ONE-TIME SETUP (already completed for an existing V2.2 installation)
 Repository: https://github.com/kaishawn01/apex-first-basket
 
 This clean package contains only program files. It contains no API keys,

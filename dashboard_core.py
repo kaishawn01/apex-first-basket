@@ -151,7 +151,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports):
             enough=all(stats.get(t,{}).get('n',0)>=10 for t in (away,home)) and starts>=8
             status='HOLD: LINEUP' if not all_confirmed else 'HOLD: INJURY REVIEW' if injury_conflict else 'HOLD: SAMPLE' if not enough else 'NO PRICE' if not price else 'RESEARCH ONLY'
             fair=100*(1-p)/p if p<=.5 else -100*p/(1-p)
-            rows.append({'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
+            rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
                          'Model %':round(p*100,2),'Fair odds':round(fair),'Book odds':price[1] if price else '',
                          'Model EV %':round((p*price[0]-1)*100,2) if price else None,
                          'Starts':starts,'Team games':stats.get(team,{}).get('n',0),

@@ -189,9 +189,26 @@ else:
     result=st.session_state.get('results')
     if result and result['signature']==signature:
         st.caption('Rankings generated: '+result['time']+' • Model EV uses uncalibrated estimates, not proven value.')
-        frame=pd.DataFrame(result['rows'])
+        frame=pd.DataFrame([{k:v for k,v in r.items() if not k.startswith('_')} for r in result['rows']])
         st.dataframe(frame,hide_index=True,use_container_width=True)
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
+        st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
+        if st.button('Save confirmed forecasts to journal'):
+            try:
+                live={g['gameId']:g for g in core.fresh_schedule(day)}
+                saved=0;duplicates=0
+                for gid in sorted({r['_game_id'] for r in result['rows']}):
+                    game=live.get(gid)
+                    if not game or not core.upcoming(game):
+                        st.warning(gid+': game started or is unavailable; not saved.');continue
+                    rows=[r for r in result['rows'] if r['_game_id']==gid]
+                    try:
+                        inserted=research.save_forecast(game,rows,confirmations.get(gid,{}),updater.current_version(),research.fingerprint(hist),inj.get('time'))
+                        saved+=int(inserted);duplicates+=int(not inserted)
+                    except ValueError as exc:st.warning(str(exc))
+                st.success(f'Saved {saved} new forecasts. {duplicates} already had a saved forecast and were left unchanged.')
+            except (RuntimeError,ValueError,KeyError,OSError) as exc:st.error(str(exc))
+
     elif result:
         st.info('Inputs changed. Run rankings again to refresh results.')
 with st.expander('Build deeper history · prior-season import'):
@@ -258,3 +275,35 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download game-by-game backtest',pd.DataFrame(evaluation['games']).to_csv(index=False).encode(),f'apex_backtest_{day}.csv','text/csv')
     elif evaluation: st.info('History or training settings changed. Run evaluation again.')
     st.warning('Backtests use actual historical starting fives and exclude games where the first scorer was a nonstarter. These limitations can bias results. No historical odds are included, so this is not a profit/ROI backtest.')
+
+with st.expander('Forward-testing journal · actual future results'):
+    st.write('Save forecasts from the rankings table before tip-off, then refresh completed games here. This is a local research record, not a bet log. No wagers or profit estimates are involved.')
+    if st.button('Check completed games for journal'):
+        line=st.empty()
+        try:
+            with st.spinner('Checking first scorers…'):
+                updated,errors=research.refresh_journal(progress=line.info)
+            st.success(f'Updated {updated} completed games.')
+            for error in errors:st.warning(error['game_id']+': '+error['reason'])
+        except (OSError,ValueError) as exc:st.error(str(exc))
+    try:
+        records=research.journal_records()
+        if not records:st.info('No saved forecasts yet. Run rankings, confirm the five starters for each team, and click Save confirmed forecasts to journal.')
+        else:
+            versions=sorted({r['snapshot']['model_version'] for r in records})
+            chosen=st.selectbox('Journal model version',['All versions']+versions)
+            selected=records if chosen=='All versions' else [r for r in records if r['snapshot']['model_version']==chosen]
+            metrics=research.journal_summary(selected)
+            j1,j2,j3=st.columns(3)
+            j1.metric('Saved forecasts',metrics['Saved games'])
+            j2.metric('Completed forecasts',metrics['Settled games'])
+            j3.metric('Top-1 hit rate',f"{metrics['Top-1 hit %']:.1f}%" if metrics['Top-1 hit %'] is not None else 'Pending')
+            st.caption('Top ties receive fractional credit. Only saved games are measured; this is not an all-slate benchmark. System-clock timestamps are local records, not independently certified.')
+            st.write(f"Outside-field winners: {metrics['Outside-field winners']} · Lineup mismatches: {metrics['Lineup mismatches']}")
+            if metrics['Settled games']:
+                st.write(f"Brier score: {metrics['Brier']:.4f} · Log loss: {metrics['Log loss']}")
+            table=pd.DataFrame(research.journal_table(selected))
+            st.dataframe(table,hide_index=True,use_container_width=True)
+            st.download_button('Download forward journal CSV',table.to_csv(index=False).encode('utf-8'),'apex_forward_journal.csv','text/csv')
+            st.warning('Forecasts with injury/sample holds and incorrect starting fives remain in the results. Winners outside the predicted ten are retained as misses, not dropped. Final results are recorded once; provider corrections are not automatically reapplied.')
+    except (OSError,ValueError) as exc:st.error(str(exc))

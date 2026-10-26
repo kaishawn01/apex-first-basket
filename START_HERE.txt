@@ -1,4 +1,4 @@
-APEX FIRST BASKET DASHBOARD V2.2.0
+APEX FIRST BASKET DASHBOARD V2.3.0
 
 1. Extract the ZIP into a new folder on your Desktop.
 2. To reuse your 36 saved games, COPY the data folder from your old engine
@@ -34,3 +34,6 @@ and replace matching files. Do not delete your data, .venv, or .apex_keys.json.
 This ZIP contains none of those local items. Relaunch START_APEX.bat.
 
 V2.2.0 includes a GitHub updater. Read GITHUB_SETUP.txt first for setup.
+
+V2.3.0: Save confirmed forecasts to journal before tip-off. Open Forward-testing
+journal after games finish to check results. Data stays in your data folder.

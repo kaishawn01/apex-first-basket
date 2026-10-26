@@ -69,3 +69,64 @@ class ResearchTests(unittest.TestCase):
             self.assertEqual(report['remaining'],1)
 
 if __name__=='__main__':unittest.main()
+
+class ForwardJournalTests(unittest.TestCase):
+    def setUp(self):
+        from datetime import datetime,timezone
+        import dashboard_core as core
+        self.now=datetime(2026,10,25,22,tzinfo=timezone.utc)
+        self.game={'gameId':'espn_123','_date':'2026-10-25','start_time':'2026-10-25T23:00:00Z','gameStatus':1,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+        self.players={t:[{'player_id':str(offset+i),'player':f'{t} Player {i}'} for i in range(5)] for t,offset in [('BOS',10),('NYK',20)]}
+        self.rows=core.rank_game([],self.game,self.players,{'BOS':True,'NYK':True},{},[])
+    def save(self,path,**kwargs):
+        return rt.save_forecast(self.game,self.rows,{'BOS':True,'NYK':True},'2.3.0','testhash',path=path,now=kwargs.get('now',self.now))
+    def payload(self,winner='10',free=False,completed=True):
+        teams=[{'homeAway':ha,'team':{'id':tid,'abbreviation':code}} for ha,tid,code in [('away','1','BOS'),('home','2','NYK')]]
+        boxes=[]
+        for tid,code in [('1','BOS'),('2','NYK')]:
+            people=self.players[code]+([{'player_id':'99','player':'Bench Scorer'}] if code=='BOS' else [])
+            boxes.append({'team':{'id':tid},'statistics':[{'athletes':[{'athlete':{'id':p['player_id'],'displayName':p['player']},'starter':p['player_id']!='99'} for p in people]}]})
+        return {'header':{'id':'123','competitions':[{'id':'123','status':{'type':{'completed':completed}},'competitors':teams}]},'boxscore':{'players':boxes},'plays':[{'period':{'number':1},'sequenceNumber':'1','text':'Player makes free throw' if free else 'Player makes layup','shootingPlay':True,'scoringPlay':True,'scoreValue':1 if free else 2,'team':{'id':'1'},'participants':[{'athlete':{'id':winner}}]}]}
+    def test_immutable_forecast_and_precision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'journal.sqlite'
+            self.assertTrue(self.save(path));self.rows[0]['Player']='Edited'
+            self.assertFalse(self.save(path))
+            record=rt.journal_records(path)[0]
+            self.assertNotEqual(record['snapshot']['rows'][0]['Player'],'Edited')
+            self.assertAlmostEqual(sum(r['_probability'] for r in record['snapshot']['rows']),1)
+    def test_reject_after_tip(self):
+        from datetime import timedelta
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):self.save(Path(tmp)/'j',now=self.now+timedelta(hours=2))
+    def test_require_confirmed_lineups(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):rt.save_forecast(self.game,self.rows,{},'2.3.0','hash',path=Path(tmp)/'j',now=self.now)
+    def test_free_throw_counts_and_tie_credit(self):
+        snapshot={'game_id':'espn_123','rows':self.rows}
+        out=rt.outcome_from_summary(snapshot,self.payload(free=True))
+        self.assertEqual(out['winner_id'],'10');self.assertEqual(out['score_type'],'Free throw')
+        self.assertTrue(out['lineup_matches']);self.assertAlmostEqual(out['top1_credit'],.1)
+    def test_nonstarter_winner_retained(self):
+        out=rt.outcome_from_summary({'game_id':'espn_123','rows':self.rows},self.payload(winner='99'))
+        self.assertTrue(out['outside_field']);self.assertEqual(out['top1_credit'],0)
+        self.assertIsNone(out['log_loss']);self.assertAlmostEqual(out['brier'],1.1)
+        stats=rt.journal_summary([{'outcome':out}])
+        self.assertEqual(stats['Settled games'],1);self.assertIn('Infinite',stats['Log loss'])
+    def test_not_final_stays_pending(self):
+        self.assertIsNone(rt.outcome_from_summary({'game_id':'espn_123','rows':self.rows},self.payload(completed=False)))
+    def test_wrong_game_rejected(self):
+        with self.assertRaises(ValueError):rt.outcome_from_summary({'game_id':'espn_other','rows':self.rows},self.payload())
+    def test_refresh_once_and_errors_preserve_pending(self):
+        self.game['_date']='2025-10-25'
+        self.game['start_time']='2025-10-25T23:00:00Z'
+        self.now=self.now.replace(year=2025)
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'j';self.save(path)
+            with patch.object(rt.core,'request',side_effect=RuntimeError('Offline')):
+                n,errors=rt.refresh_journal(path)
+                self.assertEqual(n,0);self.assertEqual(len(errors),1)
+            with patch.object(rt.core,'request',return_value=self.payload()) as req:
+                self.assertEqual(rt.refresh_journal(path)[0],1)
+                self.assertEqual(rt.refresh_journal(path)[0],0)
+                self.assertEqual(req.call_count,1)

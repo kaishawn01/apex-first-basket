@@ -1,4 +1,4 @@
-# APEX First Basket Dashboard V2.2.0
+# APEX First Basket Dashboard V2.3.0
 
 A local Streamlit dashboard powered by the existing Python first-score model.
 
@@ -73,3 +73,17 @@ Updates resolve main to a commit SHA, fetch the manifest and all files from that
 RESTORE_APEX.bat restores the previous backed-up program set while retaining personal files. Ordinary write failures trigger rollback; if the process is interrupted during installation, run the restore command before continuing. Repository checksums establish integrity against the published manifest, not independent authenticity or a review of future code; only the trusted repository owner should publish releases.
 
 This package has no personalized data or credentials. Never upload a configured local folder. GitHub web uploads do not honor .gitignore as an upload filter.
+
+## V2.3.0 — Forward-testing journal
+
+After generating rankings and confirming both starting fives, use **Save confirmed forecasts to journal**. The first saved forecast for each game is permanent within the app; rerunning, editing players, or changing prices does not overwrite it. The app checks fresh schedule status and the scheduled start time before saving. Snapshots retain full-precision probabilities, player IDs, odds shown, sample/injury flags, model version, history fingerprint, and local save timestamp. Local clock records are not independently certified.
+
+Open **Forward-testing journal** and click **Check completed games for journal**. Completed games are resolved from ESPN play-by-play, including free throws. Nonstarter winners and winners outside the predicted ten remain misses. Incorrect predicted starting fives are flagged, not voided or excluded. Games that are in progress or have unreadable data stay pending. Final results are recorded once; later provider corrections require manual review.
+
+The journal reports top-1 hit rate with fractional tie credit, Brier score, lineup mismatches and outside-field winners. An outside-field winner has zero predicted probability and therefore infinite log loss, shown explicitly. Results can be filtered by model version and exported as CSV. These are saved-forecast results, not all-slate performance or a wager/ROI log. Small samples remain inconclusive.
+
+Journal data is stored only in `data/forward_journal.sqlite3` and is excluded from update packages. Back up the data folder with APEX closed. API keys are not saved in journal records.
+
+The GitHub certificate fix is retained with certificate verification enabled. The release uses only filenames accepted by the published V2.2.0 updater. No new dependencies are required.
+
+Validation: 35 unit tests passed, including pre-tip saves, confirmation requirements, duplicate protection, free-throw scoring, nonstarter winners, game-ID checks and pending/result handling. Streamlit UI tests cover saving, duplicate prevention and CSV export. Published-updater compatibility is tested with simulated downloads of the actual release bytes; live Windows installation remains to be verified.

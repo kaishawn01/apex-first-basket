@@ -1,4 +1,5 @@
 import sys
+import tempfile
 from pathlib import Path
 from datetime import date
 from unittest.mock import patch
@@ -6,12 +7,13 @@ root=Path(__file__).resolve().parent
 sys.path.insert(0,str(root))
 import dashboard_core as core
 import first_basket_engine as eng
+import research_tools as research
 from streamlit.testing.v1 import AppTest
 players={t:[{'player_id':str(offset+i),'player':f'{t} Player {i}'} for i in range(6)] for t,offset in [('BOS',10),('NYK',20)]}
 from test_research import game_rows
 history=game_rows('old','2027-01-01')
 game={'gameId':'espn_test','_date':'2027-01-02','start_time':'2027-01-02T23:00:00Z','gameStatus':1,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
-with patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
+with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
  at=AppTest.from_file(str(root/'app.py')).run()
  assert not at.exception,list(at.exception)
  at.date_input[0].set_value(date(2027,1,2)).run()
@@ -27,6 +29,13 @@ with patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_
  ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
  assert len(ranking)==10
  assert set(ranking['Status'])=={'HOLD: SAMPLE'}
+ next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
+ assert not at.exception,list(at.exception)
+ assert len(research.journal_records())==1
+ next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
+ assert len(research.journal_records())==1
+ assert any(d.label=='Download forward journal CSV' for d in at.get('download_button'))
+ print('Journal UI passed: save, duplicate prevention, table, CSV export.')
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value
  assert any('Inputs changed' in x.value for x in at.info)
