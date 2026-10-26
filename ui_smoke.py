@@ -80,6 +80,8 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert len(validation)==6
  assert list(validation[validation['Period']=='Newest quarter of dates']['Evaluated games'])==[3,3,3]
  assert any(d.label=='Download full validation CSV' for d in at.get('download_button'))
+ assert any(d.label=='Download pick reliability CSV' for d in at.get('download_button'))
+ assert at.session_state['validation_report']['pick_reliability']
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
  assert any('Run full model validation again' in x.value for x in at.info)
  assert not any('Period' in d.value.columns for d in at.dataframe)

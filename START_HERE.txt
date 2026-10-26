@@ -1,3 +1,11 @@
+APEX V2.16.0 — Top-pick reliability diagnostics
+
+Full model validation now compares predicted leader probabilities with observed top-1 hit rates for all three models, on both all evaluated dates and the newest quarter. Fixed probability bands and leader-to-runner-up margin bands show game/date counts, fractional tie credit, tied-leader counts, and observed-minus-predicted percentage points. Each game counts once per grouping. Empty bands are omitted; boundaries include the lower end and exclude the upper end. Download pick reliability CSV for inspection; per-game validation exports also include top probability, margin, and number of tied leaders.
+
+These diagnostics use the existing chronological predictions and do not adjust scores or choose a model automatically. Small groups can be noisy. Historical observed-starter and nonstarter-exclusion bias still apply; the report is not a calibration correction, confidence interval, betting threshold or proof of predictive improvement.
+
+Validation: 107 unit tests and all Streamlit smoke checks passed, including the new reliability table/export and existing ranking, journal, repair and stale-report guards. Windows execution was not tested here.
+
 APEX V2.15.0 — Faster chronological prediction batches
 
 Backtests now prepare date-specific team statistics once for all games on that date. Player calculations use the relevant team history instead of repeatedly scanning the entire league. The single-game predictor uses the same batch implementation. No persistent prediction cache is introduced: changing history or the target date rebuilds the inputs. Same-day and future results remain excluded. Model formulas and defaults are unchanged.

@@ -191,7 +191,7 @@ def evaluate(rows,min_training=100,model="baseline"):
                 best=max(probs.values()); ties=[pid for pid,p in probs.items() if abs(p-best)<1e-12]
                 hit=1/len(ties) if winner['player_id'] in ties else 0
                 brier=sum((p-int(pid==winner['player_id']))**2 for pid,p in probs.items())
-                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games})
+                results.append({'Date':day,'Game':gid,'Winner':winner['player'],'Winner probability':wp,'Top probability':best,'Top margin':0.0 if len(ties)>1 else best-sorted(probs.values(),reverse=True)[1],'Tied leaders':len(ties),'Top-1 credit':hit,'Top-3 credit':top_k_credit(probs,winner['player_id'],3),'Log loss':-math.log(wp),'Brier':brier,'Training games':training_games})
                 calibration.extend((p,int(pid==winner['player_id'])) for pid,p in probs.items())
         # No same-day results enter training until every game that day is evaluated.
         prior.extend(r for game in byday[day].values() for r in game)
@@ -468,6 +468,27 @@ def evaluation_metrics(games):
             'Brier':sum(r['Brier'] for r in games)/n if n else None}
 
 
+def pick_reliability(games):
+    """Descriptive top-pick diagnostics, one observation per evaluated game."""
+    output=[]
+    dimensions=(
+        ('Top probability',((0,.15,'Below 15%'),(.15,.20,'15–20%'),(.20,.25,'20–25%'),(.25,.30,'25–30%'),(.30,float('inf'),'30%+'))),
+        ('Top margin',((0,.02,'Below 2 pp'),(.02,.05,'2–5 pp'),(.05,.10,'5–10 pp'),(.10,float('inf'),'10 pp+'))))
+    for dimension,bands in dimensions:
+        for lo,hi,label in bands:
+            subset=[r for r in games if lo<=r[dimension]<hi]
+            if not subset:continue
+            n=len(subset)
+            predicted=100*sum(r['Top probability'] for r in subset)/n
+            observed=100*sum(r['Top-1 credit'] for r in subset)/n
+            output.append({'Group by':dimension,'Band':label,'Games':n,
+                           'Dates':len({r['Date'] for r in subset}),
+                           'Mean top probability %':predicted,'Observed top-1 hit %':observed,
+                           'Observed minus predicted pp':observed-predicted,
+                           'Tied-leader games':sum(r['Tied leaders']>1 for r in subset)})
+    return output
+
+
 def validation_report(history, min_training=100, progress=lambda text:None):
     """Same-game comparison with a fixed newest-quarter-of-dates diagnostic."""
     results={}
@@ -480,13 +501,14 @@ def validation_report(history, min_training=100, progress=lambda text:None):
             raise ValueError('Validation models did not evaluate identical games and dates.')
     dates=sorted({day for gid,day in expected})
     recent_dates=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
-    summary=[];monthly=[];details=[];latest={}
+    summary=[];monthly=[];details=[];latest={};reliability=[]
     for model,result in results.items():
         games=result['games'];newest=[r for r in games if r['Date'] in recent_dates]
         latest[model]={'games':newest}
         for label,subset in [('All evaluated dates',games),('Newest quarter of dates',newest)]:
             if subset:
                 metrics=evaluation_metrics(subset)
+                reliability.extend({'Model':model,'Period':label,**r} for r in pick_reliability(subset))
                 summary.append({'Model':model,'Period':label,'First date':min(r['Date'] for r in subset),'Last date':max(r['Date'] for r in subset),**metrics,
                                 'Log loss minus equal baseline':metrics['Log loss']-math.log(10),
                                 'Brier minus equal baseline':metrics['Brier']-.9})
@@ -499,4 +521,4 @@ def validation_report(history, min_training=100, progress=lambda text:None):
         comparison=compare_evaluations(latest['baseline'],latest[model])
         paired.extend({'Candidate':model,**r} for r in comparison['metrics'])
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'monthly':monthly,'details':details,
-            'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
+            'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}

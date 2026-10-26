@@ -569,3 +569,36 @@ class BatchPredictionTests(unittest.TestCase):
     def test_empty_batch_and_invalid_lineups(self):
         self.assertEqual(eng.predict_matchups([],{},'2026-10-21'),{})
         with self.assertRaises(ValueError):eng.predict_matchups([],{'a':{'BOS':[]}},'2026-10-21')
+
+
+class PickReliabilityTests(unittest.TestCase):
+    def test_uniform_ties_are_one_game_with_fractional_credit(self):
+        result=rt.evaluate(game_rows('a','2026-08-01'),0)
+        game=result['games'][0]
+        self.assertEqual(game['Tied leaders'],10)
+        self.assertAlmostEqual(game['Top probability'],.1)
+        self.assertEqual(game['Top margin'],0)
+        for band in rt.pick_reliability(result['games']):
+            self.assertEqual(band['Games'],1)
+            self.assertEqual(band['Tied-leader games'],1)
+            self.assertAlmostEqual(band['Observed minus predicted pp'],0)
+    def test_band_boundaries_and_weighting(self):
+        games=[{'Date':'2026-08-01','Top probability':p,'Top margin':m,'Tied leaders':1,'Top-1 credit':hit}
+               for p,m,hit in ((.15,.02,1),(.19,.049,0),(.30,.10,0))]
+        result=rt.pick_reliability(games)
+        band=next(r for r in result if r['Group by']=='Top probability' and r['Band']=='15–20%')
+        self.assertEqual(band['Games'],2);self.assertEqual(band['Dates'],1)
+        self.assertAlmostEqual(band['Mean top probability %'],17)
+        self.assertEqual(band['Observed top-1 hit %'],50)
+        self.assertAlmostEqual(band['Observed minus predicted pp'],33)
+        self.assertEqual(next(r for r in result if r['Band']=='10 pp+')['Games'],1)
+    def test_each_game_counted_once_per_group_and_period(self):
+        rows=sum((game_rows(str(i),f'2026-08-{i+1:02d}') for i in range(8)),[])
+        report=rt.validation_report(rows,1)
+        for summary in report['summary']:
+            for dimension in ('Top probability','Top margin'):
+                bands=[r for r in report['pick_reliability'] if r['Model']==summary['Model'] and r['Period']==summary['Period'] and r['Group by']==dimension]
+                self.assertEqual(sum(r['Games'] for r in bands),summary['Evaluated games'])
+    def test_empty_report(self):
+        self.assertEqual(rt.pick_reliability([]),[])
+        self.assertEqual(rt.validation_report([],1)['pick_reliability'],[])
