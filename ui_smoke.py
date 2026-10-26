@@ -123,6 +123,7 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert signal['adaptive_learned_games']==0
  assert any(d.label=='Download adaptive signal decisions CSV' for d in at.get('download_button'))
  assert signal['model']=='baseline'
+ assert next(b for b in at.button if b.label=='Compare 30 / 90 / 180-day decay').disabled
  assert next(s for s in at.selectbox if s.label=='Scoring model').value=='baseline'
  assert any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))
  assert any(d.label=='Download signal predictions CSV' for d in at.get('download_button'))
@@ -139,6 +140,16 @@ with patch.object(eng,'read_csv',return_value=history2):
  next(s for s in at.selectbox if s.label=='Scoring model').set_value('recent').run()
  assert any('Run the signal comparison again' in x.value for x in at.info)
  assert not any(d.label=='Download signal comparison CSV' for d in at.get('download_button'))
+ with patch.object(core,'request',side_effect=AssertionError('Recency test must not fetch APIs')):
+  next(b for b in at.button if b.label=='Compare 30 / 90 / 180-day decay').click().run()
+ assert not at.exception,list(at.exception)
+ assert len(at.session_state['recency_comparison']['summary'])==6
+ assert any(d.label=='Download recency comparison CSV' for d in at.get('download_button'))
+ assert any(d.label=='Download recency predictions CSV' for d in at.get('download_button'))
+ assert next(s for s in at.selectbox if s.label=='Scoring model').value=='recent'
+ next(s for s in at.selectbox if s.label=='Scoring model').set_value('lineup').run()
+ assert any('Run the recency comparison again' in x.value for x in at.info)
+ assert not any(d.label=='Download recency comparison CSV' for d in at.get('download_button'))
  print('Backtest UI passed: full validation, recent-period counts, exports and stale-report reset.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):

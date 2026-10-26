@@ -1050,3 +1050,62 @@ class ResearchExportTests(unittest.TestCase):
         with self.assertRaises(ValueError):rt.research_export([],'not-a-version','2026-10-21')
         with self.assertRaises(ValueError):rt.research_export([],'2.26.0','bad-date')
         with self.assertRaises(ValueError):rt.research_export([],'2.26.0','2026-10-21','unknown')
+
+class RecencyComparisonTests(unittest.TestCase):
+    def setUp(self):
+        self.rows=game_rows('old','2026-07-23')
+        self.five=[dict(r) for r in self.rows if r['team']=='BOS']
+        self.lineups={t:[dict(r) for r in self.rows if r['team']==t] for t in ('BOS','NYK')}
+    def test_decay_consistent_across_team_player_and_context(self):
+        # July 23 is 90 days before October 21.
+        for half_life in (30,90,180):
+            weight=2**(-90/half_life)
+            self.assertAlmostEqual(eng.recent_team_stats(self.rows,'2026-10-21',half_life)['BOS']['weighted_games'],weight)
+            recent=eng.recent_player_weights(self.rows,self.five,'BOS','2026-10-21',half_life)
+            context=eng.lineup_player_weights(self.rows,self.five,'BOS','2026-10-21',half_life=half_life)
+            self.assertAlmostEqual(recent[0][5],weight)
+            self.assertAlmostEqual(context[0][9],weight)
+            self.assertAlmostEqual(context[0][6],recent[0][6])
+            self.assertAlmostEqual(context[0][7],recent[0][7])
+    def test_disjoint_anchor_uses_selected_half_life(self):
+        other=game_rows('other','2026-07-23')
+        for r in other:
+            if r['team']=='BOS' and r['player_id'] in ('13','14'):r['player_id']='8'+r['player_id']
+        history=other+game_rows('current','2026-10-20')
+        for half_life in (30,90,180):
+            context=eng.lineup_player_weights(history,self.five,'BOS','2026-10-21',half_life=half_life)
+            anchor=eng.recent_player_weights(other,self.five,'BOS','2026-10-21',half_life)
+            w=2**(-1/half_life)
+            self.assertAlmostEqual(context[0][11],2**(-90/half_life))
+            self.assertAlmostEqual(context[0][6],(w+10*anchor[0][6])/(w+10))
+    def test_defaults_normalization_and_chronological_exclusion(self):
+        added=game_rows('same','2026-10-21')+game_rows('future','2026-10-22')+game_rows('ancient','2020-01-01')
+        for model in ('recent','lineup'):
+            for half_life in (30,90,180):
+                expected=eng.predict_first_score(self.rows,self.lineups,'2026-10-21',model,half_life=half_life)
+                actual=eng.predict_first_score(self.rows+added,self.lineups,'2026-10-21',model,half_life=half_life)
+                self.assertEqual(expected,actual)
+                self.assertAlmostEqual(sum(actual.values()),1)
+                if half_life==90:self.assertEqual(actual,eng.predict_first_score(self.rows,self.lineups,'2026-10-21',model))
+    def test_comparison_uses_same_games_and_matches_default_evaluation(self):
+        from datetime import date,timedelta
+        history=[r for i in range(8) for r in game_rows(str(i),(date(2026,8,1)+timedelta(days=i)).isoformat())]
+        for model in ('recent','lineup'):
+            report=rt.compare_recency(history,1,model)
+            self.assertEqual(len(report['summary']),6)
+            self.assertEqual(len(report['recent_comparisons']),8)
+            sets=[{(r['Game'],r['Date']) for r in report['details'] if r['Half-life days']==h} for h in (30,90,180)]
+            self.assertEqual(sets[0],sets[1]);self.assertEqual(sets[1],sets[2])
+            default=[{k:v for k,v in r.items() if k not in ('Half-life days','Newest quarter')} for r in report['details'] if r['Half-life days']==90]
+            self.assertEqual(default,rt.evaluate(history,1,model)['games'])
+    def test_invalid_settings_and_empty_history(self):
+        for half_life in (0,-30,float('nan'),float('inf'),True,'90'):
+            with self.assertRaises(ValueError):eng.predict_matchups([],{},'2026-10-21',half_life=half_life)
+            with self.assertRaises(ValueError):rt.evaluate([],1,half_life=half_life)
+        with self.assertRaises(ValueError):rt.compare_recency([],1,'baseline')
+        self.assertEqual(rt.compare_recency([],1)['summary'],[])
+    def test_mismatched_games_rejected(self):
+        first={'games':[{'Game':'a','Date':'2026-10-20'}],'excluded':[]}
+        other={'games':[],'excluded':[]}
+        with patch.object(rt,'evaluate',side_effect=[first,other,other]):
+            with self.assertRaisesRegex(ValueError,'identical'):rt.compare_recency([],1)

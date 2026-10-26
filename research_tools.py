@@ -207,7 +207,8 @@ def scoring_stage_summary(games):
             'Within-team loss minus equal five':player-math.log(5)}
 
 
-def evaluate(rows,min_training=100,model="baseline",shot_weight=.65):
+def evaluate(rows,min_training=100,model="baseline",shot_weight=.65,half_life=90.0):
+    eng.validate_half_life(half_life)
     eng.validate_shot_weight(shot_weight)
     if model not in ("baseline","recent","lineup"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
@@ -219,7 +220,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65):
         training_games=len({r['game_id'] for r in train})
         if training_games>=min_training:
             matchups={gid:{t:[r for r in game if r['team']==t] for t in {r['team'] for r in game}} for gid,game in byday[day].items()}
-            predictions=eng.predict_matchups(train,matchups,day,model,shot_weight=shot_weight)
+            predictions=eng.predict_matchups(train,matchups,day,model,shot_weight=shot_weight,half_life=half_life)
             for gid,game in byday[day].items():
                 probs=predictions[gid]
                 winner=next(r for r in game if int(r['first_scorer']))
@@ -237,7 +238,7 @@ def evaluate(rows,min_training=100,model="baseline",shot_weight=.65):
         if subset: bins.append({'Probability band':f'{lo:.0%}–{min(hi,1):.0%}','Player predictions':len(subset),'Mean predicted %':100*sum(p for p,y in subset)/len(subset),'Observed first-score %':100*sum(y for p,y in subset)/len(subset)})
     n=len(results)
     metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Top-3 hit %':100*sum(r['Top-3 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
-    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model,'shot_weight':shot_weight}
+    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model,'shot_weight':shot_weight,'half_life':half_life}
 
 # Forward journal: local, immutable pregame forecasts; outcomes are stored separately.
 def journal_connection(path=None):
@@ -728,3 +729,30 @@ def research_export(history,engine_version,analysis_day,model='baseline'):
     with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as archive:
         for name,content in files.items():archive.writestr(name,content)
     return output.getvalue()
+
+
+def compare_recency(history,min_training=100,model='recent',progress=lambda text:None):
+    """Compare fixed decay choices; does not tune or deploy a winner."""
+    if model not in ('recent','lineup'):raise ValueError('Recency comparison requires recent or lineup model.')
+    results={}
+    for half_life in (30,90,180):
+        progress(f'Testing {half_life}-day half-life…')
+        results[half_life]=evaluate(history,min_training,model,half_life=half_life)
+    expected={(r['Game'],r['Date']) for r in results[90]['games']}
+    if any({(r['Game'],r['Date']) for r in result['games']}!=expected or len(result['games'])!=len(expected) for result in results.values()):
+        raise ValueError('Recency comparisons require identical games and dates.')
+    dates=sorted({d for g,d in expected})
+    newest=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
+    summary=[];details=[];recent={}
+    for half_life,result in results.items():
+        games=result['games'];latest=[r for r in games if r['Date'] in newest]
+        recent[half_life]={'games':latest}
+        for period,subset in [('All evaluated dates',games),('Newest quarter of dates',latest)]:
+            if subset:summary.append({'Half-life days':half_life,'Period':period,**evaluation_metrics(subset),**scoring_stage_summary(subset)})
+        details.extend({'Half-life days':half_life,'Newest quarter':r['Date'] in newest,**r} for r in games)
+    paired=[]
+    for half_life in (30,180):
+        paired.extend({'Half-life days':half_life,**r} for r in compare_evaluations(recent[90],recent[half_life])['metrics'])
+    return {'fingerprint':fingerprint(history),'model':model,'min_training':min_training,
+            'summary':summary,'details':details,'recent_comparisons':paired,'latest_dates':len(newest),
+            'excluded_games':len(results[90]['excluded'])}

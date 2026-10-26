@@ -1,3 +1,13 @@
+APEX V2.28.0 — Test how fast older games should lose weight
+
+Backtest lab can compare 30-, 90- and 180-day half-lives for the recent-form or lineup-context model. All variants use the same games, earlier-date training, 400-day window, priors and 65/35 signal blend. The tested decay applies consistently to team rates, player rates and lineup-context evidence plus its disjoint anchor. Faster decay also gives the unchanged priors more relative influence.
+
+Reports include all-date and newest-quarter performance, team/player error decomposition, paired recent differences versus 90 days, and summary/per-game CSV exports. The baseline model has no recency decay, so its comparison button is disabled. History, model or training-minimum changes invalidate the report. These are exploratory fixed-setting tests; no setting is fitted, selected or deployed. Live rankings, sample guards and the CLI retain the current 90-day default.
+
+No extra API calls are required. Historical starter-selection bias, repeated comparisons, small samples and date dependence remain limitations. The newest period is a rolling diagnostic, not an untouched final test set.
+
+Validation: 171 unit tests and all Streamlit smoke checks passed. Added tests cover consistent decay in team/player/context/anchor calculations, unchanged 90-day defaults, normalization, chronological exclusions, identical comparison games, invalid settings, exports, baseline-button disabling and stale-model invalidation. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.27.0 — One ranking and validation core
 
 The older command-line picks path now calls the same rank_game implementation as Streamlit, using the same audited 400-day window, baseline/recent/lineup predictors, lineup confirmations, total/weighted sample checks and observed-shot coverage hold. Historical rows outside the window no longer affect terminal predictions. Starter templates are projected from earlier in-window history. Prediction CSVs identify the model and include shot coverage evidence. Unvalidated A/B/LEAN labels are replaced by the shared research/hold statuses.

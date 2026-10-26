@@ -351,7 +351,7 @@ with st.expander('Data quality & coverage'):
                 progress=st.empty()
                 with st.spinner('Checking replacement game data…'):
                     st.session_state['repair_report']=research.repair_history(repair_ids,progress=progress.info)
-                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report','signal_comparison','research_export'):st.session_state.pop(key,None)
+                for key in ('results','evaluation','model_comparison','lineup_scenario','validation_report','signal_comparison','research_export','recency_comparison'):st.session_state.pop(key,None)
                 st.rerun()
             except (RuntimeError,ValueError,OSError) as exc:st.error(str(exc))
 
@@ -427,6 +427,24 @@ with st.expander('Backtest lab · test the model before trusting it'):
             st.download_button('Download signal predictions CSV',pd.DataFrame(signals['details']).to_csv(index=False).encode(),'apex_signal_predictions.csv','text/csv')
         else:st.info('Not enough eligible history for the signal comparison. Import more games or lower the training minimum.')
     elif signals:st.info('History, model or training minimum changed. Run the signal comparison again.')
+    if st.button('Compare 30 / 90 / 180-day decay',disabled=selected_model=='baseline'):
+        progress=st.empty()
+        with st.spinner('Testing recency settings on the same historical games…'):
+            st.session_state['recency_comparison']=research.compare_recency(hist,warmup,selected_model,progress.info)
+    if selected_model=='baseline':st.caption('Select Recent form or Lineup context in the sidebar to test decay speed.')
+    recency=st.session_state.get('recency_comparison')
+    if recency and recency['fingerprint']==research.fingerprint(hist) and recency['min_training']==warmup and recency['model']==selected_model:
+        st.markdown('**How quickly should old games lose weight?**')
+        if recency['summary']:
+            st.dataframe(pd.DataFrame(recency['summary']),hide_index=True,use_container_width=True)
+            st.caption('Half-life is the number of days until a game carries half its original weight. Each experiment keeps the 400-day history window and 65/35 player-signal blend. Decay changes team rates, player rates and, for lineup context, both context evidence and its separate anchor. Faster decay also increases the relative influence of the unchanged priors.')
+            st.dataframe(pd.DataFrame(recency['recent_comparisons']),hide_index=True,use_container_width=True)
+            st.caption('Recent differences are candidate minus the current 90-day setting, using identical games. Approximate 95% intervals resample whole dates. This is an exploratory comparison, not a fitted or independently validated setting; no winner is applied to live rankings.')
+            if recency['latest_dates']<30:st.warning('Fewer than 30 recent evaluation dates. Recency comparisons can be unstable.')
+            st.download_button('Download recency comparison CSV',pd.DataFrame(recency['summary']).to_csv(index=False).encode(),'apex_recency_comparison.csv','text/csv')
+            st.download_button('Download recency predictions CSV',pd.DataFrame(recency['details']).to_csv(index=False).encode(),'apex_recency_predictions.csv','text/csv')
+        else:st.info('Not enough eligible history to compare decay settings.')
+    elif recency:st.info('History, model or training minimum changed. Run the recency comparison again.')
     if st.button('Run full model validation'):
         progress=st.empty()
         with st.spinner('Evaluating all three models…'):
