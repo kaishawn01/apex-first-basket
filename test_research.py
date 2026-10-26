@@ -247,10 +247,12 @@ class LineupContextTests(unittest.TestCase):
         recent=eng.recent_player_weights(self.rows,changed,'BOS','2026-10-21')
         for a,b in zip(context,recent):
             self.assertAlmostEqual(a[1],b[1]);self.assertEqual(a[8],0)
-    def test_context_favors_observed_opening_shooter(self):
+    def test_exact_context_only_does_not_amplify_recent_evidence(self):
         recent=eng.recent_player_weights(self.rows,self.players,'BOS','2026-10-21')
         context=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
-        self.assertGreater(context[0][1],recent[0][1])
+        self.assertAlmostEqual(context[0][1],recent[0][1])
+        self.assertGreater(context[0][1],context[1][1])
+        self.assertTrue(all(r[10]==0 and r[11]==0 for r in context))
         self.assertAlmostEqual(sum(r[1] for r in context),1)
     def test_new_lineup_context_excludes_same_day_future_other_team(self):
         expected=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
@@ -260,6 +262,46 @@ class LineupContextTests(unittest.TestCase):
         a=eng.lineup_player_weights(self.rows,self.players,'BOS','2026-10-21')
         b=eng.lineup_player_weights(list(reversed(self.rows)),list(reversed(self.players)),'BOS','2026-10-21')
         self.assertEqual({r[0]['player_id']:r[1] for r in a},{r[0]['player_id']:r[1] for r in b})
+
+    def test_disjoint_anchor_and_context_match_manual_formula(self):
+        other=game_rows('other','2026-10-19')
+        # Three current teammates: this game belongs only to the anchor.
+        for row in other:
+            if row['team']=='BOS' and row['player_id'] in ('13','14'):
+                row['player_id']='8'+row['player_id']
+        for row in other:
+            if row['team']=='BOS':
+                for field in ('first_team_shot','first_game_shot','first_scorer','first_fg_scorer'):
+                    row[field]=int(row['player_id']=='11')
+        anchor=eng.recent_player_weights(other,self.players,'BOS','2026-10-21')
+        result=eng.lineup_player_weights(self.rows+other,self.players,'BOS','2026-10-21')
+        w=2**(-1/90)
+        expected=[]
+        for i,a in enumerate(anchor):
+            shot=(w*int(i==0)+10*a[6])/(w+10)
+            score=(w*int(i==0)+5*a[7])/(w+5)
+            expected.append(.65*shot+.35*score)
+            self.assertAlmostEqual(result[i][6],shot)
+            self.assertAlmostEqual(result[i][7],score)
+            self.assertEqual(result[i][10],1 if i<3 else 0)
+            self.assertEqual(result[i][2],result[i][8]+result[i][10])
+        for row,weight in zip(result,expected):
+            self.assertAlmostEqual(row[1],weight/sum(expected))
+    def test_four_teammates_downweights_context_without_reusing_it(self):
+        changed=[dict(p) for p in self.players];changed[-1]['player_id']='99'
+        result=eng.lineup_player_weights(self.rows,changed,'BOS','2026-10-21')
+        w=2**(-1/90)/2
+        self.assertAlmostEqual(result[0][6],(w+2)/(w+10))
+        self.assertAlmostEqual(result[0][7],(w+1)/(w+5))
+        self.assertAlmostEqual(result[-1][6],.2)
+        self.assertEqual(result[0][10],0)
+    def test_no_context_keeps_full_recent_anchor_counts(self):
+        changed=[dict(p) for p in self.players]
+        for i in (3,4):changed[i]['player_id']='new'+str(i)
+        result=eng.lineup_player_weights(self.rows,changed,'BOS','2026-10-21')
+        self.assertEqual(result[0][10],1)
+        self.assertAlmostEqual(result[0][11],2**(-1/90))
+        self.assertEqual(result[0][8],0)
 
 class LineupScenarioTests(unittest.TestCase):
     def setUp(self):

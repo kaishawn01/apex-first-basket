@@ -128,6 +128,8 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert set(ranking['Model'])=={'lineup'}
  assert 'Similar-lineup starts' in ranking.columns
  assert ranking['Similar-lineup starts'].min()==1
+ assert all(ranking['Other-lineup starts']==0)
+ assert all(ranking['Weighted other-lineup starts']==0)
  assert next(b for b in at.button if b.label=='Save confirmed forecasts to journal').disabled
  print('Lineup context UI passed: research rankings, context counts, no forward saving.')
 

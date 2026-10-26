@@ -1,3 +1,11 @@
+APEX V2.18.0 — Count lineup evidence once
+
+The experimental lineup model now uses disjoint history for its anchor and context update. Starts with four or five of the selected players enter the lineup update only; other starts supply the player's recent-form anchor. Exact fives retain full decay weight and four-of-five matches half weight. With no other-lineup starts the anchor is neutral; with no similar-lineup starts the model falls back to recent form. Previously, context games also contributed to the anchor, reinforcing the same observations twice.
+
+Rankings now show other-lineup starts and their decayed weight beside the similar-lineup counts. Total starts and existing sample guards retain their meaning. Baseline and recent-form formulas are unchanged. This is a correction to the experimental model's evidence accounting, not a demonstrated accuracy gain. Re-run full model validation on your saved history to compare it. Old journal probabilities remain frozen; filter by software version when comparing prospective results.
+
+Validation: 113 unit tests and all Streamlit smoke checks passed. Tests cover manual disjoint-anchor arithmetic, exact-five and four-of-five weights, recent-form fallback, chronological exclusions, normalized probabilities and displayed evidence counts. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.17.0 — Reliability of saved pregame picks
 
 The forward-testing journal now reports top-pick reliability by probability and leader margin for all three models, using the same settled games with three-model forecasts saved before tip-off. It reads frozen probabilities and recorded outcomes without rerunning predictions. Pending games and older single-model snapshots do not enter this comparison. Ties receive fractional hit credit; outside-field winners and incorrect lineups remain in every relevant band and have explicit counts. The version filter applies before comparison. A separate CSV export is available after outcomes are recorded.

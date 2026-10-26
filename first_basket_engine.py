@@ -734,33 +734,39 @@ def recent_player_weights(history,starters,team,target_day,half_life=90.0):
     return [(p,w/total,n,shots,scores,mass,shot,conditional) for p,w,n,shots,scores,mass,shot,conditional in raw]
 
 def lineup_player_weights(history, starters, team, target_day):
-    """Similar-lineup evidence shrunk toward recent-form rates; experimental."""
+    """Similar-lineup evidence anchored on disjoint other-lineup starts; experimental."""
     target=date.fromisoformat(target_day)
     selected={p['player_id'] for p in starters}
     games=defaultdict(list)
     for row in history:
         age=(target-date.fromisoformat(row['date'])).days
         if row['team']==team and 0<age<=400:games[row['game_id']].append(row)
-    contexts=defaultdict(list)
+    contexts=defaultdict(list);context_games=set()
     for rows in games.values():
         ids={r['player_id'] for r in rows}
         if len(rows)!=5 or len(ids)!=5:continue
         overlap=len(ids & selected)
         if overlap<4:continue
+        context_games.add(rows[0]['game_id'])
         age=(target-date.fromisoformat(rows[0]['date'])).days
         # Exact five gets full weight; four-of-five gets half weight.
         weight=2**(-age/90.0)*(1.0 if overlap==5 else .5)
         for row in rows:
             if row['player_id'] in selected:contexts[row['player_id']].append((row,weight))
+    # A game can inform the anchor or the context update, never both.
+    other_history=[r for r in history if r['team']!=team or r['game_id'] not in context_games]
+    anchors={r[0]['player_id']:r for r in recent_player_weights(other_history,starters,team,target_day)}
     raw=[]
     for player,share,n,shots,scores,mass,shot,conditional in recent_player_weights(history,starters,team,target_day):
         context=contexts[player['player_id']]
+        anchor=anchors[player['player_id']]
+        shot,conditional=anchor[6],anchor[7]
         context_mass=sum(w for r,w in context)
         opportunities=sum(w*int(r['team_scored_first']) for r,w in context)
         context_shot=(sum(w*int(r['first_team_shot']) for r,w in context)+10*shot)/(context_mass+10)
         context_score=(sum(w*int(r['first_scorer']) for r,w in context)+5*conditional)/(opportunities+5)
         weight=.65*context_shot+.35*context_score
-        raw.append((player,weight,n,shots,scores,mass,context_shot,context_score,len(context),context_mass))
+        raw.append((player,weight,n,shots,scores,mass,context_shot,context_score,len(context),context_mass,anchor[2],anchor[5]))
     total=sum(r[1] for r in raw)
     return [(r[0],r[1]/total,*r[2:]) for r in raw]
 

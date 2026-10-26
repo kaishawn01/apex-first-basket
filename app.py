@@ -82,7 +82,7 @@ with st.sidebar:
         research_away=st.selectbox('Research team A',sorted(eng.TEAMS),key='research_a')
         research_home=st.selectbox('Research team B',[t for t in sorted(eng.TEAMS) if t!=research_away],key='research_b')
         st.caption('Compare hypothetical starting fives at any time. No odds or forward-journal saves. Current rosters are used; this is not a historical replay.')
-    if selected_model=='lineup':st.caption('Lineup context emphasizes past starts with four or five of the selected teammates. Sparse context falls back toward recent form; it does not infer injury replacements or opening plays.')
+    if selected_model=='lineup':st.caption('Lineup context emphasizes past starts with four or five of the selected teammates. Similar-lineup games are counted once, with other-lineup starts supplying the recent-form anchor. With no similar starts it falls back to recent form. It does not infer injury replacements or opening plays.')
     st.caption('Recent form uses a 90-day half-life, smoothed first-shot involvement, and scoring share conditional on the team scoring first. These settings have not been fitted or validated as better.')
 
 
