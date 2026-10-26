@@ -28,8 +28,13 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not at.exception,list(at.exception)
  ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
  assert len(ranking)==10
+ assert any(d.label=='Download matchup model comparison CSV' for d in at.get('download_button'))
+ model_table=next(d.value for d in at.dataframe if 'Range (percentage points)' in d.value.columns)
+ assert len(model_table)==10
+ assert abs(model_table['Lineup context %'].sum()-100)<1e-8
  assert set(ranking['Status'])=={'HOLD: SAMPLE'}
- next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
+ with patch.object(core,'rank_game',side_effect=AssertionError('Saving must use displayed model forecasts')):
+  next(b for b in at.button if b.label=='Save confirmed forecasts to journal').click().run()
  assert not at.exception,list(at.exception)
  assert len(research.journal_records())==1
  assert set(research.journal_records()[0]['snapshot']['model_forecasts'])=={'baseline','recent','lineup'}
@@ -45,6 +50,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value
  assert any('Inputs changed' in x.value for x in at.info)
+ assert not any('Range (percentage points)' in d.value.columns for d in at.dataframe)
  print('UI checks passed: launch, projected five, confirmations, ranking table, edit reset, stale-results guard.')
 
 from datetime import timedelta

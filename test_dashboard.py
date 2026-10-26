@@ -44,3 +44,40 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(prices[('espn_1','bosplayer0')][0],7.5)
 
 if __name__=='__main__': unittest.main()
+
+class ModelComparisonTests(unittest.TestCase):
+    def setUp(self):
+        fixture=DashboardTests();fixture.setUp()
+        self.bundle={m:c.rank_game([],fixture.game,fixture.lineups,{}, {},[],m) for m in ('baseline','recent','lineup')}
+    def test_cold_start_ties_not_a_unique_pick(self):
+        result=c.compare_model_forecasts(self.bundle)
+        self.assertTrue(result['all_tied']);self.assertEqual(len(result['shared_top']),10)
+        for row in result['rows']:
+            self.assertEqual(row['Baseline rank'],1)
+            self.assertAlmostEqual(row['Range (percentage points)'],0)
+            self.assertEqual(row['Models ranking player top (ties included)'],3)
+            self.assertEqual(row['Recorded starts'],0)
+    def test_different_leaders_and_probability_spread(self):
+        for model,pid in [('baseline','10'),('recent','11'),('lineup','12')]:
+            for r in self.bundle[model]:r['_probability']=.2 if r['_player_id']==pid else .8/9
+        result=c.compare_model_forecasts(self.bundle)
+        self.assertEqual(result['shared_top'],[]);self.assertFalse(result['all_tied'])
+        for row in result['rows']:
+            self.assertLessEqual(row['Models ranking player top (ties included)'],1)
+        top=next(r for r in result['rows'] if r['Player']=='BOS Player 0')
+        self.assertEqual(top['Baseline rank'],1)
+        self.assertEqual(top['Recent form rank'],2)
+        self.assertAlmostEqual(top['Range (percentage points)'],100*(.2-.8/9))
+    def test_mismatched_game_players_and_bad_probability_rejected(self):
+        import copy
+        for field,value in [('_game_id','other'),('_player_id','other'),('_probability',float('nan')),('Model','baseline')]:
+            bundle=copy.deepcopy(self.bundle);bundle['recent'][0][field]=value
+            with self.assertRaises(ValueError):c.compare_model_forecasts(bundle)
+    def test_full_precision_and_no_mutation(self):
+        import copy
+        self.bundle['baseline'][0]['_probability']+=.000001
+        self.bundle['baseline'][1]['_probability']-=.000001
+        original=copy.deepcopy(self.bundle)
+        result=c.compare_model_forecasts(self.bundle)
+        self.assertEqual(result['leaders'][0]['Players tied at top'],1)
+        self.assertEqual(self.bundle,original)

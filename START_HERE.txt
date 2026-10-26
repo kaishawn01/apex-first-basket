@@ -1,3 +1,11 @@
+APEX V2.12.0 — Compare models before saving forecasts
+
+Run rankings now computes baseline, recent form and lineup context together for the same matchup, date, history and five starters per team. Open Model comparison to see top estimates, per-player probabilities and ranks, sample counts, injury flags and model statuses. Download a matchup comparison CSV if needed. The selected model still controls the main ranking table. No extra API requests or paid credits are needed to calculate the other two estimates.
+
+Ties use shared ranks. When every player ties, the app explicitly reports that there is no unique top estimate. Probability range measures differences among related heuristics; it is not an uncertainty interval or evidence of accuracy. No consensus score or betting recommendation is generated. Input changes hide all stale comparison results.
+
+Forward journal saves now use the exact model probabilities displayed by the most recent ranking run, after checking fresh game status and the save deadline. The journal does not rerun models at save time. Existing snapshots remain immutable. Model formulas are unchanged.
+
 APEX V2.11.0 — Repair flagged historical games
 
 Open Data quality & coverage when validation flags games. Select up to 20 flagged ESPN games and click Repair selected history games. APEX re-downloads the summaries, verifies completed status, event ID and stored team matchup, uses the provider timestamp in Eastern time, then parses and validates all replacement starter records. Valid games cannot be selected. Ambiguous teams, unavailable data and nonstarter first scorers remain flagged for manual review.

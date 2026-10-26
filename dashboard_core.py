@@ -204,3 +204,50 @@ def compare_lineup_swap(history, game, lineups, team, outgoing_id, replacement_i
         best=max(r['_probability'] for r in rows)
         return [r['Player'] for r in rows if abs(r['_probability']-best)<1e-12]
     return {'research_only':True,'model':model,'rows':table,'before_top':leaders(before),'after_top':leaders(after)}
+
+
+def compare_model_forecasts(bundle):
+    """Describe model disagreement without treating it as a confidence interval."""
+    import math
+    models=('baseline','recent','lineup')
+    if set(bundle)!=set(models):raise ValueError('All three model forecasts are required.')
+    indexed={};reference=None;gid=None
+    for model in models:
+        rows=bundle[model]
+        identity={(r['_player_id'],r['Team']) for r in rows}
+        teams={r['Team'] for r in rows}
+        if len(teams)!=2 or any(sum(r['Team']==t for r in rows)!=5 for t in teams):raise ValueError('Each model requires five starters per team.')
+        game_ids={r['_game_id'] for r in rows}
+        if len(rows)!=10 or len(identity)!=10 or len({r['_player_id'] for r in rows})!=10 or len(game_ids)!=1:
+            raise ValueError('Each model needs ten unique players from one game.')
+        if reference is None:reference=identity;gid=game_ids
+        if identity!=reference or game_ids!=gid or any(r.get('Model')!=model for r in rows):
+            raise ValueError('Models must use the same matchup and starting fives.')
+        probs=[r['_probability'] for r in rows]
+        if any(not math.isfinite(p) or not 0<p<1 for p in probs) or abs(sum(probs)-1)>1e-8:
+            raise ValueError('Invalid model probabilities.')
+        indexed[model]={r['_player_id']:r for r in rows}
+    leaders={};summary=[]
+    for model in models:
+        rows=bundle[model];best=max(r['_probability'] for r in rows)
+        leaders[model]={r['_player_id'] for r in rows if abs(r['_probability']-best)<1e-12}
+        summary.append({'Model':model,'Top estimate':' / '.join(sorted(r['Player'] for r in rows if r['_player_id'] in leaders[model])),
+                        'Top probability %':100*best,'Players tied at top':len(leaders[model])})
+    rows=[]
+    labels={'baseline':'Baseline','recent':'Recent form','lineup':'Lineup context'}
+    for pid,base in indexed['baseline'].items():
+        values={m:indexed[m][pid]['_probability'] for m in models}
+        row={'Player':base['Player'],'Team':base['Team']}
+        for model in models:
+            row[labels[model]+' %']=100*values[model]
+            row[labels[model]+' rank']=1+sum(r['_probability']>values[model]+1e-12 for r in bundle[model])
+            row[labels[model]+' status']=indexed[model][pid]['Status']
+        row.update({'Range (percentage points)':100*(max(values.values())-min(values.values())),
+                    'Models ranking player top (ties included)':sum(pid in leaders[m] for m in models),
+                    'Recorded starts':base['Starts'],'Weighted starts':indexed['recent'][pid]['Weighted starts'],
+                    'Similar-lineup starts':indexed['lineup'][pid]['Similar-lineup starts'],'Injury':base['Injury']})
+        rows.append(row)
+    common=set.intersection(*(leaders[m] for m in models))
+    return {'rows':sorted(rows,key=lambda r:(-r['Baseline %'],r['Team'],r['Player'])),
+            'leaders':summary,'shared_top':[indexed['baseline'][pid]['Player'] for pid in sorted(common)],
+            'all_tied':all(len(leaders[m])==10 for m in models)}

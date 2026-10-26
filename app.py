@@ -207,13 +207,15 @@ else:
         st.session_state.pop('results',None)
         try:
             fresh={g['gameId']:g for g in games} if analysis_mode=='Research matchup' else {g['gameId']:g for g in core.fresh_schedule(day)}
-            rows=[]
+            rows=[];model_bundles={}
             for g in games:
                 current=fresh.get(g['gameId'])
                 if not current or (not current.get('research_only') and not core.upcoming(current)):
                     st.warning(f"{g['gameId']}: started or no longer scheduled; skipped."); continue
-                rows.extend(core.rank_game(hist,current,choices[g['gameId']],confirmations[g['gameId']],prices,reports,model=selected_model))
-            st.session_state['results']={'rows':rows,'signature':signature,'time':datetime.now().isoformat(timespec='seconds')}
+                bundle={m:core.rank_game(hist,current,choices[g['gameId']],confirmations[g['gameId']],prices if m==selected_model else {},reports,model=m) for m in ('baseline','recent','lineup')}
+                model_bundles[g['gameId']]=bundle
+                rows.extend(bundle[selected_model])
+            st.session_state['results']={'rows':rows,'model_bundles':model_bundles,'signature':signature,'time':datetime.now().isoformat(timespec='seconds')}
         except (RuntimeError,ValueError,KeyError) as exc:
             st.error(str(exc) if isinstance(exc,(RuntimeError,ValueError)) else 'Unexpected data response. Reload slate.')
     result=st.session_state.get('results')
@@ -224,6 +226,19 @@ else:
         if selected_model=='lineup':st.caption('Similar-lineup starts include past games with at least four selected starters. Exact fives receive full weight; four-player matches receive half, with a 90-day recency half-life. Zero context uses recent-form rates. These are historical counts, not confidence guarantees.')
         st.caption('First-score probability combines team-first probability and within-team share. These are model estimates, not verified opening plays. A top-three hit is a coverage measure, not betting profit.')
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
+        with st.expander('Model comparison · same matchup, three estimates'):
+            bundles=result.get('model_bundles',{})
+            if bundles:
+                compare_gid=st.selectbox('Compare models for matchup',list(bundles),format_func=lambda gid:bundles[gid]['baseline'][0]['Matchup'])
+                compared=core.compare_model_forecasts(bundles[compare_gid])
+                st.dataframe(pd.DataFrame(compared['leaders']),hide_index=True,use_container_width=True)
+                if compared['all_tied']:st.info('All three models tie all ten players. There is no unique top estimate; inspect the available history.')
+                elif compared['shared_top']:st.write('Shared top-ranked players (ties included): '+', '.join(compared['shared_top']))
+                else:st.info('The models have no shared top-ranked player for this matchup.')
+                comparison_frame=pd.DataFrame(compared['rows'])
+                st.dataframe(comparison_frame,hide_index=True,use_container_width=True)
+                st.caption('Range measures disagreement between these three related heuristics; it is not a confidence interval. Agreement does not establish accuracy. Review starts, injury reports and each model’s status before interpreting the estimates. Rank 1 can include ties.')
+                st.download_button('Download matchup model comparison CSV',comparison_frame.to_csv(index=False).encode(),'apex_matchup_models.csv','text/csv')
         with st.expander('Player evidence · inspect the history behind a ranking'):
             evidence_rows={(r['_game_id'],r['_player_id']):r for r in result['rows']}
             if evidence_rows:
@@ -288,7 +303,7 @@ else:
                         st.warning(gid+': game started or is unavailable; not saved.');continue
                     rows=[r for r in result['rows'] if r['_game_id']==gid]
                     try:
-                        bundle={m:(rows if m==selected_model else core.rank_game(hist,game,choices[gid],confirmations.get(gid,{}),{},reports,model=m)) for m in ('baseline','recent','lineup')}
+                        bundle=result['model_bundles'][gid]
                         inserted=research.save_forecast(game,rows,confirmations.get(gid,{}),updater.current_version(),research.fingerprint(hist),inj.get('time'),model_forecasts=bundle)
                         saved+=int(inserted);duplicates+=int(not inserted)
                     except ValueError as exc:st.warning(str(exc))
