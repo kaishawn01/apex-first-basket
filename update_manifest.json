@@ -1,0 +1,26 @@
+{
+  "version": "2.2.0",
+  "files": {
+    ".gitignore": "eaf33bc9a2246b9c1f1cdf5c0bfa24a938bca4b4adf11344e8a0ec11e6ea530d",
+    "GITHUB_SETUP.txt": "9ff751f9a4f6b4947d617667788c2f7b1124d4df8deb6016874b5b9ea2624faf",
+    "README.md": "ae46409fd5b640e0decc9fb3282bf8d3556ce82c3e9a14c28765dbe5ae4581c1",
+    "RESTORE_APEX.bat": "8c55339a54fca931fb749d181bb5b5524f4f3b31d1436d1d184b11fedabaa531",
+    "START_APEX.bat": "69e6ba6a14a9aa2833e1d0865f90d6425fe611b5641e920b7267d6777550494c",
+    "START_HERE.txt": "cf0f5d4e34cfa7a9030ddcc55eb40675acf16c7bec9096884273ae030a2d2115",
+    "VERSION": "c4a2383a03bdb6739d16a0e24058e4b9c7da4e63d203e0be2f448868cc03c530",
+    "app.py": "5bdc8a4f735c610679d8da5b2c8d5788ccd22f5927c0472851e63d37914ce43f",
+    "build_manifest.py": "27ecd04e30ba5d2794e64d7ffbe2767cdc72c73ba7c3420eeecf37a784a9f20f",
+    "dashboard_core.py": "b32402b5c1a63089d2d7d1a82d183b0684bb644ecccd87fa2ebff0046bfab928",
+    "espn_test_fixture.json": "a4e608701398983bb25bc7778de137cc1f6e1b78ba0ac73f0e9d8889e7f0f296",
+    "first_basket_engine.py": "db362be7828b48736f3253c24b09e9ff32d4bb8cace28e2fc02e8e20c7b70557",
+    "launcher.py": "6127a2a146cd3abf72af3b34450ff13fde810a975882618b47493c4e4497fd49",
+    "requirements.txt": "805261a099292f4dee655260228fa6eeed02de81969795be3159a1c8db609f90",
+    "research_tools.py": "1c6966a0a8b7f73479d46e524d397a70e3eb5778d309d3f9332d8763c40882c1",
+    "test_dashboard.py": "11b82cb81280079bc18469f51e1d2fc0e25f7dfe26b5e7d7c30a55b28fd7c1db",
+    "test_engine.py": "07129fa4b026d4c0dc6b9cbfe4752577b09f5e33062238d2c5b533d425d21b6e",
+    "test_research.py": "8eed370bbd7a67eeca7b468587bfebd2a62001965d04a1f229ed5ffe4698e177",
+    "test_updater.py": "28bc754b0a06075849485c5c718039c567281e2ff2be44dcde166351e574217d",
+    "ui_smoke.py": "12a59f010598f138ac313209b4334b52a1ad50a5bfb1d0e08d59ac6a4c07a16d",
+    "updater.py": "39def06a381ad10303304646a161965515b36f9d6535673f313eec6816c3789a"
+  }
+}

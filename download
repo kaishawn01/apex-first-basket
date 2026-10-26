@@ -1,0 +1,11 @@
+.apex_keys.json
+.env
+.env.*
+.venv/
+__pycache__/
+*.pyc
+data/
+odds.csv
+starters*.csv
+.apex_*
+*.apex_tmp

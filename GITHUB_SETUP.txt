@@ -1,0 +1,44 @@
+APEX 2.2 — ONE-TIME GITHUB SETUP
+Repository: https://github.com/kaishawn01/apex-first-basket
+
+This clean package contains only program files. It contains no API keys,
+history database, virtual environment, personalized lineups, or betting log.
+
+PUBLISH THE CLEAN FILES
+1. Extract this ZIP.
+2. Open your repository in a browser.
+3. Choose Add file > Upload files.
+4. Open the extracted APEX_GITHUB_UPLOAD folder. Select the files INSIDE it
+   and drag them onto GitHub's upload area. Do NOT upload the ZIP or the
+   enclosing folder. app.py and update_manifest.json must be at repository root.
+5. Commit the upload to main, using a message such as APEX 2.2 updater setup.
+6. Check that app.py, VERSION and update_manifest.json appear on the main page.
+
+INSTALL LOCALLY ONCE
+1. Close your running APEX command window.
+2. Copy these program files into your existing APEX folder (the one containing
+   START_APEX.bat), replacing matching files.
+3. Keep your existing data folder, .venv, odds.csv and .apex_keys.json.
+4. Run START_APEX.bat. The dashboard header should show V2.2.0.
+5. In Settings > App updates, click Check for updates. After the initial upload
+   it should say you have the latest published version.
+
+FUTURE UPDATES
+New code still has to be published to the repository. Once a newer release is
+published, click Check for updates, then Download update for next launch.
+Close the APEX command window and reopen START_APEX.bat. The launcher installs
+the prepared update before starting Streamlit. It reinstalls requirements only
+when requirements.txt changes. If needed, close APEX and run RESTORE_APEX.bat.
+
+DESKTOP SHORTCUT
+Right-click START_APEX.bat > Show more options > Send to > Desktop (create
+shortcut). The exact menu wording varies by Windows version.
+
+FOR THE PERSON PUBLISHING FUTURE CODE
+Increase VERSION (three numeric parts, e.g. 2.3.0), run py build_manifest.py,
+and publish changed files plus VERSION and update_manifest.json together.
+Only publish reviewed code. The repository owner controls code delivered to
+this updater. Checksums detect mismatched files; they are not a code audit.
+The app checks main. No GitHub token is needed for this public repository.
+Do not upload your configured working folder. .gitignore does not protect files
+that you manually drag into GitHub's web uploader.
