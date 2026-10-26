@@ -1,3 +1,11 @@
+APEX V2.17.0 — Reliability of saved pregame picks
+
+The forward-testing journal now reports top-pick reliability by probability and leader margin for all three models, using the same settled games with three-model forecasts saved before tip-off. It reads frozen probabilities and recorded outcomes without rerunning predictions. Pending games and older single-model snapshots do not enter this comparison. Ties receive fractional hit credit; outside-field winners and incorrect lineups remain in every relevant band and have explicit counts. The version filter applies before comparison. A separate CSV export is available after outcomes are recorded.
+
+This complements historical validation with prospective saved-game evidence. It does not require additional API calls to display the report, place wagers, tune models, or establish improved accuracy. The journal remains a user-selected sample, not an all-slate benchmark; local timestamps are not independently certified. Small bands can be noisy. Unlike the historical starter-only backtest, nonstarter winners remain included here.
+
+Validation: 110 unit tests and all Streamlit smoke checks passed, including pending/settled reliability display and export, frozen probabilities, fractional ties, legacy exclusion and retained outside-field misses. Windows execution was not tested here.
+
 APEX V2.16.0 — Top-pick reliability diagnostics
 
 Full model validation now compares predicted leader probabilities with observed top-1 hit rates for all three models, on both all evaluated dates and the newest quarter. Fixed probability bands and leader-to-runner-up margin bands show game/date counts, fractional tie credit, tied-leader counts, and observed-minus-predicted percentage points. Each game counts once per grouping. Empty bands are omitted; boundaries include the lower end and exclude the upper end. Download pick reliability CSV for inspection; per-game validation exports also include top probability, margin, and number of tied leaders.

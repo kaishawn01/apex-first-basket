@@ -363,15 +363,31 @@ def journal_model_records(records, model):
     return result
 
 
+def forward_pick_games(records):
+    """Diagnostics from frozen probabilities and settled outcomes, never a model rerun."""
+    games=[]
+    for record in records:
+        outcome=record['outcome']
+        if outcome is None:continue
+        snap=record['snapshot'];values=sorted((r['_probability'] for r in snap['rows']),reverse=True)
+        top=values[0];ties=sum(abs(p-top)<1e-12 for p in values)
+        games.append({'Game':snap['game_id'],'Date':snap['date'],
+                      'Top probability':top,'Top margin':0.0 if ties>1 else top-values[1],
+                      'Tied leaders':ties,'Top-1 credit':outcome['top1_credit'],
+                      'Outside field':outcome['outside_field'],'Lineup mismatch':not outcome['lineup_matches']})
+    return games
+
+
 def forward_model_comparison(records):
     """All models evaluated on exactly the same prospectively saved games."""
     matched=[r for r in records if set(r['snapshot'].get('model_forecasts',{}))=={'baseline','recent','lineup'}]
-    summaries=[];details=[]
+    summaries=[];details=[];reliability=[]
     for model in ('baseline','recent','lineup'):
         viewed=journal_model_records(matched,model)
         summaries.append({'Model':model,**journal_summary(viewed)})
         details.extend(journal_table(viewed))
-    return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details}
+        reliability.extend({'Model':model,**r} for r in pick_reliability(forward_pick_games(viewed)))
+    return {'matched_games':len(matched),'excluded_games':len(records)-len(matched),'summary':summaries,'details':details,'pick_reliability':reliability}
 
 
 def player_evidence(history, target_day, team, player_id, selected_five):
@@ -485,7 +501,10 @@ def pick_reliability(games):
                            'Dates':len({r['Date'] for r in subset}),
                            'Mean top probability %':predicted,'Observed top-1 hit %':observed,
                            'Observed minus predicted pp':observed-predicted,
-                           'Tied-leader games':sum(r['Tied leaders']>1 for r in subset)})
+                           'Tied-leader games':sum(r['Tied leaders']>1 for r in subset),
+                           **({'Outside-field winners':sum(r['Outside field'] for r in subset),
+                               'Lineup mismatches':sum(r['Lineup mismatch'] for r in subset)}
+                              if all('Outside field' in r and 'Lineup mismatch' in r for r in subset) else {})})
     return output
 
 

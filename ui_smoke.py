@@ -46,6 +46,21 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  assert not at.exception,list(at.exception)
  journal=next(d.value for d in at.dataframe if 'Saved before tip' in d.value.columns)
  assert set(journal['Model'])=={'recent'}
+ assert any('Pick reliability will appear' in x.value for x in at.info)
+ saved=research.journal_records()
+ probabilities={r['_player_id']:r['_probability'] for r in saved[0]['snapshot']['rows']}
+ import math
+ saved[0]['outcome']={'winner_id':'10','winner':'BOS Player 0','winner_probability':probabilities['10'],
+                      'outside_field':False,'top1_credit':research.top_k_credit(probabilities,'10',1),
+                      'brier':sum((p-int(pid=='10'))**2 for pid,p in probabilities.items()),
+                      'log_loss':-math.log(probabilities['10']),'lineup_matches':True}
+ with patch.object(research,'journal_records',return_value=saved):
+  at.run()
+  assert not at.exception,list(at.exception)
+  assert any(d.label=='Download forward pick reliability CSV' for d in at.get('download_button'))
+  reliability=next(d.value for d in at.dataframe if 'Outside-field winners' in d.value.columns and 'Band' in d.value.columns)
+  assert set(reliability['Model'])=={'baseline','recent','lineup'}
+  assert all(reliability['Games']==1)
  print('Journal UI passed: all-model save, comparison export, model filter, duplicate prevention.')
  at.multiselect[0].set_value(['10','11','12','13','15']).run()
  assert not next(cb for cb in at.checkbox if cb.label.startswith('I verified BOS')).value

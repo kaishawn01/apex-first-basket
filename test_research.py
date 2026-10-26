@@ -351,6 +351,36 @@ class MultiModelJournalTests(unittest.TestCase):
             self.assertIn('Infinite',r['Log loss'])
             self.assertEqual(r['Top-1 hit %'],0)
 
+    def test_forward_reliability_uses_saved_models_without_mutating_records(self):
+        import copy
+        record=self.record();record['outcome']=rt.outcome_from_summary(record['snapshot'],ForwardJournalTests.payload(self))
+        original=copy.deepcopy(record)
+        with patch.object(eng,'predict_matchups',side_effect=AssertionError('No prediction rerun')):
+            result=rt.forward_model_comparison([record,self.record()])
+        self.assertEqual(record,original)
+        for model in ('baseline','recent','lineup'):
+            bands=[r for r in result['pick_reliability'] if r['Model']==model and r['Group by']=='Top probability']
+            self.assertEqual(sum(r['Games'] for r in bands),1)
+        recent=next(r for r in result['pick_reliability'] if r['Model']=='recent' and r['Group by']=='Top probability')
+        self.assertAlmostEqual(recent['Mean top probability %'],20)
+        self.assertEqual(recent['Observed top-1 hit %'],100)
+        baseline=next(r for r in result['pick_reliability'] if r['Model']=='baseline' and r['Group by']=='Top probability')
+        self.assertEqual(baseline['Tied-leader games'],1)
+        self.assertAlmostEqual(baseline['Observed top-1 hit %'],10)
+    def test_forward_reliability_keeps_outside_winners_and_lineup_mismatches(self):
+        record=self.record();record['outcome']=rt.outcome_from_summary(record['snapshot'],ForwardJournalTests.payload(self,winner='99'))
+        record['outcome']['lineup_matches']=False
+        for band in rt.forward_model_comparison([record])['pick_reliability']:
+            self.assertEqual(band['Games'],1)
+            self.assertEqual(band['Outside-field winners'],1)
+            self.assertEqual(band['Lineup mismatches'],1)
+            self.assertEqual(band['Observed top-1 hit %'],0)
+    def test_forward_reliability_excludes_pending_and_legacy(self):
+        old=self.record();old['snapshot'].pop('model_forecasts')
+        old['outcome']=rt.outcome_from_summary(old['snapshot'],ForwardJournalTests.payload(self))
+        self.assertEqual(rt.forward_model_comparison([old,self.record()])['pick_reliability'],[])
+        self.assertEqual(rt.forward_model_comparison([])['pick_reliability'],[])
+
 class PlayerEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.rows=game_rows('one','2026-10-20')

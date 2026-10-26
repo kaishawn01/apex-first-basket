@@ -465,6 +465,12 @@ with st.expander('Forward-testing journal · actual future results'):
                 st.dataframe(pd.DataFrame(paired_forward['summary']),hide_index=True,use_container_width=True)
                 st.download_button('Download forward model comparison CSV',pd.DataFrame(paired_forward['details']).to_csv(index=False).encode(),'apex_forward_models.csv','text/csv')
                 st.caption('Compare within one software version for consistent model formulas. Small samples do not establish a better model; no default is changed automatically.')
+                st.markdown('**Pregame pick reliability · settled games only**')
+                if paired_forward['pick_reliability']:
+                    st.dataframe(pd.DataFrame(paired_forward['pick_reliability']),hide_index=True,use_container_width=True)
+                    st.download_button('Download forward pick reliability CSV',pd.DataFrame(paired_forward['pick_reliability']).to_csv(index=False).encode(),'apex_forward_pick_reliability.csv','text/csv')
+                    st.caption('Uses only probabilities saved before tip-off, without recalculating predictions. All three models use the same settled games. Pending games are excluded; outside-field winners and lineup mismatches remain included. Each game counts once per grouping, with fractional credit for tied leaders. These descriptive bands do not tune probabilities or establish a betting edge. Unlike the historical backtest, this report retains nonstarter winners.')
+                else:st.info('Pick reliability will appear after saved three-model forecasts have completed outcomes. Click Check completed games for journal after games finish.')
             journal_model=st.selectbox('Journal scoring model',['All models','baseline','recent','lineup'])
             if journal_model!='All models':selected=research.journal_model_records(selected,journal_model)
             st.caption('All models shows one selected forecast per game. Choosing a model also includes its saved comparison forecasts, when available.')
