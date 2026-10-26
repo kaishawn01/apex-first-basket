@@ -1,4 +1,4 @@
-"""APEX First Basket Engine V1.2 — NBA/FanDuel prototype.
+"""APEX First Basket Engine — shared dashboard and command-line research core.
 
 Install: python -m pip install requests
 Commands:
@@ -577,148 +577,88 @@ def api_prices(games):
     return prices
 
 
-def backtest(min_training_games):
-    """Chronological holdout validation using observed historical starting fives.
-
-    Excludes games for which the scorer was not a starter (current V1 history filter).
-    Reports a probability-scoring metric; cannot prove betting ROI without odds history.
-    """
-    hist = read_csv(HISTORY)
-    bygame = defaultdict(list)
-    for row in hist:
-        bygame[row["game_id"]].append(row)
-    games = sorted(bygame.values(), key=lambda rows: (rows[0]["date"], rows[0]["game_id"]))
-    if len(games) <= min_training_games:
-        print(f"Need > {min_training_games} historical games; have {len(games)}.")
-        return
-    # Hold out full game-days, so results of an earlier game on the same day
-    # never affect predictions of another game in the same day's slate.
-    day_groups = defaultdict(list)
-    for game in games:
-        day_groups[game[0]["date"]].append(game)
-    train = []
-    num_train_games = 0
-    p_real, top_correct, briers = [], 0, []
-    for day in sorted(day_groups):
-        batch = day_groups[day]
-        if num_train_games >= min_training_games:
-            st = team_stats(train)
-            for game in batch:
-                teams = sorted({r["team"] for r in game})
-                if len(teams) != 2 or len(game) != 10:
-                    continue
-                a, b = teams
-                p_a = first_team_probability(a, b, st)
-                prob = {}
-                for team, p_team in ((a, p_a), (b, 1 - p_a)):
-                    current_five = [r for r in game if r["team"] == team]
-                    for player, w, *_ in player_weights(train, current_five, team):
-                        prob[(team, player["player_id"])] = p_team * w
-                true = next((r for r in game if int(r["first_scorer"]) == 1), None)
-                if true and prob:
-                    true_key = (true["team"], true["player_id"])
-                    value = prob.get(true_key, 0.0)
-                    if value > 0:
-                        p_real.append(value)
-                        top_correct += int(max(prob, key=prob.get) == true_key)
-                        briers.append(sum((p - (1 if k == true_key else 0)) ** 2 for k, p in prob.items()))
-        train.extend(row for game in batch for row in game)
-        num_train_games += len(batch)
-    n = len(p_real)
+def backtest(min_training_games, model='baseline'):
+    """Use the same audited, 400-day chronological evaluator as the dashboard."""
+    import research_tools as research
+    result=research.evaluate(read_csv(HISTORY),min_training_games,model)
+    metrics=result['metrics'];n=metrics['Evaluated games']
+    print("APEX FIRST BASKET - WALK-FORWARD BACKTEST")
+    print(f"Model: {model} | Earlier-date window: {research.MODEL_DAYS} days")
+    print(f"Invalid games excluded: {len(result['excluded'])}")
     if not n:
-        print("No valid out-of-sample results. Try after gathering more games.")
-        return
-    logloss = -sum(math.log(p) for p in p_real) / n
-    print("\nAPEX FIRST BASKET — WALK-FORWARD BACKTEST")
+        print('No eligible evaluation games after the training minimum.')
+        return result
     print(f"Train-first N: {min_training_games}; evaluated N: {n}")
-    print(f"Top-1 hit rate: {top_correct / n:.1%} | uniform baseline: 10.0%")
-    print(f"Log loss:       {logloss:.4f} | uniform baseline: {math.log(10):.4f} (lower is better)")
-    print(f"Brier score:    {sum(briers) / n:.4f} | uniform baseline: 0.9000 (lower is better)")
-    print("CAUTION: No price-adjusted ROI, no verified tip data, and historical exclusions may bias results.")
+    print(f"Top-1 hit rate: {metrics['Top-1 hit %']:.1f}% | equal baseline: 10.0%")
+    print(f"Top-3 hit rate: {metrics['Top-3 hit %']:.1f}% | equal baseline: 30.0%")
+    print(f"Log loss: {metrics['Log loss']:.4f} | equal baseline: {math.log(10):.4f}")
+    print(f"Brier score: {metrics['Brier']:.4f} | equal baseline: 0.9000")
+    print('Ties receive fractional credit. Historical starter exclusions can bias results. No betting ROI is measured.')
+    return result
 
 
 def show_picks(args):
-    hist = read_csv(HISTORY)
-    if not hist:
-        print("No history yet. Run: python first_basket_engine.py sync")
-        return
-    target_day = args.date or datetime.now(ZoneInfo("America/New_York")).date().isoformat()
-    games = schedule(target_day)
-    matchup_games = [g for g in games if g.get("_date") == target_day and game_is_upcoming(g)]
+    import research_tools as research
+    import dashboard_core as core
+    history=read_csv(HISTORY)
+    if not history:
+        print('No history yet. Run: python first_basket_engine.py sync')
+        return []
+    target_day=args.date or datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    model=getattr(args,'model','baseline')
+    hist,issues=research.audit(research.history_window(history,target_day))
+    if issues:raise ValueError('Historical data failed validation. Open Data quality in the dashboard before ranking.')
+    games=schedule(target_day)
+    matchup_games=[g for g in games if g.get('_date')==target_day and game_is_upcoming(g)]
     if not matchup_games:
-        print(f"No scheduled, unstarted NBA regular-season games found on {target_day}.")
-        return
-    if not STARTERS.exists():
-        create_starter_template(hist, matchup_games)
-    starters = read_csv(STARTERS)
-    if args.live_odds:
-        auto = api_prices(matchup_games)
-    else:
-        auto = {}
-    prices = {**local_prices(), **auto}
-    hist = [r for r in hist if r["date"] < target_day]
-    ts = team_stats(hist)
-    print("\n" + "=" * 94)
-    print("  APEX FIRST BASKET ENGINE V1.2  |  FanDuel: first SCORE including free throws")
-    print(f"  Date: {target_day} | Games in history: {len({r['game_id'] for r in hist})} | Prototype / not calibrated")
-    print("=" * 94)
-    final = []
-    for g in matchup_games:
-        away = g["awayTeam"]["teamTricode"]
-        home = g["homeTeam"]["teamTricode"]
-        a5 = starters_for_team(starters, away)
-        h5 = starters_for_team(starters, home)
-        print(f"\n🏀 {away} @ {home}")
-        if not a5 or not h5:
-            print("  HOLD: starters_espn.csv needs exactly five distinct player IDs per team.")
+        print(f'No scheduled, unstarted NBA regular-season games found on {target_day}.')
+        return []
+    if not STARTERS.exists():create_starter_template(hist,matchup_games)
+    starters=read_csv(STARTERS)
+    auto=api_prices(matchup_games) if args.live_odds else {}
+    prices={**local_prices(),**auto}
+    print(f'APEX FIRST BASKET | Model: {model} | Date: {target_day} | Window: {research.MODEL_DAYS} days')
+    print('Free throws count. Injuries have NOT been checked by this command. Manual prices are not freshness-verified.')
+    final=[]
+    for game in matchup_games:
+        away=game['awayTeam']['teamTricode'];home=game['homeTeam']['teamTricode']
+        lineups={team:starters_for_team(starters,team) for team in (away,home)}
+        print(f"\n{away} @ {home}")
+        if any(not five for five in lineups.values()):
+            print('HOLD: starters_espn.csv needs exactly five distinct player IDs per team.')
             continue
-        p_away = first_team_probability(away, home, ts)
-        print(f"  Model team-first-score estimate: {away} {p_away:.1%} | {home} {1-p_away:.1%}")
-        predictions = []
-        whole_lineup_confirmed = all(str(p.get("confirmed", "")).strip().upper() == "YES" for p in a5 + h5)
-        for team, five, p_team in ((away, a5, p_away), (home, h5, 1-p_away)):
-            for player, share, starts, shots, scores in player_weights(hist, five, team):
-                p = p_team * share
-                key = (team, norm(player["player"]))
-                price = prices.get(key)
-                odds = price[1] if price else "—"
-                ev = p * price[0] - 1 if price else None
-                confirmed = str(player.get("confirmed", "")).strip().upper() == "YES"
-                sufficient_data = ts.get(away, {}).get("n", 0) >= 10 and ts.get(home, {}).get("n", 0) >= 10 and starts >= 8
-                if not whole_lineup_confirmed:
-                    verdict = "HOLD: STARTER"
-                elif not sufficient_data:
-                    verdict = "HOLD: SAMPLE"
-                elif ev is None:
-                    verdict = "NO PRICE"
-                elif ev >= 0.08:
-                    verdict = "A? REVIEW"
-                elif ev >= 0.05:
-                    verdict = "B? REVIEW"
-                elif ev >= 0.03:
-                    verdict = "LEAN? REVIEW"
-                else:
-                    verdict = "PASS"
-                predictions.append({"team": team, "player": player["player"], "prob": p,
-                                    "fair_odds": round(100 * (1-p)/p) if p > 0 else None,
-                                    "odds": odds, "ev": ev, "starts": starts, "shots": shots,
-                                    "scores": scores, "status": verdict, "confirmed": confirmed,
-                                    "source": price[2] if price else ""})
-        predictions.sort(key=lambda r: r["prob"], reverse=True)
-        print("  {:<22} {:<4} {:>7} {:>9} {:>8} {:>9}  {:<15}".format("PLAYER", "TEAM", "MODEL", "FAIR +", "ODDS", "EV", "SCREEN"))
-        for r in predictions:
-            ev = f"{r['ev']:+.1%}" if r["ev"] is not None else "—"
-            print("  {:<22} {:<4} {:>6.1%} {:>9} {:>8} {:>9}  {:<15}".format(
-                r["player"][:22], r["team"], r["prob"], r["fair_odds"], r["odds"], ev, r["status"]))
-            final.append({"date": target_day, "matchup": f"{away}@{home}", **r})
+        confirmations={team:all(str(p.get('confirmed','')).strip().upper()=='YES' for p in five) for team,five in lineups.items()}
+        shared_prices={}
+        for team,five in lineups.items():
+            for player in five:
+                price=prices.get((team,norm(player['player'])))
+                if price:shared_prices[(game['gameId'],norm(player['player']))]=(*price,'')
+        try:
+            ranked=core.rank_game(hist,game,lineups,confirmations,shared_prices,[],model)
+        except ValueError as exc:
+            print('HOLD: '+str(exc));continue
+        print('PLAYER | TEAM | MODEL | STATUS')
+        for row in ranked:
+            pid=row['_player_id'];team=row['Team']
+            player_history=[r for r in hist if r['team']==team and r['player_id']==pid]
+            price=prices.get((team,norm(row['Player'])))
+            prediction={'date':target_day,'matchup':f'{away}@{home}','model':model,'team':team,'player':row['Player'],
+                        'prob':row['_probability'],'fair_odds':row['Fair odds'],'odds':row['Book odds'],
+                        'ev':row['_probability']*price[0]-1 if price else None,
+                        'starts':row['Starts'],'shots':sum(int(r['first_team_shot']) for r in player_history),
+                        'scores':sum(int(r['first_scorer']) for r in player_history),
+                        'observed_shot_starts':row['Observed opening-shot starts'],
+                        'weighted_observed_shot_starts':row['Weighted observed shot starts'],
+                        'shot_coverage_note':row['Shot coverage note'],
+                        'status':row['Status'],'confirmed':confirmations[team],'source':price[2] if price else ''}
+            final.append(prediction)
+            print(f"{row['Player']} | {team} | {row['_probability']:.1%} | {row['Status']}")
     if final:
-        out = DATA / f"predictions_{target_day}.csv"
-        write_csv(out, ["date", "matchup", "team", "player", "prob", "fair_odds", "odds", "ev",
-                        "starts", "shots", "scores", "status", "confirmed", "source"], final)
-        print(f"\nSaved ranked projections to {out}")
-    print("\nIMPORTANT: These are UNVALIDATED estimates. NO real bets until starters are confirmed")
-    print("and probabilities pass an out-of-sample backtest. 'A/B/LEAN' are screening labels only.")
-    print("Manual prices: add team,player,odds,sportsbook to odds.csv.")
+        out=DATA/f'predictions_{target_day}.csv'
+        write_csv(out,list(final[0]),final)
+        print(f'\nSaved ranked projections to {out}')
+    print('Research estimates only. Use the dashboard for injury review, fresh odds and the forward journal.')
+    return final
 
 
 def main():
@@ -730,8 +670,10 @@ def main():
     command_picks = sub.add_parser("picks", help="Rank upcoming first scorers")
     command_picks.add_argument("--date", type=str, default=None, help="Game date in YYYY-MM-DD, ET")
     command_picks.add_argument("--live-odds", action="store_true", help="Optional FanDuel prices from The Odds API")
+    command_picks.add_argument("--model", choices=("baseline","recent","lineup"), default="baseline")
     command_test = sub.add_parser("backtest", help="Walk-forward first-score prediction evaluation")
     command_test.add_argument("--min-training-games", type=int, default=30)
+    command_test.add_argument("--model", choices=("baseline","recent","lineup"), default="baseline")
     args = parser.parse_args()
     try:
         if args.cmd == "sync":
@@ -745,7 +687,7 @@ def main():
         else:
             if args.min_training_games < 5:
                 parser.error("--min-training-games must be >= 5")
-            backtest(args.min_training_games)
+            backtest(args.min_training_games,args.model)
     except (RuntimeError, requests.RequestException, ValueError) as exc:
         print(f"\nERROR: {exc}")
         sys.exit(1)

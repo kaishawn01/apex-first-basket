@@ -1,3 +1,15 @@
+APEX V2.27.0 — One ranking and validation core
+
+The older command-line picks path now calls the same rank_game implementation as Streamlit, using the same audited 400-day window, baseline/recent/lineup predictors, lineup confirmations, total/weighted sample checks and observed-shot coverage hold. Historical rows outside the window no longer affect terminal predictions. Starter templates are projected from earlier in-window history. Prediction CSVs identify the model and include shot coverage evidence. Unvalidated A/B/LEAN labels are replaced by the shared research/hold statuses.
+
+Command-line backtest now calls the dashboard's chronological evaluator, including data-quality exclusions, same-day isolation, fractional tie credit and top-three metrics. Both picks and backtest accept --model baseline, --model recent or --model lineup; baseline remains default. Backtest's CLI training minimum remains 30 by default, while the dashboard defaults to 100: select the same minimum for a numerical comparison.
+
+Example: python first_basket_engine.py backtest --model recent --min-training-games 100
+
+These commands still use their separate starter CSV. They do not refresh injury reports or provide the dashboard's odds-expiration workflow; the terminal explicitly notes those limits. Research-only labels do not imply that injuries were checked. The dashboard remains the primary workflow. No scoring formulas or live defaults change in this release.
+
+Validation: 165 unit tests, all Streamlit smoke checks and command-line help passed. Added checks cover exact dashboard/CLI probability and status agreement across all models, old/future history exclusion, invalid-history blocking before paid calls, cross-team duplicate rejection, shot-coverage holds, fractional backtest ties and model argument forwarding. Windows batch execution was not tested here.
+
 APEX V2.26.0 — Export reproducible research data
 
 A new Share research data section prepares a data-only ZIP on demand. It contains saved history in known history columns, a quality-issue CSV, valid team coverage for the selected date's 400-day window, engine/model/date metadata, a readme and SHA-256 checksums. Flagged rows remain included for diagnosis. Export does not modify or repair local history.

@@ -153,3 +153,75 @@ class ScheduleIntegrityTests(unittest.TestCase):
             with patch.object(eng,'SCHEDULE_CACHE',cache),patch.object(eng,'get_json',side_effect=eng.requests.ConnectionError()):games=eng.schedule()
             self.assertEqual([g['gameId'] for g in games],['espn_1'])
             self.assertTrue(games[0]['_schedule_cached'])
+
+class SharedCommandLineTests(unittest.TestCase):
+    def run_picks(self,history,model='baseline',duplicate=False,live=False):
+        import tempfile,io,contextlib
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from test_research import game_rows
+        game={'gameId':'espn_123','_date':'2027-01-02','start_time':'2027-01-02T23:00:00Z','gameStatus':1,
+              'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+        starters=[{**r,'confirmed':'YES'} for r in game_rows('lineup','2027-01-02')]
+        if duplicate:starters[5]['player_id']=starters[0]['player_id']
+        with tempfile.TemporaryDirectory() as tmp,contextlib.ExitStack() as stack:
+            folder=Path(tmp);hist=folder/'history.csv';five=folder/'starters.csv'
+            eng.write_csv(hist,eng.FIELDS,history)
+            eng.write_csv(five,eng.FIELDS+['confirmed'],starters)
+            for attr,value in [('HISTORY',hist),('STARTERS',five),('DATA',folder)]:stack.enter_context(patch.object(eng,attr,value))
+            stack.enter_context(patch.object(eng,'schedule',return_value=[game]))
+            stack.enter_context(patch.object(eng,'game_is_upcoming',return_value=True))
+            stack.enter_context(patch.object(eng,'local_prices',return_value={}))
+            paid=stack.enter_context(patch.object(eng,'api_prices',side_effect=AssertionError('No paid call expected')))
+            output=io.StringIO();stack.enter_context(contextlib.redirect_stdout(output))
+            result=eng.show_picks(SimpleNamespace(date='2027-01-02',live_odds=live,model=model))
+            saved=eng.read_csv(folder/'predictions_2027-01-02.csv')
+            return result,saved,output.getvalue(),starters,game
+    def test_cli_probabilities_match_dashboard_for_all_models(self):
+        from test_research import game_rows
+        import dashboard_core as core
+        history=game_rows('recent','2027-01-01')+game_rows('old','2020-01-01')+game_rows('future','2027-01-03')
+        for model in ('baseline','recent','lineup'):
+            result,saved,output,starters,game=self.run_picks(history,model)
+            lineups={team:[r for r in starters if r['team']==team] for team in ('BOS','NYK')}
+            expected=core.rank_game(history,game,lineups,{'BOS':True,'NYK':True},{},[],model)
+            self.assertEqual({r['player']:r['prob'] for r in result},{r['Player']:r['_probability'] for r in expected})
+            self.assertEqual({r['player']:r['status'] for r in result},{r['Player']:r['Status'] for r in expected})
+            self.assertEqual({r['starts'] for r in saved},{'1'})
+            self.assertIn('Injuries have NOT been checked',output)
+    def test_invalid_history_blocks_before_paid_calls(self):
+        from test_research import game_rows
+        rows=game_rows('bad','2027-01-01');rows[1]['player_id']=rows[0]['player_id']
+        with self.assertRaisesRegex(ValueError,'validation'):self.run_picks(rows,live=True)
+    def test_cross_team_duplicate_is_held_without_output(self):
+        from test_research import game_rows
+        result,saved,output,_,_=self.run_picks(game_rows('recent','2027-01-01'),duplicate=True)
+        self.assertEqual(result,[]);self.assertEqual(saved,[])
+        self.assertIn('HOLD:',output)
+    def test_cli_shot_coverage_hold_matches_dashboard(self):
+        from test_research import game_rows
+        from datetime import date,timedelta
+        history=[r for i in range(12) for r in game_rows(str(i),(date(2027,1,1)-timedelta(days=i)).isoformat())]
+        for r in history:
+            if r['team']=='BOS':r['first_team_shot']=0;r['first_game_shot']=0;r['opening_shot_observed']=0
+        for model in ('baseline','recent','lineup'):
+            result,_,_,_,_=self.run_picks(history,model)
+            self.assertEqual({r['status'] for r in result if r['team']=='BOS'},{'HOLD: SHOT COVERAGE'})
+    def test_cli_backtest_uses_same_metrics_and_fractional_ties(self):
+        import io,contextlib
+        from unittest.mock import patch
+        from test_research import game_rows
+        import research_tools as research
+        history=game_rows('only','2027-01-01')
+        for model in ('baseline','recent','lineup'):
+            with patch.object(eng,'read_csv',return_value=history),contextlib.redirect_stdout(io.StringIO()):
+                result=eng.backtest(0,model)
+            self.assertEqual(result,research.evaluate(history,0,model))
+            self.assertAlmostEqual(result['metrics']['Top-1 hit %'],10)
+            self.assertAlmostEqual(result['metrics']['Top-3 hit %'],30)
+    def test_model_argument_reaches_shared_backtest(self):
+        from unittest.mock import patch
+        for model in ('baseline','recent','lineup'):
+            with patch('sys.argv',['engine','backtest','--model',model,'--min-training-games','100']),patch.object(eng,'backtest') as backtest:
+                eng.main()
+                backtest.assert_called_once_with(100,model)
