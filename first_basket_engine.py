@@ -192,6 +192,51 @@ def validate_espn_summary(game, payload):
         raise ValueError('Summary home/away teams do not match the requested matchup.')
 
 
+def checked_opening_plays(payload, sides, boxes):
+    """Check first-score identity and available score totals without guessing missing plays."""
+    ordered={}
+    for play in payload.get('plays',[]):
+        if play.get('period',{}).get('number')!=1:continue
+        raw_sequence=play.get('sequenceNumber')
+        if isinstance(raw_sequence,bool) or not str(raw_sequence).isdigit():
+            raise ValueError('Opening play has no valid sequence number.')
+        sequence=int(raw_sequence)
+        if sequence in ordered and ordered[sequence]!=play:
+            raise ValueError('Conflicting first-period plays share a sequence number.')
+        ordered[sequence]=play
+    plays=[ordered[k] for k in sorted(ordered)]
+    for play in plays:
+        points=play.get('scoreValue',0)
+        if isinstance(points,bool) or not isinstance(points,int) or not 0<=points<=3:
+            raise ValueError('Invalid opening-play point value.')
+        scoring=play.get('scoringPlay',False)
+        if not isinstance(scoring,bool) or scoring!=(points>0):
+            raise ValueError('Opening scoring flag and point value disagree.')
+        if scoring:
+            tid=str(play.get('team',{}).get('id',''))
+            participants=play.get('participants',[])
+            pid=str(participants[0].get('athlete',{}).get('id','')) if participants else ''
+            if not pid.isdigit() or int(pid)<=0 or tid not in boxes or pid not in {str(p['personId']) for p in boxes[tid]['players']}:
+                raise ValueError('First scoring play has no identifiable scorer on its team; retry the game.')
+            if play.get('text','').strip().upper().startswith('MISS'):
+                raise ValueError('First scoring play is described as a miss.')
+            free='free throw' in play.get('text','').lower()
+            if (free and points!=1) or (not free and (play.get('shootingPlay') is not True or points not in (2,3))):
+                raise ValueError('First scoring play has an unsupported or inconsistent shot type.')
+        # Older/synthetic feeds may omit totals. If supplied, both totals must be
+        # nonnegative integers and agree with a game that has not yet scored.
+        if 'homeScore' in play or 'awayScore' in play:
+            totals=[play.get('homeScore'),play.get('awayScore')]
+            if any(isinstance(v,bool) or not isinstance(v,int) or v<0 for v in totals):
+                raise ValueError('Opening scoreboard totals are missing or invalid.')
+            expected=[0,0]
+            if scoring:expected[0 if tid==sides['home'] else 1]=points
+            if totals!=expected:
+                raise ValueError('Opening scoreboard indicates missing or inconsistent earlier scoring.')
+        if scoring:return plays
+    raise ValueError('No first-period scoring play found; retry the game.')
+
+
 def espn_game_payloads(payload):
     teams = {}
     sides = {}
@@ -208,9 +253,7 @@ def espn_game_payloads(payload):
                 players[athlete["id"]] = {"personId": int(athlete["id"]), "name": athlete["displayName"], "starter": row.get("starter", False)}
         boxes[tid] = {"teamTricode": teams[tid], "players": list(players.values())}
     actions = []
-    for play in payload.get("plays", []):
-        if play.get("period", {}).get("number") != 1:
-            continue
+    for play in checked_opening_plays(payload,sides,boxes):
         desc = play.get("text", "")
         free = "free throw" in desc.lower()
         shot = bool(play.get("shootingPlay")) and not free

@@ -792,3 +792,62 @@ class ScoringStageTests(unittest.TestCase):
         with self.assertRaises(ValueError):rt.scoring_stage_metrics(probs,{k:'BOS' for k in probs},'0')
         self.assertEqual(rt.scoring_stage_summary([]),{})
         self.assertEqual(rt.validation_report([],1)['scoring_stages'],[])
+
+class OpeningPlayIntegrityTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture=ForwardJournalTests();self.fixture.setUp()
+        self.payload=self.fixture.payload()
+    def test_unreadable_first_scorer_cannot_be_skipped_for_later_basket(self):
+        import copy
+        first=copy.deepcopy(self.payload['plays'][0]);first['sequenceNumber']='0';first['participants']=[]
+        self.payload['plays'].insert(0,first)
+        with self.assertRaisesRegex(ValueError,'identifiable scorer'):eng.espn_game_payloads(self.payload)
+        with self.assertRaisesRegex(ValueError,'identifiable scorer'):
+            rt.outcome_from_summary({'game_id':'espn_123','rows':self.fixture.rows},self.payload)
+    def test_score_totals_detect_missing_earlier_basket(self):
+        import copy
+        variants=[]
+        bad=copy.deepcopy(self.payload);bad['plays'][0].update(homeScore=2,awayScore=2);variants.append(bad)
+        bad=copy.deepcopy(self.payload);bad['plays'][0].update(homeScore=0,awayScore=4);variants.append(bad)
+        bad=copy.deepcopy(self.payload)
+        before=copy.deepcopy(bad['plays'][0]);before.update(sequenceNumber='0',scoringPlay=False,scoreValue=0,homeScore=0,awayScore=2,text='Player misses shot')
+        bad['plays'].insert(0,before);variants.append(bad)
+        for payload in variants:
+            with self.assertRaisesRegex(ValueError,'scoreboard'):eng.espn_game_payloads(payload)
+    def test_valid_free_throw_field_goal_and_optional_totals(self):
+        for free,points in ((False,2),(True,1)):
+            payload=self.fixture.payload(free=free);payload['plays'][0].update(homeScore=0,awayScore=points)
+            play,box=eng.espn_game_payloads(payload)
+            self.assertTrue(eng.is_made_score(play['game']['actions'][0]))
+        play,box=eng.espn_game_payloads(self.payload)
+        self.assertEqual(play['game']['actions'][0]['personId'],10)
+    def test_conflicting_duplicates_rejected_identical_duplicates_collapsed(self):
+        import copy
+        first=copy.deepcopy(self.payload['plays'][0]);self.payload['plays'].append(first)
+        self.assertEqual(len(eng.espn_game_payloads(self.payload)[0]['game']['actions']),1)
+        first['participants']=[{'athlete':{'id':'11'}}]
+        with self.assertRaisesRegex(ValueError,'Conflicting'):eng.espn_game_payloads(self.payload)
+    def test_input_order_does_not_change_first_scorer(self):
+        import copy
+        later=copy.deepcopy(self.payload['plays'][0]);later['sequenceNumber']='2';later['participants']=[{'athlete':{'id':'11'}}]
+        self.payload['plays'].insert(0,later)
+        plays=eng.espn_game_payloads(self.payload)[0]['game']['actions']
+        self.assertEqual(plays[0]['personId'],10)
+    def test_first_score_flags_identity_type_and_totals_checked(self):
+        import copy
+        changes=[{'scoringPlay':False},{'scoreValue':0},{'shootingPlay':False},
+                 {'participants':[{'athlete':{'id':'20'}}]},
+                 {'homeScore':0},{'homeScore':0,'awayScore':True},
+                 {'sequenceNumber':'bad'},{'sequenceNumber':1.2},{'sequenceNumber':True},{'scoreValue':2.5},{'text':'MISS layup'}]
+        for change in changes:
+            payload=copy.deepcopy(self.payload);payload['plays'][0].update(change)
+            with self.assertRaises(ValueError):eng.espn_game_payloads(payload)
+    def test_refresh_keeps_invalid_outcome_pending(self):
+        self.payload['plays'][0]['participants']=[]
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'journal'
+            self.fixture.save(path)
+            with patch.object(rt.core,'request',return_value=self.payload):
+                updated,errors=rt.refresh_journal(path)
+            self.assertEqual(updated,0);self.assertEqual(len(errors),1)
+            self.assertIsNone(rt.journal_records(path)[0]['outcome'])

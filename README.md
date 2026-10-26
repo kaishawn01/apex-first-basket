@@ -1,3 +1,13 @@
+APEX V2.22.0 — Reject ambiguous opening scorers
+
+The ESPN adapter now orders first-period plays by sequence, collapses identical duplicates and rejects conflicting entries at the same sequence. Before accepting the first scoring play it checks consistent scoring flags/point values, a scorer identified in that team's box score, and a supported free-throw or field-goal type. An unreadable first scorer raises an error instead of letting a later basket become the apparent first score.
+
+When opening scoreboard totals are supplied, both must be valid nonnegative integers. Plays before the first score must show 0–0; the first score must show only that team's stated points. Nonzero earlier totals, partial totals and inconsistent first-score totals are rejected. Totals omitted entirely remain supported; this does not prove a feed is complete, and checks stop at the first scoring play. Non-scoring gaps and later score corrections are not certified.
+
+The shared adapter applies these checks to history sync, prior-season imports, explicit repair and forward-journal grading. Import failures remain retryable; invalid journal outcomes stay pending. Already saved history and settled journal outcomes are not automatically changed. Scoring formulas are unchanged.
+
+Validation: 137 unit tests and all Streamlit smoke checks passed, including the recorded ESPN fixture, unreadable first scorers, contradictory scoreboard totals, valid free throws, play ordering, duplicate handling, invalid metadata and pending journal outcomes. Windows execution and a live-provider download were not tested for this release.
+
 APEX V2.21.0 — Diagnose team versus player scoring errors
 
 Full model validation now separates each historical prediction into the probability of the winning team scoring first and the winner's conditional share within that team. The two log losses add to the original ten-player log loss. Stage summaries compare team loss with a 50/50 baseline and within-team loss with an equal-five baseline, on both all evaluated dates and the newest quarter, for all three models.
