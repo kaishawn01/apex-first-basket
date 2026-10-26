@@ -78,4 +78,34 @@ class UpdateTests(unittest.TestCase):
                 self.assertTrue(u.check(root)['available'])
             self.assertIn('/'+'a'*40+'/',fetch.call_args.args[0])
 
+class StartupUpdateTests(unittest.TestCase):
+    def test_auto_stages_new_release_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            for available in (False,True):
+                r,_=release();r['available']=available
+                with patch.object(u,'check',return_value=r),patch.object(u,'stage') as stage:
+                    u.auto_stage(root)
+                    self.assertEqual(stage.call_count,int(available))
+    def test_network_failure_keeps_installed_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'VERSION').write_text('2.2.0')
+            with patch.object(u,'check',side_effect=RuntimeError('offline')),patch.object(u,'stage') as stage:
+                u.auto_stage(root);stage.assert_not_called()
+            self.assertEqual(u.current_version(root),'2.2.0')
+    def test_timeout_and_disabled_startup(self):
+        import launcher
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            with patch.object(launcher.subprocess,'run',side_effect=launcher.subprocess.TimeoutExpired('update',90)) as run:
+                launcher.prepare_startup_update(Path('python'),root)
+                self.assertEqual(run.call_args.kwargs['timeout'],90)
+            (root/'.apex_auto_update_disabled').touch()
+            with patch.object(launcher.subprocess,'run') as run:
+                launcher.prepare_startup_update(Path('python'),root);run.assert_not_called()
+    def test_restart_does_not_check_again(self):
+        import launcher
+        with tempfile.TemporaryDirectory() as tmp,patch.object(launcher.sys,'argv',['launcher.py','--skip-auto-update']),patch.object(launcher.subprocess,'run') as run:
+            launcher.prepare_startup_update(Path('python'),Path(tmp));run.assert_not_called()
+
 if __name__=='__main__':unittest.main()

@@ -68,7 +68,6 @@ class ResearchTests(unittest.TestCase):
             self.assertEqual(len(report['skipped']),1)
             self.assertEqual(report['remaining'],1)
 
-if __name__=='__main__':unittest.main()
 
 class ForwardJournalTests(unittest.TestCase):
     def setUp(self):
@@ -130,3 +129,55 @@ class ForwardJournalTests(unittest.TestCase):
                 self.assertEqual(rt.refresh_journal(path)[0],1)
                 self.assertEqual(rt.refresh_journal(path)[0],0)
                 self.assertEqual(req.call_count,1)
+
+class RecentModelTests(unittest.TestCase):
+    def setUp(self):
+        self.players=[{'player_id':str(10+i),'player':f'BOS Player {i}'} for i in range(5)]
+    def test_new_players_uniform_and_matchup_symmetric(self):
+        shares=eng.recent_player_weights([],self.players,'BOS','2026-10-25')
+        self.assertTrue(all(abs(r[1]-.2)<1e-12 for r in shares))
+        stats={'BOS':{'first':.6},'NYK':{'first':.4}}
+        self.assertAlmostEqual(eng.recent_first_team_probability('BOS','NYK',stats)+eng.recent_first_team_probability('NYK','BOS',stats),1)
+    def test_recent_game_gets_more_weight(self):
+        old=game_rows('old','2026-01-01');new=game_rows('new','2026-10-24')
+        # Old game involved player 0; recent game involved player 1.
+        for r in new:
+            if r['team']=='BOS':
+                r['first_team_shot']=int(r['player_id']=='11')
+                r['first_scorer']=int(r['player_id']=='11')
+        result={r[0]['player_id']:r for r in eng.recent_player_weights(old+new,self.players,'BOS','2026-10-25')}
+        self.assertGreater(result['11'][1],result['10'][1])
+        self.assertAlmostEqual(sum(r[1] for r in result.values()),1)
+    def test_same_day_and_future_excluded(self):
+        rows=game_rows('today','2026-10-25')+game_rows('future','2026-10-26')
+        self.assertEqual(eng.recent_team_stats(rows,'2026-10-25'),{})
+        self.assertTrue(all(r[5]==0 for r in eng.recent_player_weights(rows,self.players,'BOS','2026-10-25')))
+    def test_score_share_is_conditional_on_team_first(self):
+        rows=game_rows('a','2026-10-24')
+        # Opponent-first games increase shot exposures but not team-first scoring opportunities.
+        opponent=game_rows('b','2026-10-24')
+        for r in opponent:
+            r['team_scored_first']=int(r['team']=='NYK')
+            r['first_scorer']=int(r['team']=='NYK' and r['player_id']=='20')
+        before=eng.recent_player_weights(rows,self.players,'BOS','2026-10-25')[0][7]
+        after=eng.recent_player_weights(rows+opponent,self.players,'BOS','2026-10-25')[0][7]
+        self.assertAlmostEqual(before,after)
+    def test_comparison_uses_identical_holdouts(self):
+        from datetime import date,timedelta
+        rows=[r for i in range(6) for r in game_rows(str(i),(date(2026,10,15)+timedelta(days=i)).isoformat())]
+        base=rt.evaluate(rows,2,'baseline');recent=rt.evaluate(rows,2,'recent')
+        self.assertEqual([r['Game'] for r in base['games']],[r['Game'] for r in recent['games']])
+        self.assertEqual([r['Training games'] for r in base['games']],[r['Training games'] for r in recent['games']])
+    def test_research_matchup_no_odds_no_journal(self):
+        import dashboard_core as core
+        from datetime import datetime,timezone
+        game={'gameId':'research_test','_date':'2026-10-25','start_time':'2026-10-25T23:00:00Z','gameStatus':0,'research_only':True,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
+        lineups={'BOS':self.players,'NYK':[{'player_id':str(20+i),'player':f'NYK Player {i}'} for i in range(5)]}
+        rows=core.rank_game([],game,lineups,{}, {('research_test','bosplayer0'):(7.5,'650','test','')},[],model='recent')
+        self.assertAlmostEqual(sum(r['_probability'] for r in rows),1)
+        self.assertTrue(all(r['Status']=='RESEARCH MATCHUP' and r['Book odds']=='' and r['Model EV %'] is None for r in rows))
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,'Research matchups'):
+                rt.save_forecast(game,rows,{'BOS':True,'NYK':True},'2.4.0','hash',path=Path(tmp)/'j',now=datetime(2026,10,25,22,tzinfo=timezone.utc))
+
+if __name__=='__main__':unittest.main()

@@ -51,4 +51,27 @@ with patch.object(eng,'read_csv',return_value=history2):
  metrics=next(d.value for d in at.dataframe if 'Log loss' in d.value.columns)
  assert metrics.iloc[0]['Evaluated games']==10
  assert any(d.label=='Download game-by-game backtest' for d in at.get('download_button'))
- print('Backtest UI passed: evaluation, comparison table, CSV export.')
+ next(b for b in at.button if b.label=='Compare baseline vs recent form').click().run()
+ assert not at.exception,list(at.exception)
+ comparison=next(d.value for d in at.dataframe if 'Model' in d.value.columns and set(d.value['Model'])=={'baseline','recent'})
+ assert list(comparison['Evaluated games'])==[10,10]
+ print('Backtest UI passed: evaluation, model comparison on matching games, CSV export.')
+
+with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ at.date_input[0].set_value(date(2027,1,2)).run()
+ next(r for r in at.radio if r.label=='Workspace').set_value('Research matchup').run()
+ next(s for s in at.selectbox if s.label=='Research team A').set_value('BOS').run()
+ next(s for s in at.selectbox if s.label=='Research team B').set_value('NYK').run()
+ next(s for s in at.selectbox if s.label=='Scoring model').set_value('recent').run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ assert not at.exception,list(at.exception)
+ next(b for b in at.button if 'Run rankings' in b.label).click().run()
+ assert not at.exception,list(at.exception)
+ ranking=next(d.value for d in at.dataframe if 'Model %' in d.value.columns)
+ assert len(ranking)==10 and set(ranking['Status'])=={'RESEARCH MATCHUP'}
+ assert set(ranking['Model'])=={'recent'}
+ assert next(b for b in at.button if b.label=='Fetch FanDuel first-basket odds').disabled
+ assert next(b for b in at.button if b.label=='Save confirmed forecasts to journal').disabled
+ assert research.journal_records()==[]
+ print('Research mode UI passed: after-hours ranking, candidate model, no live slate request, odds and journal disabled.')

@@ -638,5 +638,51 @@ def main():
         sys.exit(1)
 
 
+
+# Experimental recency model. Fixed design choices, not fitted parameters.
+def recent_team_stats(history, target_day, half_life=90.0):
+    target=date.fromisoformat(target_day)
+    by_team=defaultdict(dict)
+    for row in history:
+        age=(target-date.fromisoformat(row['date'])).days
+        if age<=0 or age>400:continue
+        weight=2.0**(-age/half_life)
+        by_team[row['team']][row['game_id']]=(row,weight)
+    result={}
+    for team,games in by_team.items():
+        mass=sum(w for r,w in games.values())
+        first=sum(w*int(r['team_scored_first']) for r,w in games.values())
+        result[team]={'n':len(games),'weighted_games':mass,'first':(first+10)/(mass+20)}
+    return result
+
+
+def recent_first_team_probability(team,opponent,stats):
+    a=stats.get(team,{}).get('first',.5)
+    b=stats.get(opponent,{}).get('first',.5)
+    strength_a=a*(1-b);strength_b=b*(1-a)
+    return max(.25,min(.75,strength_a/(strength_a+strength_b)))
+
+
+def recent_player_weights(history,starters,team,target_day,half_life=90.0):
+    target=date.fromisoformat(target_day)
+    by_player=defaultdict(list)
+    for row in history:
+        age=(target-date.fromisoformat(row['date'])).days
+        if row['team']==team and 0<age<=400:
+            by_player[row['player_id']].append((row,2.0**(-age/half_life)))
+    raw=[]
+    for player in starters:
+        rows=by_player[player['player_id']]
+        mass=sum(w for r,w in rows)
+        shots=sum(w*int(r['first_team_shot']) for r,w in rows)
+        scores=sum(w*int(r['first_scorer']) for r,w in rows)
+        opportunities=sum(w*int(r['team_scored_first']) for r,w in rows)
+        shot_rate=(shots+2)/(mass+10)
+        conditional_rate=(scores+1)/(opportunities+5)
+        weight=.65*shot_rate+.35*conditional_rate
+        raw.append((player,weight,len(rows),sum(int(r['first_team_shot']) for r,w in rows),sum(int(r['first_scorer']) for r,w in rows),mass,shot_rate,conditional_rate))
+    total=sum(r[1] for r in raw)
+    return [(p,w/total,n,shots,scores,mass,shot,conditional) for p,w,n,shots,scores,mass,shot,conditional in raw]
+
 if __name__ == "__main__":
     main()

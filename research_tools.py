@@ -113,7 +113,8 @@ def import_season(season_end,limit=250,progress=lambda msg:None):
     return summary
 
 
-def evaluate(rows,min_training=100):
+def evaluate(rows,min_training=100,model="baseline"):
+    if model not in ("baseline","recent"):raise ValueError("Unknown model.")
     valid,issues=audit(rows)
     byday=defaultdict(lambda:defaultdict(list))
     for r in valid: byday[r['date']][r['game_id']].append(r)
@@ -121,12 +122,15 @@ def evaluate(rows,min_training=100):
     for day in sorted(byday):
         train=history_window(prior,day)
         if len({r['game_id'] for r in train})>=min_training:
-            stats=eng.team_stats(train)
+            stats=eng.recent_team_stats(train,day) if model=="recent" else eng.team_stats(train)
             for gid,game in byday[day].items():
                 a,b=sorted({r['team'] for r in game})
-                pa=eng.first_team_probability(a,b,stats); probs={}
+                pa=eng.recent_first_team_probability(a,b,stats) if model=="recent" else eng.first_team_probability(a,b,stats)
+                probs={}
                 for team,pt in ((a,pa),(b,1-pa)):
-                    for p,w,*_ in eng.player_weights(train,[r for r in game if r['team']==team],team):
+                    players=[r for r in game if r['team']==team]
+                    weights=eng.recent_player_weights(train,players,team,day) if model=='recent' else eng.player_weights(train,players,team)
+                    for p,w,*_ in weights:
                         probs[p['player_id']]=pt*w
                 winner=next(r for r in game if int(r['first_scorer']))
                 wp=probs[winner['player_id']]
@@ -143,7 +147,7 @@ def evaluate(rows,min_training=100):
         if subset: bins.append({'Probability band':f'{lo:.0%}–{min(hi,1):.0%}','Player predictions':len(subset),'Mean predicted %':100*sum(p for p,y in subset)/len(subset),'Observed first-score %':100*sum(y for p,y in subset)/len(subset)})
     n=len(results)
     metrics={'Evaluated games':n,'Top-1 hit %':100*sum(r['Top-1 credit'] for r in results)/n if n else None,'Log loss':sum(r['Log loss'] for r in results)/n if n else None,'Brier':sum(r['Brier'] for r in results)/n if n else None}
-    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS}
+    return {'metrics':metrics,'games':results,'calibration':bins,'excluded':issues,'fingerprint':fingerprint(rows),'min_training':min_training,'window_days':MODEL_DAYS,'model':model}
 
 # Forward journal: local, immutable pregame forecasts; outcomes are stored separately.
 def journal_connection(path=None):
@@ -159,6 +163,7 @@ def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=Non
     from datetime import timezone
     import math
     now=now or datetime.now(timezone.utc)
+    if game.get('research_only') or any(r.get('_research_only') for r in rows):raise ValueError('Research matchups cannot be saved as forward forecasts.')
     if not core.upcoming(game,now):raise ValueError('Game has started or is no longer scheduled. Forecast was not saved.')
     teams={game[s]['teamTricode'] for s in ('homeTeam','awayTeam')}
     if not all(confirmed.get(team,False) for team in teams):raise ValueError('Verify both announced starting fives before saving a forward forecast.')
@@ -168,7 +173,7 @@ def save_forecast(game,rows,confirmed,model_version,history_hash,injury_time=Non
     probs=[r['_probability'] for r in rows]
     if any(not math.isfinite(p) or p<=0 or p>=1 for p in probs) or abs(sum(probs)-1)>1e-8:raise ValueError('Forecast probabilities must be positive and sum to one.')
     snapshot={'game_id':game['gameId'],'date':game['_date'],'start_time':game['start_time'],'saved_at':now.isoformat(),
-              'model_version':model_version,'history_hash':history_hash,'injuries_checked_at':injury_time,
+              'model_version':model_version,'model':rows[0].get('Model','baseline'),'history_hash':history_hash,'injuries_checked_at':injury_time,
               'lineup_confirmation':'User confirmed','rows':rows}
     conn=journal_connection(path)
     try:
@@ -252,11 +257,11 @@ def journal_table(records):
         snap=record['snapshot'];outcome=record['outcome'];best=max(r['_probability'] for r in snap['rows'])
         tops=[r['Player'] for r in snap['rows'] if abs(r['_probability']-best)<1e-12]
         table.append({'Game':snap['game_id'],'Date':snap['date'],'Matchup':snap['rows'][0]['Matchup'],
-                      'Version':snap['model_version'],'Saved before tip':snap['saved_at'],
+                      'Version':snap['model_version'],'Model':snap.get('model','baseline'),'Saved before tip':snap['saved_at'],
                       'Top prediction':' / '.join(tops),'Top probability %':100*best,
                       'Winner':outcome['winner'] if outcome else 'Pending',
                       'Top-1 credit':outcome['top1_credit'] if outcome else None,
                       'Lineup matched':outcome['lineup_matches'] if outcome else None,
                       'Outside field':outcome['outside_field'] if outcome else None,
-                      'Sample holds':sum(r['Status']=='HOLD: SAMPLE' for r in snap['rows'])})
+                      'Sample holds':sum(r['Status'] in ('HOLD: SAMPLE','HOLD: WEIGHTED SAMPLE') for r in snap['rows'])})
     return table

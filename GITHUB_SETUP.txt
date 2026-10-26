@@ -1,3 +1,26 @@
+APEX V2.4.1 — Automatic startup updates
+
+Launch with START_APEX.bat. Published updates are checked, verified, backed up and installed before the dashboard opens. The startup download has a 90-second timeout; network failures leave the installed app available. Disable this in App updates if desired. RESTORE_APEX.bat restores the previous programs and pauses automatic updates. Direct streamlit launches do not run the startup updater.
+
+To upgrade from V2.3 or V2.4, use Check for updates, Download update for next launch, then close the command window and reopen START_APEX.bat once. Future published updates install at startup. History and keys are preserved. Includes the V2.4 research workspace and experimental recent-form engine.
+
+APEX 2.4.0 — CORE MODEL UPDATE
+
+Upload every file inside this release folder to your repository root:
+https://github.com/kaishawn01/apex-first-basket
+Add file > Upload files > Commit changes. Keep the other existing files.
+
+Then in APEX: App updates > Check for updates > Download update for next launch.
+Close the APEX command window and reopen START_APEX.bat. Look for V2.4.0.
+
+To work after games have started: choose Research matchup in the sidebar,
+select two teams, load projected starters, and run rankings. No odds key is
+required. Research results are hypothetical and cannot enter the forward journal.
+
+Choose Recent form (experimental) to test recency-weighted scoring. Baseline
+remains the default until evidence supports a change. In Backtest lab, Compare
+baseline vs recent form evaluates both on identical historical holdouts.
+
 APEX 2.3.0 — PUBLISH THIS UPGRADE
 
 This folder contains only changed release files plus update_manifest.json.

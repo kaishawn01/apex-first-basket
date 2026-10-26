@@ -43,6 +43,13 @@ with st.sidebar:
             elif settings_path.exists(): settings_path.unlink()
             st.success('Settings applied.')
     with st.expander('App updates'):
+        auto_disabled=eng.ROOT/'.apex_auto_update_disabled'
+        auto_enabled=st.checkbox('Install published updates when APEX starts',value=not auto_disabled.exists())
+        if auto_enabled:
+            auto_disabled.unlink(missing_ok=True)
+        else:
+            auto_disabled.touch()
+        st.caption('Startup checks allow up to 90 seconds for downloading. If GitHub is unavailable, the installed app opens. Launch with START_APEX.bat.')
         st.caption('Updates come from kaishawn01/apex-first-basket on GitHub. New versions must be published there first.')
         if (eng.ROOT/'.apex_pending').exists():
             st.success('Update prepared. Close the APEX command window and reopen START_APEX.bat to install it.')
@@ -68,6 +75,15 @@ with st.sidebar:
     st.caption('API calls happen when you press a refresh button. Fetching odds can consume your API credits.')
     day=st.date_input('Game date • Eastern time',datetime.now(ZoneInfo('America/New_York')).date(),key='slate_date').isoformat()
     st.caption('Confirmations are specific to this session, date, game, and selected five. Changing players clears confirmation.')
+    selected_model=st.selectbox('Scoring model',['baseline','recent'],format_func=lambda m:'Baseline (current default)' if m=='baseline' else 'Recent form (experimental)',key='scoring_model')
+    analysis_mode=st.radio('Workspace',['Upcoming slate','Research matchup'],key='workspace_mode')
+    research_away=research_home=None
+    if analysis_mode=='Research matchup':
+        research_away=st.selectbox('Research team A',sorted(eng.TEAMS),key='research_a')
+        research_home=st.selectbox('Research team B',[t for t in sorted(eng.TEAMS) if t!=research_away],key='research_b')
+        st.caption('Compare hypothetical starting fives at any time. No odds or forward-journal saves. Current rosters are used; this is not a historical replay.')
+    st.caption('Recent form uses a 90-day half-life, smoothed first-shot involvement, and scoring share conditional on the team scoring first. These settings have not been fitted or validated as better.')
+
 
 hist=eng.read_csv(eng.HISTORY)
 a,b,c=st.columns(3)
@@ -94,14 +110,17 @@ if sync_col.button('1 · Sync history',use_container_width=True):
 if slate_col.button('2 · Load slate & projected starters',type='primary',use_container_width=True):
     try:
         with st.spinner('Loading today’s games and team rosters…'):
-            games=core.fresh_schedule(day)
+            if analysis_mode=='Research matchup':
+                games=[{'gameId':f'research_{research_away}_{research_home}_{day}','_date':day,'gameStatus':0,'research_only':True,'start_time':day+'T23:00:00Z','awayTeam':{'teamTricode':research_away},'homeTeam':{'teamTricode':research_home}}]
+            else:
+                games=core.fresh_schedule(day)
             roster_map={}; errors=[]
             for team in sorted({g[s]['teamTricode'] for g in games for s in ('awayTeam','homeTeam')}):
                 try: roster_map[team]=core.roster(team)
                 except (RuntimeError,KeyError,ValueError) as exc:
                     errors.append(f'{team}: roster unavailable; only historical starters are available.')
                     roster_map[team]=[{'player_id':r['player_id'],'player':r['player']} for r in eng.recent_starters([r for r in hist if r['date']<day],team)]
-            st.session_state['slate']={'day':day,'games':games,'rosters':roster_map,'loaded':datetime.now().isoformat(timespec='seconds'),'errors':errors}
+            st.session_state['slate']={'day':day,'games':games,'rosters':roster_map,'loaded':datetime.now().isoformat(timespec='seconds'),'errors':errors,'mode':analysis_mode,'research_teams':[research_away,research_home]}
             st.session_state['revision']=st.session_state.get('revision',0)+1
             st.session_state.pop('results',None)
             st.session_state.pop('prices',None)
@@ -128,19 +147,24 @@ else:
     st.warning('Injuries have not been checked. Refresh reports or review availability yourself.')
 
 slate=st.session_state.get('slate')
-if not slate or slate['day']!=day:
+if not slate or slate['day']!=day or slate.get('mode','Upcoming slate')!=analysis_mode or (analysis_mode=='Research matchup' and slate.get('research_teams')!=[research_away,research_home]):
     st.markdown('### Get started')
     st.write('Sync your history, then load the slate. Projected lineups will appear below automatically.')
 else:
     for warning in slate['errors']: st.warning(warning)
-    games=[g for g in slate['games'] if core.upcoming(g)]
-    st.caption('Slate loaded: '+slate['loaded']+' • Games that have started are excluded.')
-    if not games: st.info('No unstarted regular-season games for this date.')
+    games=[g for g in slate['games'] if g.get('research_only') or core.upcoming(g)]
+    st.caption('Loaded: '+slate['loaded'])
+    if analysis_mode=='Upcoming slate':
+        counts={status:sum(g['gameStatus']==status for g in slate['games']) for status in (1,2,3)}
+        st.caption(f"Schedule: {counts[1]} scheduled · {counts[2]} live/other · {counts[3]} completed · {len(games)} eligible for pregame rankings")
+        if not games: st.info('No unstarted regular-season games are available for this date. Choose a future date or use Research matchup to work on the scoring model now. Odds API access does not control this filter.')
+    else:
+        st.warning('RESEARCH MATCHUP — hypothetical lineups, not a live game or a pregame forecast.')
     choices={}; confirmations={}
     for g in games:
         gid=g['gameId']; away,home=(g[s]['teamTricode'] for s in ('awayTeam','homeTeam'))
         start=datetime.fromisoformat(g['start_time'].replace('Z','+00:00')).astimezone(ZoneInfo('America/New_York'))
-        with st.expander(f'{away} @ {home} · {start:%I:%M %p} ET',expanded=True):
+        with st.expander(f'{away} vs {home} · RESEARCH' if g.get('research_only') else f'{away} @ {home} · {start:%I:%M %p} ET',expanded=True):
             choices[gid]={}; confirmations[gid]={}
             for col,team in zip(st.columns(2),(away,home)):
                 with col:
@@ -154,12 +178,16 @@ else:
                     for pid in selected:
                         report=core.injury_for(reports,team,byid[pid]['player'])
                         if report: st.warning(f"{report['player']}: {report['status']} — {report['description']}")
-                    confirmed=st.checkbox(f'I verified {team}’s announced starters for this game',key=f'confirm:{day}:{gid}:{team}:{st.session_state.get("revision",0)}:{",".join(sorted(selected))}',disabled=len(selected)!=5)
-                    confirmations[gid][team]=confirmed and len(selected)==5
-                    st.caption('USER CONFIRMED' if confirmations[gid][team] else 'PROJECTED / UNCONFIRMED')
+                    if g.get('research_only'):
+                        confirmations[gid][team]=False
+                        st.caption('HYPOTHETICAL STARTING FIVE')
+                    else:
+                        confirmed=st.checkbox(f'I verified {team}’s announced starters for this game',key=f'confirm:{day}:{gid}:{team}:{st.session_state.get("revision",0)}:{",".join(sorted(selected))}',disabled=len(selected)!=5)
+                        confirmations[gid][team]=confirmed and len(selected)==5
+                        st.caption('USER CONFIRMED' if confirmations[gid][team] else 'PROJECTED / UNCONFIRMED')
     st.markdown('### Market & rankings')
     st.caption('Refresh odds shortly before running rankings. Prices expire after 10 minutes in this dashboard.')
-    if st.button('Fetch FanDuel first-basket odds',disabled=not games):
+    if st.button('Fetch FanDuel first-basket odds',disabled=not games or analysis_mode=='Research matchup'):
         st.session_state.pop('prices',None); st.session_state.pop('results',None)
         try:
             with st.spinner('Fetching prices…'):
@@ -171,18 +199,19 @@ else:
             st.error(str(exc) if isinstance(exc,(RuntimeError,ValueError)) else 'Unexpected odds response.')
     prices_state=st.session_state.get('prices',{})
     prices=prices_state.get('values',{}) if prices_state.get('day')==day and datetime.now().timestamp()-prices_state.get('fetched',0)<600 else {}
+    if analysis_mode=='Research matchup':prices={}
     st.caption(f'{len(prices)} current player prices available. Rankings can run without prices; EV stays blank.')
-    signature=json.dumps({'day':day,'choices':choices,'confirmed':confirmations,'odds_time':prices_state.get('fetched') if prices else None,'injury_time':inj.get('time'),'history':research.fingerprint(hist)},sort_keys=True)
+    signature=json.dumps({'day':day,'choices':choices,'confirmed':confirmations,'odds_time':prices_state.get('fetched') if prices else None,'injury_time':inj.get('time'),'history':research.fingerprint(hist),'model':selected_model,'workspace':analysis_mode},sort_keys=True)
     if st.button('3 · Run rankings',type='primary',disabled=not games):
         st.session_state.pop('results',None)
         try:
-            fresh={g['gameId']:g for g in core.fresh_schedule(day)}
+            fresh={g['gameId']:g for g in games} if analysis_mode=='Research matchup' else {g['gameId']:g for g in core.fresh_schedule(day)}
             rows=[]
             for g in games:
                 current=fresh.get(g['gameId'])
-                if not current or not core.upcoming(current):
+                if not current or (not current.get('research_only') and not core.upcoming(current)):
                     st.warning(f"{g['gameId']}: started or no longer scheduled; skipped."); continue
-                rows.extend(core.rank_game(hist,current,choices[g['gameId']],confirmations[g['gameId']],prices,reports))
+                rows.extend(core.rank_game(hist,current,choices[g['gameId']],confirmations[g['gameId']],prices,reports,model=selected_model))
             st.session_state['results']={'rows':rows,'signature':signature,'time':datetime.now().isoformat(timespec='seconds')}
         except (RuntimeError,ValueError,KeyError) as exc:
             st.error(str(exc) if isinstance(exc,(RuntimeError,ValueError)) else 'Unexpected data response. Reload slate.')
@@ -193,7 +222,7 @@ else:
         st.dataframe(frame,hide_index=True,use_container_width=True)
         st.download_button('Download rankings CSV',frame.to_csv(index=False).encode('utf-8'),f'apex_rankings_{day}.csv','text/csv')
         st.caption('Forward testing saves your first user-confirmed forecast for each game. Saved forecasts cannot be overwritten; later lineup edits do not change the journal.')
-        if st.button('Save confirmed forecasts to journal'):
+        if st.button('Save confirmed forecasts to journal',disabled=analysis_mode=='Research matchup'):
             try:
                 live={g['gameId']:g for g in core.fresh_schedule(day)}
                 saved=0;duplicates=0
@@ -257,9 +286,18 @@ with st.expander('Backtest lab · test the model before trusting it'):
     warmup=st.selectbox('Minimum training games before evaluation',[30,100,250],index=1)
     if st.button('Run walk-forward evaluation'):
         with st.spinner('Evaluating historical games…'):
-            st.session_state['evaluation']=research.evaluate(hist,warmup)
+            st.session_state['evaluation']=research.evaluate(hist,warmup,model=selected_model)
+    st.caption('Evaluation model: '+selected_model)
+    if st.button('Compare baseline vs recent form'):
+        with st.spinner('Testing both models on identical chronological holdouts…'):
+            compared={name:research.evaluate(hist,warmup,model=name) for name in ('baseline','recent')}
+            st.session_state['model_comparison']={'fingerprint':research.fingerprint(hist),'warmup':warmup,'results':compared}
+    comparison=st.session_state.get('model_comparison')
+    if comparison and comparison['fingerprint']==research.fingerprint(hist) and comparison['warmup']==warmup:
+        st.dataframe(pd.DataFrame([{'Model':name,**result['metrics']} for name,result in comparison['results'].items()]),hide_index=True,use_container_width=True)
+        st.caption('Same saved games and training dates for both models. This comparison does not select or tune a winner automatically. Use the forward journal for new-game validation.')
     evaluation=st.session_state.get('evaluation')
-    if evaluation and evaluation['fingerprint']==research.fingerprint(hist) and evaluation['min_training']==warmup:
+    if evaluation and evaluation['fingerprint']==research.fingerprint(hist) and evaluation['min_training']==warmup and evaluation.get('model','baseline')==selected_model:
         m=evaluation['metrics'];n=m['Evaluated games']
         if not n: st.info('Not enough eligible dates after the training period. Import more history or lower the minimum training size.')
         else:
@@ -293,6 +331,8 @@ with st.expander('Forward-testing journal · actual future results'):
             versions=sorted({r['snapshot']['model_version'] for r in records})
             chosen=st.selectbox('Journal model version',['All versions']+versions)
             selected=records if chosen=='All versions' else [r for r in records if r['snapshot']['model_version']==chosen]
+            journal_model=st.selectbox('Journal scoring model',['All models','baseline','recent'])
+            if journal_model!='All models':selected=[r for r in selected if r['snapshot'].get('model','baseline')==journal_model]
             metrics=research.journal_summary(selected)
             j1,j2,j3=st.columns(3)
             j1.metric('Saved forecasts',metrics['Saved games'])

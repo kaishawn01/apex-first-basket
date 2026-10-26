@@ -146,3 +146,24 @@ def rollback(root=ROOT):
     pending=root/'.apex_pending'
     if pending.exists():shutil.rmtree(pending)
     return current_version(root)
+
+
+def auto_stage(root=ROOT):
+    """Called under the launcher lock, before Streamlit starts."""
+    if (root/'.apex_pending').exists():
+        return
+    try:
+        release=check(root)
+        if release['available']:
+            print('Downloading APEX '+release['manifest']['version']+'…', flush=True)
+            stage(release, root)
+        else:
+            print('APEX is up to date.', flush=True)
+    except Exception as exc:
+        print('Automatic update unavailable: '+str(exc)+' Opening installed version.', flush=True)
+
+
+if __name__=='__main__':
+    import sys
+    if '--auto-stage' in sys.argv:
+        auto_stage()

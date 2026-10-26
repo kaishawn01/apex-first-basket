@@ -9,6 +9,19 @@ import updater
 ROOT=Path(__file__).resolve().parent
 
 
+def prepare_startup_update(python, root=ROOT):
+    """Download in the app environment; bound startup delay and fail open."""
+    if (root/'.apex_auto_update_disabled').exists() or '--skip-auto-update' in sys.argv:
+        return
+    print('Checking for APEX updates…', flush=True)
+    try:
+        subprocess.run([str(python), str(root/'updater.py'), '--auto-stage'],
+                       cwd=root, timeout=90, check=True,
+                       env={**os.environ, 'PYTHONIOENCODING':'utf-8'})
+    except (subprocess.SubprocessError, OSError):
+        print('Update check did not finish. Opening the installed version.', flush=True)
+
+
 def main():
     os.chdir(ROOT)
     with (ROOT/'.apex_running.lock').open('a+b') as lock:
@@ -28,7 +41,9 @@ def main():
             return 1
         try:
             if '--restore' in sys.argv:
-                print('Restored APEX '+updater.rollback(ROOT));return 0
+                restored=updater.rollback(ROOT)
+                (ROOT/'.apex_auto_update_disabled').touch()
+                print('Restored APEX '+restored+'. Automatic updates paused.');return 0
             updated=updater.apply_pending(ROOT)
             if updated:
                 print('Installed APEX '+updated+'. Starting the updated launcher…',flush=True)
@@ -43,10 +58,15 @@ def main():
                 if not marker.exists() or marker.read_text()!=requirement_hash:
                     subprocess.run([str(python),'-m','pip','install','-r',str(ROOT/'requirements.txt')],check=True)
                     marker.write_text(requirement_hash)
-                return subprocess.call([str(python),'-m','streamlit','run','app.py','--server.address','127.0.0.1','--server.port','8501','--browser.gatherUsageStats','false','--server.fileWatcherType','none'],env={**os.environ,'PYTHONIOENCODING':'utf-8'})
+                prepare_startup_update(python)
+                updated=updater.apply_pending(ROOT)
+                if updated:
+                    print('Installed APEX '+updated+'. Restarting launcher…',flush=True)
+                else:
+                    return subprocess.call([str(python),'-m','streamlit','run','app.py','--server.address','127.0.0.1','--server.port','8501','--browser.gatherUsageStats','false','--server.fileWatcherType','none'],env={**os.environ,'PYTHONIOENCODING':'utf-8'})
         except Exception as exc:
             print(f'APEX could not start: {exc}\nIf an update failed, close APEX and run RESTORE_APEX.bat.')
             return 1
-    return subprocess.call([sys.executable,str(ROOT/'launcher.py')])
+    return subprocess.call([sys.executable,str(ROOT/'launcher.py'),'--skip-auto-update'])
 
 if __name__=='__main__':sys.exit(main())

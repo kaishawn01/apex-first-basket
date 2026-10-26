@@ -1,4 +1,10 @@
-# APEX First Basket Dashboard V2.3.0
+APEX V2.4.1 — Automatic startup updates
+
+Launch with START_APEX.bat. Published updates are checked, verified, backed up and installed before the dashboard opens. The startup download has a 90-second timeout; network failures leave the installed app available. Disable this in App updates if desired. RESTORE_APEX.bat restores the previous programs and pauses automatic updates. Direct streamlit launches do not run the startup updater.
+
+To upgrade from V2.3 or V2.4, use Check for updates, Download update for next launch, then close the command window and reopen START_APEX.bat once. Future published updates install at startup. History and keys are preserved. Includes the V2.4 research workspace and experimental recent-form engine.
+
+# APEX First Basket Dashboard V2.4.0
 
 A local Streamlit dashboard powered by the existing Python first-score model.
 
@@ -87,3 +93,22 @@ Journal data is stored only in `data/forward_journal.sqlite3` and is excluded fr
 The GitHub certificate fix is retained with certificate verification enabled. The release uses only filenames accepted by the published V2.2.0 updater. No new dependencies are required.
 
 Validation: 35 unit tests passed, including pre-tip saves, confirmation requirements, duplicate protection, free-throw scoring, nonstarter winners, game-ID checks and pending/result handling. Streamlit UI tests cover saving, duplicate prevention and CSV export. Published-updater compatibility is tested with simulated downloads of the actual release bytes; live Windows installation remains to be verified.
+
+## V2.4.0 — Core model research and after-hours analysis
+
+**Why no rankings?** Pregame mode requires scheduled games whose start time has not passed. Once the slate has started, the eligible set can be empty. Odds API absence or failure is not supposed to prevent ranking; it leaves book prices and EV blank. The dashboard now shows scheduled, live/other, completed and eligible game counts. A screenshot of an actual error may still be needed to diagnose a particular failed run.
+
+**Research matchup** in the sidebar lets you select any two teams and edit hypothetical fives at any time. Choose teams, load projected starters, then run rankings. It uses the chosen date as a training cutoff and the current roster where available. This is not a historical roster replay or a live game. It makes no schedule/odds request, though loading current rosters still uses ESPN (with a historical-starters fallback). Research outputs cannot be saved as pregame forward forecasts.
+
+**Recent form (experimental)** is an optional scoring model; the baseline remains the default. It uses:
+- A 400-day training window and 90-day exponential half-life. Same-day and future records are excluded.
+- Team first-score frequency smoothed toward 50% with 20 prior games. The two teams' smoothed odds are combined symmetrically, capped at 25–75%.
+- Player first-team-shot involvement smoothed toward 20% with ten prior starts.
+- Player share of first scores *conditional on their team scoring first while they started*, smoothed toward 20% with five such opportunities.
+- A fixed 65% first-shot / 35% conditional-score blend, normalized across the selected five, multiplied by team-first probability.
+
+These are hand-chosen research settings, not fitted parameters. The model does not yet have verified tip winners, opening play calls, shot-location matchup effects, or first-shot conversion rates. It uses the existing history schema and inherits its nonstarter-scorer exclusion bias. Older data can become less representative after trades and role changes; weighted sample holds indicate limited recent evidence. Weighted starts mean the sum of recency weights, not a formal independent effective sample size.
+
+The ranking table shows the selected model alongside baseline probability, team-first probability and weighted starts. The Backtest lab can compare both models on identical chronological holdouts. No model is automatically promoted based on these results. The journal records model identity; older journal records are treated as baseline.
+
+Validation: 41 unit tests passed, including recency behavior, same-day/future exclusion, conditional opportunities, probability normalization, matching comparison holdouts, research-mode odds suppression and journal rejection. Streamlit tests cover research mode without a schedule request and both-model backtest comparison. No empirical accuracy improvement is claimed; run comparisons on your expanded history and continue forward testing.

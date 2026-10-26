@@ -123,7 +123,8 @@ def live_prices(key, games):
     return prices, messages
 
 
-def rank_game(history, game, lineups, confirmed, prices, reports):
+def rank_game(history, game, lineups, confirmed, prices, reports, model="baseline"):
+    if model not in ("baseline", "recent"): raise ValueError("Unknown model.")
     from research_tools import history_window, audit
     hist, issues = audit(history_window(history, game["_date"]))
     if issues:
@@ -137,6 +138,9 @@ def rank_game(history, game, lineups, confirmed, prices, reports):
         raise ValueError("A player cannot appear on both teams.")
     stats = eng.team_stats(hist)
     pa = eng.first_team_probability(away, home, stats)
+    baseline_pa = pa
+    recent_stats = eng.recent_team_stats(hist,game["_date"])
+    if model=="recent": pa=eng.recent_first_team_probability(away,home,recent_stats)
     all_confirmed = all(confirmed.get(t, False) for t in (away, home))
     injury_conflict = any(injury_for(reports,t,p['player']) for t in (away,home) for p in lineups[t])
     target = datetime.fromisoformat(game["_date"])
@@ -144,15 +148,22 @@ def rank_game(history, game, lineups, confirmed, prices, reports):
     current = [r for r in hist if r["date"] >= season_start]
     rows=[]
     for team, team_p in ((away, pa), (home, 1-pa)):
-        for player, share, starts, _, _ in eng.player_weights(hist,lineups[team],team):
+        baseline={r[0]['player_id']:r[1] for r in eng.player_weights(hist,lineups[team],team)}
+        recent={r[0]['player_id']:r for r in eng.recent_player_weights(hist,lineups[team],team,game['_date'])}
+        weights=eng.recent_player_weights(hist,lineups[team],team,game['_date']) if model=='recent' else eng.player_weights(hist,lineups[team],team)
+        for player, share, starts, *_ in weights:
             p=team_p*share
             price=prices.get((game['gameId'],eng.norm(player['player'])))
             report=injury_for(reports,team,player['player'])
             enough=all(stats.get(t,{}).get('n',0)>=10 for t in (away,home)) and starts>=8
             status='HOLD: LINEUP' if not all_confirmed else 'HOLD: INJURY REVIEW' if injury_conflict else 'HOLD: SAMPLE' if not enough else 'NO PRICE' if not price else 'RESEARCH ONLY'
+            if model=='recent' and (recent[player['player_id']][5]<8 or any(recent_stats.get(t,{}).get('weighted_games',0)<10 for t in (away,home))) and status not in ('HOLD: LINEUP','HOLD: INJURY REVIEW'):
+                status='HOLD: WEIGHTED SAMPLE'
+            if game.get('research_only'):
+                status='RESEARCH MATCHUP';price=None;prices={}
             fair=100*(1-p)/p if p<=.5 else -100*p/(1-p)
-            rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
-                         'Model %':round(p*100,2),'Fair odds':round(fair),'Book odds':price[1] if price else '',
+            rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'_research_only':bool(game.get('research_only')),'Model':model,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
+                         'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
                          'Model EV %':round((p*price[0]-1)*100,2) if price else None,
                          'Starts':starts,'Team games':stats.get(team,{}).get('n',0),
                          'Current-season starts':sum(r['team']==team and r['player_id']==player['player_id'] for r in current),

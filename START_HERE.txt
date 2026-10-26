@@ -1,4 +1,10 @@
-APEX FIRST BASKET DASHBOARD V2.3.0
+APEX V2.4.1 — Automatic startup updates
+
+Launch with START_APEX.bat. Published updates are checked, verified, backed up and installed before the dashboard opens. The startup download has a 90-second timeout; network failures leave the installed app available. Disable this in App updates if desired. RESTORE_APEX.bat restores the previous programs and pauses automatic updates. Direct streamlit launches do not run the startup updater.
+
+To upgrade from V2.3 or V2.4, use Check for updates, Download update for next launch, then close the command window and reopen START_APEX.bat once. Future published updates install at startup. History and keys are preserved. Includes the V2.4 research workspace and experimental recent-form engine.
+
+APEX FIRST BASKET DASHBOARD V2.4.0
 
 1. Extract the ZIP into a new folder on your Desktop.
 2. To reuse your 36 saved games, COPY the data folder from your old engine
@@ -37,3 +43,6 @@ V2.2.0 includes a GitHub updater. Read GITHUB_SETUP.txt first for setup.
 
 V2.3.0: Save confirmed forecasts to journal before tip-off. Open Forward-testing
 journal after games finish to check results. Data stays in your data folder.
+
+V2.4.0: Research matchup works after hours without odds. Select the optional
+Recent form model and compare it against baseline in the Backtest lab.
