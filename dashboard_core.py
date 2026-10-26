@@ -133,6 +133,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
         raise ValueError("A player cannot appear on both teams.")
     predictions=eng.predict_first_score(hist,lineups,game["_date"],model)
     stats = eng.team_stats(hist)
+    shot_coverage=eng.opening_shot_games(hist)
     pa = eng.first_team_probability(away, home, stats)
     baseline_pa = pa
     recent_stats = eng.recent_team_stats(hist,game["_date"])
@@ -162,7 +163,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
             rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'_research_only':bool(game.get('research_only')),'Model':model,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
                          'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Within-team share %':round(share*100,2),'Similar-lineup starts':context[player['player_id']][8] if context else None,'Weighted lineup starts':round(context[player['player_id']][9],1) if context else None,'Other-lineup starts':context[player['player_id']][10] if context else None,'Weighted other-lineup starts':round(context[player['player_id']][11],1) if context else None,'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
                          'Model EV %':round((p*price[0]-1)*100,2) if price else None,
-                         'Starts':starts,'Team games':stats.get(team,{}).get('n',0),
+                         'Starts':starts,'Observed opening-shot starts':sum(r['team']==team and r['player_id']==player['player_id'] and (r['game_id'],team) in shot_coverage for r in hist),'Team games':stats.get(team,{}).get('n',0),
                          'Current-season starts':sum(r['team']==team and r['player_id']==player['player_id'] for r in current),
                          'Injury':report['status'] if report else 'Not flagged / not verified',
                          'Status':status,'Odds updated':price[3] if price else ''})

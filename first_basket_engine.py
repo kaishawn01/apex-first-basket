@@ -56,7 +56,7 @@ TEAMS = {
     "TOR": "Toronto Raptors", "UTA": "Utah Jazz", "WAS": "Washington Wizards",
 }
 FIELDS = ["game_id", "date", "team", "opponent", "player_id", "player", "first_team_shot",
-          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action"]
+          "first_game_shot", "first_scorer", "first_fg_scorer", "team_scored_first", "tip_first_action", "opening_shot_observed"]
 
 
 def get_json(url, *, params=None):
@@ -293,6 +293,7 @@ def extract_game(game, play, box):
                 "player_id": str(pid),
                 "player": p.get("name") or (str(p.get("firstName", "")) + " " + str(p.get("familyName", ""))).strip(),
                 "first_team_shot": int(first_per_team.get(team, {}).get("personId", 0) == pid),
+                "opening_shot_observed": int(int(first_per_team.get(team, {}).get("personId", 0)) in {int(q["personId"]) for q in side.get("players", []) if int(q["personId"])>0}),
                 "first_game_shot": int(first_game_shot is not None and int(first_game_shot.get("personId", 0)) == pid),
                 "first_scorer": int(int(scorer.get("personId", 0)) == pid),
                 "first_fg_scorer": int(int(fg_scorer.get("personId", 0)) == pid),
@@ -423,7 +424,20 @@ def first_team_probability(team, opp, stats):
     return max(0.25, min(0.75, p))
 
 
+def opening_shot_games(history):
+    """Team/game pairs with an identified opening shooter; infer legacy positives only."""
+    groups=defaultdict(list)
+    for row in history:groups[(row['game_id'],row['team'])].append(row)
+    known=set()
+    for key,rows in groups.items():
+        explicit={str(r.get('opening_shot_observed','')) for r in rows}
+        if explicit=={'1'} or (explicit<= {'', 'None'} and any(int(r['first_team_shot']) for r in rows)):
+            known.add(key)
+    return known
+
+
 def player_weights(history, starters, team):
+    observed=opening_shot_games(history)
     bykey = defaultdict(list)
     for r in history:
         bykey[(r["team"], r["player_id"])].append(r)
@@ -434,7 +448,8 @@ def player_weights(history, starters, team):
         nshots = sum(int(r["first_team_shot"]) for r in rows)
         nscores = sum(int(r["first_scorer"]) for r in rows)
         # Shrunk rates; score needs all 10 players normalized after mixing.
-        shot_rate = (nshots + 1.0) / (n + 5.0)
+        shot_n=sum((r['game_id'],team) in observed for r in rows)
+        shot_rate = (nshots + 1.0) / (shot_n + 5.0)
         first_rate = (nscores + 0.5) / (n + 5.0)
         w = 0.65 * shot_rate + 0.35 * first_rate
         raw.append((s, w, n, nshots, nscores))
@@ -714,6 +729,7 @@ def recent_first_team_probability(team,opponent,stats):
 
 def recent_player_weights(history,starters,team,target_day,half_life=90.0):
     target=date.fromisoformat(target_day)
+    observed=opening_shot_games(history)
     by_player=defaultdict(list)
     for row in history:
         age=(target-date.fromisoformat(row['date'])).days
@@ -726,7 +742,8 @@ def recent_player_weights(history,starters,team,target_day,half_life=90.0):
         shots=sum(w*int(r['first_team_shot']) for r,w in rows)
         scores=sum(w*int(r['first_scorer']) for r,w in rows)
         opportunities=sum(w*int(r['team_scored_first']) for r,w in rows)
-        shot_rate=(shots+2)/(mass+10)
+        shot_mass=sum(w for r,w in rows if (r['game_id'],team) in observed)
+        shot_rate=(shots+2)/(shot_mass+10)
         conditional_rate=(scores+1)/(opportunities+5)
         weight=.65*shot_rate+.35*conditional_rate
         raw.append((player,weight,len(rows),sum(int(r['first_team_shot']) for r,w in rows),sum(int(r['first_scorer']) for r,w in rows),mass,shot_rate,conditional_rate))
@@ -741,6 +758,7 @@ def lineup_player_weights(history, starters, team, target_day):
     for row in history:
         age=(target-date.fromisoformat(row['date'])).days
         if row['team']==team and 0<age<=400:games[row['game_id']].append(row)
+    observed=opening_shot_games(history)
     contexts=defaultdict(list);context_games=set()
     for rows in games.values():
         ids={r['player_id'] for r in rows}
@@ -763,7 +781,8 @@ def lineup_player_weights(history, starters, team, target_day):
         shot,conditional=anchor[6],anchor[7]
         context_mass=sum(w for r,w in context)
         opportunities=sum(w*int(r['team_scored_first']) for r,w in context)
-        context_shot=(sum(w*int(r['first_team_shot']) for r,w in context)+10*shot)/(context_mass+10)
+        shot_mass=sum(w for r,w in context if (r['game_id'],team) in observed)
+        context_shot=(sum(w*int(r['first_team_shot']) for r,w in context)+10*shot)/(shot_mass+10)
         context_score=(sum(w*int(r['first_scorer']) for r,w in context)+5*conditional)/(opportunities+5)
         weight=.65*context_shot+.35*context_score
         raw.append((player,weight,n,shots,scores,mass,context_shot,context_score,len(context),context_mass,anchor[2],anchor[5]))

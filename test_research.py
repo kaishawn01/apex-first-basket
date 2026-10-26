@@ -528,7 +528,7 @@ class HistoryRepairTests(unittest.TestCase):
             self.assertEqual((folder/result['backup']).read_bytes(),before)
             loaded=eng.read_csv(path)
             self.assertEqual(rt.audit(loaded)[1],[])
-            self.assertEqual([r for r in loaded if r['game_id']=='espn_456'],[{k:str(v) for k,v in r.items()} for r in untouched])
+            self.assertEqual([r for r in loaded if r['game_id']=='espn_456'],[{k:str(r.get(k,'')) for k in eng.FIELDS} for r in untouched])
     def test_wrong_id_and_offline_leave_original_bytes(self):
         import copy
         wrong=copy.deepcopy(self.payload);wrong['header']['id']='wrong'
@@ -674,3 +674,76 @@ class PickReliabilityTests(unittest.TestCase):
     def test_empty_report(self):
         self.assertEqual(rt.pick_reliability([]),[])
         self.assertEqual(rt.validation_report([],1)['pick_reliability'],[])
+
+class OpeningShotCoverageTests(unittest.TestCase):
+    def setUp(self):
+        self.rows=game_rows('a','2026-10-20')
+        self.five=[r.copy() for r in self.rows if r['team']=='BOS']
+    def unknown(self, flag=None):
+        rows=[dict(r) for r in self.rows]
+        for r in rows:
+            if r['team']=='BOS':
+                r['first_team_shot']=0;r['first_game_shot']=0
+                if flag is not None:r['opening_shot_observed']=flag
+        return rows
+    def test_legacy_known_and_ambiguous_groups(self):
+        self.assertIn(('a','BOS'),eng.opening_shot_games(self.rows))
+        self.assertNotIn(('a','BOS'),eng.opening_shot_games(self.unknown()))
+        self.assertNotIn(('a','BOS'),eng.opening_shot_games(self.unknown(0)))
+        self.assertIn(('a','BOS'),eng.opening_shot_games(self.unknown(1)))
+    def test_unknown_shots_leave_neutral_shot_prior_but_keep_scores(self):
+        rows=self.unknown()
+        recent=eng.recent_player_weights(rows,self.five,'BOS','2026-10-21')
+        context=eng.lineup_player_weights(rows,self.five,'BOS','2026-10-21')
+        for model in (recent,context):
+            self.assertTrue(all(abs(r[6]-.2)<1e-12 for r in model))
+            self.assertGreater(model[0][7],.2)
+            self.assertEqual(model[0][2],1)
+        baseline=eng.player_weights(rows,self.five,'BOS')
+        raw=[.65*.2+.35*((int(i==0)+.5)/6) for i in range(5)]
+        for r,w in zip(baseline,raw):self.assertAlmostEqual(r[1],w/sum(raw))
+    def test_confirmed_bench_shot_is_an_observed_miss(self):
+        weight=2**(-1/90)
+        for model in (eng.recent_player_weights,eng.lineup_player_weights):
+            result=model(self.unknown(1),self.five,'BOS','2026-10-21')
+            for r in result:self.assertAlmostEqual(r[6],2/(weight+10))
+    def test_coverage_validation(self):
+        for value in ('bad',2):
+            self.assertTrue(rt.audit(self.unknown(value))[1])
+        mixed=self.unknown(1);mixed[0]['opening_shot_observed']=0
+        self.assertTrue(rt.audit(mixed)[1])
+        contradicted=[dict(r,opening_shot_observed=0) for r in self.rows]
+        self.assertTrue(rt.audit(contradicted)[1])
+        self.assertFalse(rt.audit(self.unknown(1))[1])
+    def test_legacy_csv_roundtrip_and_prediction(self):
+        rows=self.rows+self.unknown()
+        for r in rows[10:]:r['game_id']='b';r['date']='2026-10-19'
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'old.csv'
+            eng.write_csv(path,[f for f in eng.FIELDS if f!='opening_shot_observed'],rows)
+            old=eng.read_csv(path)
+            eng.write_csv(path,eng.FIELDS,old)
+            new=eng.read_csv(path)
+            self.assertFalse(rt.audit(new)[1])
+            lineups={t:[r for r in self.rows if r['team']==t] for t in ('BOS','NYK')}
+            for model in ('baseline','recent','lineup'):
+                self.assertEqual(eng.predict_first_score(old,lineups,'2026-10-21',model),eng.predict_first_score(new,lineups,'2026-10-21',model))
+    def test_player_evidence_unknowns_are_not_false(self):
+        evidence=rt.player_evidence(self.unknown(),'2026-10-21','BOS','10',self.five)
+        stats=evidence['summary'][-1]
+        self.assertEqual(stats['Observed opening-shot starts'],0)
+        self.assertEqual(stats['Unknown opening-shot starts'],1)
+        self.assertIsNone(stats['Opening-shot rate %'])
+        self.assertIsNone(evidence['games'][0]['Took team first shot'])
+        self.assertEqual(stats['Game first scores'],1)
+    def test_import_distinguishes_bench_missing_and_starter_shooters(self):
+        fixture=ForwardJournalTests();fixture.setUp()
+        for pid,expected in [('99',1),('999',0),('10',1)]:
+            payload=fixture.payload()
+            payload['plays'].insert(0,{'period':{'number':1},'sequenceNumber':'0','text':'Player misses layup','shootingPlay':True,'scoringPlay':False,'scoreValue':0,'team':{'id':'1'},'participants':[{'athlete':{'id':pid}}]})
+            play,box=eng.espn_game_payloads(payload)
+            rows=eng.extract_game(fixture.game,play,box)
+            self.assertEqual({r['opening_shot_observed'] for r in rows if r['team']=='BOS'},{expected})
+            self.assertEqual({r['opening_shot_observed'] for r in rows if r['team']=='NYK'},{0})
+            self.assertFalse(rt.audit(rows)[1])
+            self.assertEqual(sum(r['first_team_shot'] for r in rows),int(pid=='10'))

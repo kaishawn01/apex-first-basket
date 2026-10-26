@@ -1,3 +1,13 @@
+APEX V2.19.0 — Separate unknown opening shots from observed misses
+
+New history imports record whether the team's first recorded field-goal attempt has an identified shooter in the box score, including bench players. All three models now use only observed opening-shot starts in their shot-rate denominators. First-score rates and total start counts retain all valid games. Lineup-context shot updates apply the same coverage rule with their context weights.
+
+Older files remain readable. A legacy team/game with a starter opening-shot flag is known; an all-zero group without the new flag is ambiguous and excluded only from the shot-rate denominator. This cannot recover whether a bench player or missing shooter caused old zero flags. Explicit observed bench shots in new data count as known misses for all starters. Mixed, invalid or contradictory coverage flags fail data-quality validation. Import/checkpoint writes preserve optional legacy blanks; no bulk migration or automatic history deletion occurs.
+
+Rankings show observed opening-shot starts. Player evidence shows observed/unknown counts and leaves unknown shot outcomes blank instead of false. This fixes treatment of missing inputs; it does not establish better predictive accuracy. Provider play-by-play completeness remains a limitation: identifying the first recorded shooter cannot prove no earlier event was omitted. Re-run full model validation, and compare forward-journal results within software versions.
+
+Validation: 120 unit tests and all Streamlit smoke checks passed. Added checks cover legacy CSV round trips, explicit bench/unknown/starter imports, invalid coverage flags, neutral shot priors with preserved scoring evidence, model denominators, and visible coverage counts. Windows execution and predictive improvement on user history were not tested here.
+
 APEX V2.18.0 — Count lineup evidence once
 
 The experimental lineup model now uses disjoint history for its anchor and context update. Starts with four or five of the selected players enter the lineup update only; other starts supply the player's recent-form anchor. Exact fives retain full decay weight and four-of-five matches half weight. With no other-lineup starts the anchor is neutral; with no similar-lineup starts the model falls back to recent form. Previously, context games also contributed to the anchor, reinforcing the same observations twice.

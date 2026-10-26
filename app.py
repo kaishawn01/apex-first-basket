@@ -253,6 +253,7 @@ else:
                     else:st.warning('No recorded starts for this player on this team in the model window. The estimate relies on model priors and the selected five.')
                     if evidence['other_team_starts']:st.caption(f"{evidence['other_team_starts']} starts on other teams are excluded from this player’s model history.")
                     st.dataframe(pd.DataFrame(evidence['summary']),hide_index=True,use_container_width=True)
+                    st.caption('Opening-shot rates use only starts with an identified team opening shooter. Older all-zero records are ambiguous and excluded from that denominator; confirmed bench opening shots count as observed misses for starters. First-score history still uses all valid starts.')
                     st.caption('Team opening shots count field-goal attempts, not free throws. Game first points include free throws. Conditional scoring share divides by games in which the team scored first; a blank rate means no such opportunities. Similar lineups contain at least four selected starters.')
                     if evidence['games']:
                         evidence_frame=pd.DataFrame(evidence['games'])

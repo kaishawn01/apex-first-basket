@@ -36,7 +36,7 @@ def audit(rows):
             for r in game:
                 if not r['player_id'].isdigit() or not r['player'].strip(): raise ValueError('Invalid player')
                 if r['opponent'] not in teams-{r['team']}: raise ValueError('Invalid opponent')
-                for f in eng.FIELDS[6:]:
+                for f in (f for f in eng.FIELDS[6:] if f!='opening_shot_observed'):
                     if str(r[f]) not in ('0','1'): raise ValueError('Invalid binary outcome')
             winners=[r for r in game if int(r['first_scorer'])==1]
             if len(winners)!=1: raise ValueError('Expected exactly one first scorer')
@@ -44,6 +44,11 @@ def audit(rows):
             if any(int(r['team_scored_first'])!=int(r['team']==winning_team) for r in game): raise ValueError('Inconsistent first-scoring team')
             for team in teams:
                 team_rows=[r for r in game if r['team']==team]
+                coverage={str(r.get('opening_shot_observed','')) for r in team_rows}
+                if not (coverage<= {'','None'} or coverage in ({'0'},{'1'})):
+                    raise ValueError('Invalid or inconsistent opening-shot coverage')
+                if coverage=={'0'} and any(int(r['first_team_shot']) for r in team_rows):
+                    raise ValueError('Opening shooter flagged despite unknown coverage')
                 if sum(int(r['first_team_shot']) for r in team_rows)>1:
                     raise ValueError('Multiple opening shooters recorded for one team')
                 if len({int(r['tip_first_action']) for r in team_rows})!=1:
@@ -400,17 +405,20 @@ def player_evidence(history, target_day, team, player_id, selected_five):
     team_games=defaultdict(set)
     for r in valid:
         if r['team']==team:team_games[r['game_id']].add(r['player_id'])
+    observed=eng.opening_shot_games(valid)
     rows=sorted([r for r in valid if r['team']==team and r['player_id']==player_id],key=lambda r:(r['date'],r['game_id']),reverse=True)
     def summarize(label,records):
         n=len(records);shots=sum(int(r['first_team_shot']) for r in records)
         scores=sum(int(r['first_scorer']) for r in records)
         opportunities=sum(int(r['team_scored_first']) for r in records)
-        return {'Window':label,'Starts':n,'Team opening shots':shots,'Opening-shot rate %':100*shots/n if n else None,
+        known=sum((r['game_id'],team) in observed for r in records)
+        return {'Window':label,'Starts':n,'Observed opening-shot starts':known,'Unknown opening-shot starts':n-known,'Team opening shots':shots,'Opening-shot rate %':100*shots/known if known else None,
                 'Game first scores':scores,'First-score rate %':100*scores/n if n else None,
                 'Team scored first':opportunities,'Share when team scored first %':100*scores/opportunities if opportunities else None,
                 'Similar-lineup starts':sum(len(team_games[r['game_id']] & selected)>=4 for r in records)}
     logs=[{'Date':r['date'],'Game':r['game_id'],'Opponent':r['opponent'],
-           'Took team first shot':bool(int(r['first_team_shot'])),
+           'Opening shooter observed':(r['game_id'],team) in observed,
+           'Took team first shot':bool(int(r['first_team_shot'])) if (r['game_id'],team) in observed else None,
            'Scored game first points':bool(int(r['first_scorer'])),
            'Scored game first field goal':bool(int(r['first_fg_scorer'])),
            'Team scored first':bool(int(r['team_scored_first'])),
