@@ -1227,3 +1227,62 @@ class ImportRetryQueueTests(unittest.TestCase):
             with self.assertRaises(ValueError):rt.import_season(2026,limit)
         for season in ('../bad',True,0):
             with self.assertRaises(ValueError):rt.import_season(season,1)
+
+
+class EqualBenchmarkEvidenceTests(unittest.TestCase):
+    def games(self,loss=None,brier=.9,top1=.1,top3=.3):
+        return [{'Game':str(i),'Date':f'2026-08-{i+1:02d}',
+                 'Log loss':math.log(10) if loss is None else loss,'Brier':brier,
+                 'Top-1 credit':top1,'Top-3 credit':top3} for i in range(4)]
+    def test_equal_probabilities_have_zero_difference(self):
+        rows=rt.equal_benchmark_evidence(self.games())
+        self.assertEqual(len(rows),4)
+        for row in rows:
+            self.assertAlmostEqual(row['Model minus equal'],0)
+            self.assertEqual(row['95% lower'],0);self.assertEqual(row['95% upper'],0)
+            self.assertIn('includes zero',row['Reading'])
+    def test_better_and_worse_respect_metric_direction(self):
+        for games,reading in [(self.games(1,.5,1,1),'Interval favors model'),
+                              (self.games(4,1.5,0,0),'Interval favors equal probabilities')]:
+            rows=rt.equal_benchmark_evidence(games)
+            self.assertTrue(all(r['Reading'].startswith(reading) for r in rows))
+        rows=rt.equal_benchmark_evidence(self.games(1,.5,1,1))
+        self.assertAlmostEqual(rows[2]['Model minus equal'],90)
+        self.assertAlmostEqual(rows[3]['Model minus equal'],70)
+    def test_mixed_dates_include_zero(self):
+        games=self.games()
+        for i,g in enumerate(games):g['Log loss']=math.log(10)+(1 if i%2 else -1)
+        row=rt.equal_benchmark_evidence(games)[0]
+        self.assertLess(row['95% lower'],0);self.assertGreater(row['95% upper'],0)
+        self.assertIn('no clear difference',row['Reading'])
+    def test_empty_and_single_date(self):
+        self.assertEqual(rt.equal_benchmark_evidence([]),[])
+        games=self.games(1)
+        for g in games:g['Date']='2026-08-01'
+        rows=rt.equal_benchmark_evidence(games)
+        for row in rows:
+            self.assertEqual(row['Dates'],1);self.assertEqual(row['Games'],4)
+            self.assertIsNone(row['95% lower']);self.assertIn('Not enough dates',row['Reading'])
+    def test_game_weighting_and_no_mutation(self):
+        import copy
+        games=self.games(1)
+        games[-1]['Date']=games[0]['Date'];games[-1]['Log loss']=3
+        before=copy.deepcopy(games)
+        rows=rt.equal_benchmark_evidence(games)
+        self.assertAlmostEqual(rows[0]['Model minus equal'],1.5-math.log(10))
+        self.assertEqual(rows[0]['Dates'],3);self.assertEqual(games,before)
+        self.assertEqual(rows,rt.equal_benchmark_evidence(games))
+    def test_duplicate_game_rejected(self):
+        games=self.games();games[1]['Game']=games[0]['Game']
+        with self.assertRaisesRegex(ValueError,'Duplicate'):rt.equal_benchmark_evidence(games)
+    def test_report_matches_existing_summary(self):
+        rows=[r for i in range(9) for r in game_rows(str(i),f'2026-08-{i+1:02d}')]
+        report=rt.validation_report(rows,2)
+        self.assertEqual(len(report['equal_benchmark_evidence']),24)
+        for summary in report['summary']:
+            evidence=[r for r in report['equal_benchmark_evidence'] if r['Model']==summary['Model'] and r['Period']==summary['Period']]
+            self.assertEqual(len(evidence),4)
+            self.assertEqual(evidence[0]['Games'],summary['Evaluated games'])
+            self.assertAlmostEqual(evidence[0]['Model minus equal'],summary['Log loss minus equal baseline'])
+            self.assertAlmostEqual(evidence[1]['Model minus equal'],summary['Brier minus equal baseline'])
+        self.assertEqual(rt.validation_report([],2)['equal_benchmark_evidence'],[])

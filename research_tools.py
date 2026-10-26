@@ -212,6 +212,28 @@ def compare_evaluations(baseline, candidate, draws=1000):
     return {'games':n,'dates':len(days),'metrics':report}
 
 
+def equal_benchmark_evidence(games):
+    """Compare historical ten-starter forecasts with equal probabilities on identical dates."""
+    reference=[{'Game':r['Game'],'Date':r['Date'],'Log loss':math.log(10),
+                'Brier':.9,'Top-1 credit':.1,'Top-3 credit':.3} for r in games]
+    comparison=compare_evaluations({'games':reference},{'games':games})
+    evidence=[]
+    for row in comparison['metrics']:
+        low,high=row['95% lower'],row['95% upper']
+        if low is None or high is None:
+            reading='Not enough dates for an interval'
+        elif low<=0<=high:
+            reading='Interval includes zero: no clear difference'
+        elif (row['Better direction']=='Lower' and high<0) or (row['Better direction']=='Higher' and low>0):
+            reading='Interval favors model on this sample'
+        else:
+            reading='Interval favors equal probabilities on this sample'
+        evidence.append({'Metric':row['Metric'],'Model minus equal':row['Candidate minus baseline'],
+                         '95% lower':low,'95% upper':high,'Better direction':row['Better direction'],
+                         'Games':comparison['games'],'Dates':comparison['dates'],'Reading':reading})
+    return evidence
+
+
 def scoring_stage_metrics(probabilities, player_teams, winner):
     """Factor a ten-player forecast into team and conditional player probabilities."""
     if set(probabilities)!=set(player_teams) or winner not in probabilities:
@@ -595,13 +617,14 @@ def validation_report(history, min_training=100, progress=lambda text:None):
             raise ValueError('Validation models did not evaluate identical games and dates.')
     dates=sorted({day for gid,day in expected})
     recent_dates=set(dates[-max(1,math.ceil(len(dates)/4)):]) if dates else set()
-    summary=[];monthly=[];details=[];latest={};reliability=[];stages=[]
+    summary=[];monthly=[];details=[];latest={};reliability=[];stages=[];equal_evidence=[]
     for model,result in results.items():
         games=result['games'];newest=[r for r in games if r['Date'] in recent_dates]
         latest[model]={'games':newest}
         for label,subset in [('All evaluated dates',games),('Newest quarter of dates',newest)]:
             if subset:
                 metrics=evaluation_metrics(subset)
+                equal_evidence.extend({'Model':model,'Period':label,**r} for r in equal_benchmark_evidence(subset))
                 stages.append({'Model':model,'Period':label,**scoring_stage_summary(subset)})
                 reliability.extend({'Model':model,'Period':label,**r} for r in pick_reliability(subset))
                 summary.append({'Model':model,'Period':label,'First date':min(r['Date'] for r in subset),'Last date':max(r['Date'] for r in subset),**metrics,
@@ -616,7 +639,7 @@ def validation_report(history, min_training=100, progress=lambda text:None):
         comparison=compare_evaluations(latest['baseline'],latest[model])
         paired.extend({'Candidate':model,**r} for r in comparison['metrics'])
     return {'fingerprint':fingerprint(history),'min_training':min_training,'summary':summary,'monthly':monthly,'details':details,
-            'scoring_stages':stages,'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
+            'equal_benchmark_evidence':equal_evidence,'scoring_stages':stages,'pick_reliability':reliability,'latest_comparisons':paired,'evaluated_dates':len(dates),'latest_dates':len(recent_dates),'excluded_games':len(results['baseline']['excluded'])}
 
 
 def adaptive_signal_games(results,min_selection_games=100):

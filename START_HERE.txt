@@ -1,3 +1,11 @@
+APEX V2.32.0 — Evidence against equal first-score chances
+
+Full model validation now compares each model with a fixed 10%-per-starter forecast on exactly the same games, for all evaluated dates and the newest quarter of dates. The report includes log loss, Brier, top-one and top-three differences; game/date counts; approximate 95% date-cluster bootstrap intervals; and a plain-language reading for each metric. Top-k ties use fractional credit. Intervals containing zero are labeled inconclusive, including exact equality. A single evaluation date has no interval. A CSV export is available and existing history/training-setting staleness guards apply.
+
+This reuses the existing paired bootstrap with 1,000 deterministic draws and adds no API calls, fitting, ranking changes or automatic model promotion. Equal chances are a simple reference, not bookmaker odds or a strong competing forecast. Few dates can produce unstable or deceptively narrow intervals. Repeated testing, dependence across dates, development on the same history, observed historical starters and the nonstarter-first-scorer exclusion limit interpretation. Favorable intervals do not establish future accuracy, calibration or profitable betting. Future saved predictions remain necessary evidence.
+
+Validation: 195 unit tests and all Streamlit smoke checks passed. New checks cover equal, better, worse and mixed results, missing intervals with one date, duplicate rejection, game weighting, unchanged inputs, agreement with existing summaries, CSV availability and stale-report hiding. Windows execution and real-user prediction accuracy were not tested here.
+
 APEX V2.31.0 — Keep history imports moving past repeated failures
 
 Prior-season imports now prioritize unattempted missing games, newest first, before retrying previously attempted games. Among retries, fewer previous attempts go first, with newer dates breaking ties. A season-specific local attempt tracker is checkpointed atomically before each game request. Failed or interrupted downloads remain retryable, but cannot repeatedly fill every batch while older unattempted games wait. Successfully saved IDs are still skipped.

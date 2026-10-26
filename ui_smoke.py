@@ -141,9 +141,15 @@ with patch.object(eng,'read_csv',return_value=history2):
  assert at.session_state['validation_report']['pick_reliability']
  assert any(d.label=='Download scoring-stage diagnostics CSV' for d in at.get('download_button'))
  assert len(at.session_state['validation_report']['scoring_stages'])==6
+ assert len(at.session_state['validation_report']['equal_benchmark_evidence'])==24
+ assert any(d.label=='Download equal-chance evidence CSV' for d in at.get('download_button'))
+ evidence=next(d.value for d in at.dataframe if 'Model minus equal' in d.value.columns)
+ assert set(evidence['Games'])=={3,10}
+ assert any('not bookmaker odds' in x.value for x in at.caption)
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(100).run()
  assert any('Run full model validation again' in x.value for x in at.info)
  assert not any('Period' in d.value.columns for d in at.dataframe)
+ assert not any(d.label=='Download equal-chance evidence CSV' for d in at.get('download_button'))
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  with patch.object(core,'request',side_effect=AssertionError('Signal experiment must not fetch APIs')):
   next(b for b in at.button if b.label=='Compare opening-shot vs first-score signals').click().run()
