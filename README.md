@@ -1,3 +1,7 @@
+## V3.0.4 Phase 5 development preview
+
+Draft PR #1 remains on `v3/hybrid-monte-carlo`; V2.44 production is unchanged. Phase 5 adds transaction receipts/reconciliation, provider evidence diagnostics, scheduled-checkpoint code, a PostgreSQL adapter, immutable successive forecasts, separate grading and a frozen prospective protocol. **No live scheduler or cloud database is configured.** See [PHASE5_OPERATIONS.md](PHASE5_OPERATIONS.md) for setup and [V3_REVIEW.md](V3_REVIEW.md) for actual observations, recovery incidents and validation limits. Do not merge/deploy this preview without an explicit decision.
+
 ## V3.0.3 Phase 4 development preview
 
 Continue on `v3/hybrid-monte-carlo`, draft PR #1. Production stays V2.44; do not merge/deploy this preview. Phase 4 adds bounded historical collection, an append-only pre-tip evidence/forecast journal, manual background jobs, prospective grading and mobile research comparisons. See [V3_REVIEW.md](V3_REVIEW.md) for actual counts, reserved evaluation, January diagnostics and limitations. No unattended monitoring is configured. No validated betting edge is claimed.

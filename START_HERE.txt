@@ -1,3 +1,6 @@
+V3.0.4 PHASE 5 DEVELOPMENT ONLY. Production stays V2.44.
+Read PHASE5_OPERATIONS.md and V3_REVIEW.md. No unattended collector or cloud database is configured.
+
 V3.0.3 PHASE 4 DEVELOPMENT ONLY — do not merge/deploy. Production remains V2.44.
 Read V3_REVIEW.md for manual collection, actual evaluation and limitations.
 No unattended monitoring is configured.

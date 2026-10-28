@@ -289,3 +289,14 @@ class RecoveryDetailsTests(unittest.TestCase):
             with self.assertRaises(ValueError):s.append('prediction','late',{'game':{'start_time':now.isoformat()}})
             with self.assertRaises(ValueError):s.append('prediction','deadline',{},deadline=now-timedelta(seconds=1))
             self.assertEqual(s.rows(),[])
+
+    def test_existing_store_open_does_not_run_schema_writes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'db';s=storage.Store(path);s.append('test','one',{})
+            with patch.object(storage.Store,'initialize',side_effect=AssertionError('unexpected schema write')):
+                reopened=storage.Store(path);self.assertEqual(len(reopened.rows()),1)
+    def test_corrupted_database_is_rejected_without_resetting_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'db';s=storage.Store(path);s.append('test','one',{});raw=path.read_bytes();path.write_bytes(b'CORRUPT HEADER!!'+raw[16:]);before=path.read_bytes()
+            with self.assertRaises(storage.StorageError):storage.Store(path).rows()
+            self.assertEqual(path.read_bytes(),before)

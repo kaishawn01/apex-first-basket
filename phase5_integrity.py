@@ -61,7 +61,12 @@ def sync_history(store,root):
         old=store.get('history',gid)
         if old and old['payload']!=payload:raise ValueError('Cloud history conflict; original retained')
         if not old:store.append('history',gid,payload);added+=1
-    return {'added':added,'total':len(rows)}
+    verified={r['payload']['game_id']:r['payload']['raw_hash'] for r in store.rows('history')}
+    expected={gid:h for gid,raw,seq,h in rows}
+    if any(verified.get(gid)!=h for gid,h in expected.items()):raise ValueError('Historical sync verification failed; do not collect forecasts')
+    receipt={'added':added,'source_total':len(rows),'verified_total':len(verified),'manifest_hash':data.digest(verified)}
+    store.append('history_sync',uuid.uuid4().hex,receipt)
+    return receipt
 
 def model_data(store):
     import research_tools as rt

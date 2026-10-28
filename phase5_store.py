@@ -31,7 +31,8 @@ class Store:
             if parts.hostname not in ('localhost','127.0.0.1','::1') and query.get('sslmode')!=['verify-full']:
                 raise StorageError('Remote database requires sslmode=verify-full and a trusted certificate')
         else:
-            self.path.parent.mkdir(parents=True,exist_ok=True);self.initialize()
+            self.path.parent.mkdir(parents=True,exist_ok=True)
+            if not self.path.exists():self.initialize()
     @contextmanager
     def transaction(self,write=False):
         c=None
@@ -87,7 +88,9 @@ class Store:
             previous=r['hash'];last=stamp
         return previous
     def rows(self,kind=None):
-        with self.transaction() as c:rows=[self.decode(r) for r in c.execute('SELECT * FROM apex_events ORDER BY id')]
+        with self.transaction() as c:
+            if not self.remote and c.execute('PRAGMA quick_check').fetchall()!=[('ok',)]:raise StorageError('SQLite structural integrity failure; preserve file and restore a verified backup')
+            rows=[self.decode(r) for r in c.execute('SELECT * FROM apex_events ORDER BY id')]
         self.verify(rows)
         return [r for r in rows if kind is None or r['kind']==kind]
     def get(self,kind,key):

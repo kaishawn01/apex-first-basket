@@ -46,6 +46,17 @@ def render(injury_key=''):
                 start('Phase 5 manual grading',lambda:runner.grade_tick(storage.configured_store()))
             st.button('Refresh Phase 5 monitoring')
             st.json(background.job_status(root))
+            if snaps:
+                latest_by_game={r['payload']['game']['gameId']:r for r in snaps}
+                unchecked=sum(not r['payload'].get('injury_retrieved_at') for r in latest_by_game.values())
+                if unchecked:st.warning(f'Injury availability remains unchecked for {unchecked} latest game snapshots.')
+                with st.expander('Latest Phase 5 lineup evidence'):
+                    for entry in latest_by_game.values():
+                        snap=entry['payload'];g=snap['game'];age=(now-stamp(snap['retrieved_at'])).total_seconds()
+                        st.markdown('**'+g['awayTeam']['teamTricode']+' at '+g['homeTeam']['teamTricode']+'**')
+                        st.write(' · '.join(team+': '+status for team,status in snap['statuses'].items()))
+                        st.caption(snap['retrieved_at']+(' · STALE evidence' if age<0 or age>300 else ' · recent archived evidence'))
+                        if snap.get('failures'):st.write('Diagnostics: '+'; '.join(snap['failures']))
             if preds:
                 options={r['hash']:r for r in preds};key=st.selectbox('Saved Phase 5 forecast',list(options),format_func=lambda h:options[h]['payload']['game']['gameId']+' · '+options[h]['payload']['generated_at'])
                 p=options[key]['payload'];game=p['game'];age=(now-stamp(p['generated_at'])).total_seconds();latest=next((r for r in reversed(snaps) if r['payload']['game']['gameId']==game['gameId']),None)

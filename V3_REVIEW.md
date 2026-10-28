@@ -1,3 +1,79 @@
+# V3 Phase 5 review — development VERSION 3.0.4
+
+**Continue draft PR #1 on `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default.** Phase 5 adds operational infrastructure and prospective experiment controls; it does not change the prediction weights or claim a validated advantage.
+
+## Implemented behavior
+
+- Transaction-level historical import receipts commit atomically with each game. Insert-only historical guards, raw-cache reconciliation, source/record/sequence hashes, identity checks, explicit missing/conflicting-game reports and post-sync manifests make future omissions detectable. Existing history, journals and frozen evaluations are preserved.
+- A provider evidence layer distinguishes Expected, projected, manual, provider-confirmed and unknown/contradictory states. It cross-checks current roster identities, home/away game identity, scheduled start, timestamps, unavailable/questionable players, stale caches and provider disagreement. Late changes append a new snapshot. Unverified evidence never becomes an actionable recommendation.
+- The checkpoint runner targets 60, 30, 10 and 2 minutes before scheduled tip-off with bounded lateness. Global leases, idempotency keys, retry budgets, cooldowns and fenced writes prevent duplicate jobs and late workers from overwriting evidence. Deadline checks occur inside the storage transaction. Missed windows are recorded without backfilling.
+- Forecasts at successive checkpoints remain immutable and separately timestamped. The runner reuses Phase 4 model generation, stores original source/model hashes and all seven probability vectors (six full-support models plus literal V2.44), checks the fresh schedule immediately before saving, and requires at least 30 seconds of remaining lead. Grading is separate, preserves result versions and maps actual nonselected scorers to Other.
+- The append-only evidence store supports local SQLite and an explicitly configured PostgreSQL backend. It stores historical identifiers/features, raw provider evidence, snapshots, protocols, forecasts, outcomes and execution receipts. PostgreSQL transaction advisory locks and SQLite transactions serialize writes; immutable triggers and hash chains protect originals. Backups preserve evidence, cooldowns and retry state; empty-destination restoration is atomic. No cloud resources are provisioned.
+- The mobile monitoring area displays cached slate age, latest evidence, archived forecast timestamps, top-five candidates, first-shot/first-score comparisons, Other, uncertainty, provider failures, missed windows, pending results, cohorts and proper-score comparisons. Stale/superseded forecasts are clearly labeled. Page rendering makes no paid-provider requests. Existing odds, research, settings and updater protections remain intact.
+
+## Historical integrity findings
+
+The reconciled ledger remains **1,110 games**, **1,106 validated first-score outcomes** and **1,106 usable opening sequences**. Phase 5 did not add historical games or rerun February as a new test.
+
+An isolated replay imported all **1,110 raw-source game identities** with **1,110 matching atomic import receipts**, no missing records and no receipt conflicts. Raw manifests match the existing ledger. The real older ledger has legacy entries without transaction receipts; no receipts were retroactively fabricated. Tests cover incomplete imports, a process terminated within a transaction, deliberate receipt-insert failure, duplicate concurrent imports, conflicting source versions and recovery.
+
+**The original eight-game discrepancy is not explained.** Preserved Phase 4 logs say 690 seeded plus 420 added, while the original Phase 4 inventory had 1,102 records. The eight caches were intact and had already been restored in Phase 4. No deletion path was found in the collector, and the current replay does not reproduce an omission. Earlier per-import receipts and independent database snapshots do not exist, so a specific cause cannot responsibly be assigned. See `validation/PHASE5_INTEGRITY_AUDIT.json`.
+
+The original frozen February files were not modified. SHA-256:
+
+- `validation/PHASE4_RESULTS.json`: `ae2d19da96cb73f2d694686cc2b40e272ba0e5d211c78ff941e7fb7ad3ee240b`
+- `data/phase4/frozen_forecasts.json`: `203c9235fca78027b06a79e29d07bd884331e14d77d2c854486e3d1989536496`
+
+Those February metrics continue to describe the original 1,102-record inventory. They are not a result for the repaired inventory, and February is not an untouched sample for later experiments.
+
+## New local-storage incident and recovery
+
+During Phase 5 work, the local operational SQLite file became structurally inconsistent while historical synchronization and dashboard testing overlapped. The import log reported 1,110 copies; the damaged file exposed only a prefix and invalid index-page references. Registration/collection failed closed before any Phase 5 forecasts were created. The damaged file was retained, not silently reset.
+
+A separate overlapping standard-SQLite writer/reader probe completed 2,000 rows without corruption, so overlap alone is not an established cause. The damaged file and logs do not explain the original eight-game issue either. Current evidence supports an unresolved local host/workflow integrity incident, not a claim that SQLite or the prior collector has been conclusively diagnosed.
+
+All 1,110 history records were reconstructed from intact source records into a new store, exported and restored with the identical evidence-chain head. Structural checks and post-sync manifest verification were added, and opening an existing store no longer runs schema initialization. A subsequent live observation completed with a valid chain. This is recovery evidence, not proof that the originating failure cannot recur. Resolve the host/workflow issue before unattended local deployment; retain independently stored backups and prefer a properly managed database for cloud operation.
+
+## Live lineup-provider observations
+
+The NBA daily feed returned HTTP 200 on October 28, 2026 with 12 games and 120 **Expected** player entries. Announcement timestamps lacked timezone offsets. Expected is never confirmed; Phase 5 also withholds verification of a claimed confirmation when its announcement timezone cannot be established. No genuinely provider-confirmed starting fives were observed, and reliable near-tip confirmation has not been demonstrated.
+
+BALLDONTLIE's documented lineup endpoint starts supplying data only once games begin, so it cannot verify a pre-tip starting five. Its injury integration remains available, but no credential was supplied here. SportsDataIO documents projected/confirmed NBA lineups and a three-minute call interval. An adapter is fixture-tested; live access, nonscrambled data, timezone semantics and licensing must be confirmed before enabling it. No paid subscription was bought or live paid API called. Links and exact configuration are in `PHASE5_OPERATIONS.md`.
+
+## Actual prospective evidence
+
+The Phase 5 protocol was registered on **October 28, 2026 at 21:35:10 UTC / 5:35:10 p.m. Eastern**, before its new live evidence collection. Registration hash: `4fa5b126d81497c82b2cc1acf20575c683903bf483f8073b16019d62c015fbf7`. Its immutable specification and exact model/feature source hashes are in `validation/PHASE5_PROTOCOL.json`.
+
+A manual Phase 5 observation run captured **12 genuine pre-tip snapshots** from 21:35:25 through 21:37:06 UTC. All were Expected/unverified; **zero had both fives officially verified**. Injury evidence was explicitly unchecked. The run saved **zero forecasts** because observation does not fabricate checkpoint forecasts and the registered windows had not opened.
+
+Together with Phase 4, **36 pre-tip snapshots** and **12 older Phase 4 forecasts** are preserved; none are graded at this review. The 12 Phase 4 forecasts predate registration and are not counted in the Phase 5 prospective experiment. Fixture-generated snapshots and forecasts are never included in these live counts. See `validation/PHASE5_LIVE_REPORT.json` for the final inventory.
+
+## Frozen prospective evaluation
+
+Model settings remain Phase 3/4 research settings: simple first-shot selector, 90-day decay, 400-day strictly earlier training, 2,000 trials, seed 3000 with the existing deterministic derivation, hybrid weight .5 when minimum history is met, temperature 1.25, and the existing Beta(.5,49.5) Other prior. Same-day/future rows are excluded. Registered model/feature code or settings drift stops collection until a new experiment is explicitly declared.
+
+The primary sample selects the latest valid saved forecast 30–600 seconds before the unchanged scheduled start, without consulting outcomes, exactly once per game. At least 100 earlier training games and a resolved actual first scorer are required. Incorrect projected starters are not removed after the fact. Missing/ambiguous results, incomplete identities, reschedules and missed windows remain explicit exclusions. Provider-confirmed, manual, projected and incomplete/contradictory evidence cohorts are reported separately.
+
+Log loss and Brier are primary; pure MC versus Baseline + Other is the main paired comparison. Calibrated baseline, selected hybrid, simple proxy and uniform are secondary comparisons. Literal V2.44 is additionally shown; a true Other outcome gives it infinite log loss rather than a fabricated starter or epsilon floor. Top-1/top-3, first-shot accuracy and calibration are secondary. Known nonselected first shooters count as misses; unknown identities are documented separately. Intervals reuse the paired game-date bootstrap, with sample sizes and over-time reporting.
+
+The initial research milestone is **300 eligible games across at least 30 dates**, with further reviews at 600 and 1,000 if needed. A 15% hit rate at n=300 has an approximate independent-game reference half-width of four percentage points; date clustering can increase uncertainty. Interim displays and repeated milestones are not independent tests. No model fitting or promotion uses interim results.
+
+**There are no Phase 5 prospective accuracy results yet.** The prior 72-game February point estimates—V2.44 15.28% top-1 / 2.30122 log loss, MC 18.06% / 2.28995, hybrid 16.67% / 2.28551—remain historical and inconclusive. Their paired intervals included no improvement. Phase 5 provides no new evidence that MC genuinely outperforms the baseline or uniform benchmark.
+
+## Tests, infrastructure and disposition
+
+Local automated testing: **495 tests discovered, 487 passed and 8 PostgreSQL integration tests reserved for CI**. The existing regression suite and full Streamlit smoke suite are preserved. New tests cover checkpoint boundaries, duplicate jobs, late worker fencing, multiple immutable forecasts, source/roster disagreement, missing injuries, timeouts/429, bounded backoff, historical leakage, pre-tip persistence, separate completed-game grading, nonstarter outcomes, backup recovery and corrupted/cloud-unavailable storage. The dedicated Phase 5 suite has 62 tests; eight additional tests use a real disposable PostgreSQL 17 service in CI.
+
+GitHub push and PR CI run Python 3.11 and 3.14 with the PostgreSQL service, full unit tests, Streamlit smoke checks and manifest verification. The initial Phase 5 implementation passed both versions; final revision status is recorded in PR #1. Fixture tests establish code behavior in an isolated environment, not live cloud-provider durability, real near-tip lineup confirmation or unattended NBA monitoring.
+
+**No unattended scheduler is configured or verified. No durable cloud account is connected. No preview or production deployment was made.** PostgreSQL credentials, a persistent authorized development host, backup policy and scheduler/monitoring configuration remain external setup. GitHub schedules were not enabled on main. No alerts are configured; nonzero exits, stored diagnostics and the dashboard provide operator visibility. See `PHASE5_OPERATIONS.md` for exact setup, least-privilege grants, scheduler templates and recovery procedures.
+
+Phase 6 should focus on resolving the local integrity incident, authorizing and verifying isolated durable infrastructure, obtaining genuinely usable pre-tip lineup/injury evidence, and collecting the frozen prospective sample. Keep model weights fixed and avoid extra simulation complexity until unseen-game probability scores and uncertainty justify a change. Deployment remains blocked by those operational gaps, unverified confirmed-lineup coverage, insufficient prospective results and the owner's explicit deployment decision.
+
+---
+
+## Preserved Phase 4 and earlier review
+
 # V3 Phase 4 review — development VERSION 3.0.3
 
 **Draft PR #1, branch `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default. No demonstrated repeatable advantage or betting edge.**
