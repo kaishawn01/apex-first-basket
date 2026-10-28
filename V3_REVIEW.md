@@ -1,3 +1,61 @@
+# V3 Phase 2 review — VERSION 3.0.1, development only
+
+## Decision: retain V2.44 Baseline
+
+The Phase 2 hybrid does **not** demonstrate a meaningful, repeatable improvement. Its first-basket hit rate and first-shot selection are worse on the declared final test. The small log-loss improvement is statistically inconclusive, Brier is slightly worse, and Uniform beats both models on proper scores. Keep Baseline as the existing default. No merge, deployment, automatic promotion, or betting-edge claim is authorized by this report.
+
+## Changes and preserved behavior
+
+`opening_data.py` validates completed ESPN summaries against saved game/player identities and stores empirical opening sequences separately. It extracts explicit jump-ball winners, first-team shot categories, 2PT/3PT results, free-throw trips, turnovers, and rebounds. Collection stops after the first three minutes or before the first substitution/nonstarter action. Rebounds are assigned to the preceding shooting team, so defensive rebounds count as that team's failed possession retention. Unknown shot types and ambiguous tips remain unknown. Atomic checkpoints, bounded requests, retry ordering, concurrent-file guards and readable failures preserve existing history.
+
+`phase2.py` separates first field-goal selection, first scoring opportunity (FG or FT), and first-score probability. Inputs combine existing lineup/recent-role predictors with decayed observed opening categories, later-shot and second-chance selection, explicit tip evidence, type-specific conversion, team event tendencies, and opponent-team defensive aggregates. Sparse inputs shrink toward stated priors. Reproducible simulations include turnovers, two/three-point shots, one/two/three-shot foul trips, offensive/defensive rebounds and second chances. Trial count and seed are configurable; unresolved trials retain explicit baseline fallback mass.
+
+The mobile research panel shows five vertical candidate cards, Baseline/MC/Hybrid probabilities, conditional first-shot estimates, first-opportunity estimates, sample evidence, MC sampling error and lineup diagnostics. First-shot probabilities are conditional on a field-goal attempt occurring before first score; the no-FG fraction is separate. The new panel never provides actionable recommendations. It refreshes rosters, checks injury freshness, expires results and clears failed-refresh output. Live ranking Model EV is now hidden for every HOLD status, including lineup, injury and sample holds. Existing models, API settings, odds display, imports, journal and Phase 1 panels remain available.
+
+Starter checks retain exact identities, unique current-team roster membership, provider/manual source distinctions, selected-five binding, schedule/time checks and expiry. Provider failures cannot establish confirmation. Historical provider verification requires an archived pre-tip snapshot, actual game start metadata, matching selected five and valid source evidence; retrospective boxscore starters alone remain unverified.
+
+## Locked chronological experiment and actual results
+
+The experiment boundaries and candidate grid were recorded in `validation/PHASE2_LOCK.json` before the December final-test data was fetched. Development: 296 accepted games from October 21–November 30, 2025, with 296 matching opening sidecars and 5,835 early-sequence events. After 100 prior games, 193 validation games across 26 dates selected the blend and calibration. Validation selected **50% Baseline / 50% MC, temperature 1.25** from weights 0/.15/.35/.5 and temperatures .8/1/1.25. Temperature fitting requires at least 100 validation games and 20 dates; smaller samples retain stricter defaults.
+
+Selection was persisted before fetching the final test: **December 1–21, 2025, 120 accepted games across 21 dates**, from 124 scheduled completed games. Four summaries failed missing-ID validation and are listed in the results artifact. There are 416 accepted history/sequence games overall. All features use strictly earlier dates within 400 days, excluding same-day outcomes. Earlier test games may train later test dates under the declared rolling evaluation; blend and temperature never refit on test results. Training fingerprints and latest dates are exported. Test outcomes are now known: any further tuning needs another untouched sample.
+
+| Final-test model | Top-1 % | Top-3 % | Log loss | Brier | Calibration ECE, pp |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V2.44 Baseline | 15.00 | 37.08 | 2.32969 | 0.902729 | 1.82 |
+| Pure Monte Carlo | 8.33 | 34.58 | 2.35766 | 0.911237 | 1.96 |
+| Selected calibrated hybrid | 12.50 | 35.83 | 2.32021 | 0.902799 | 1.50 |
+| Smoothed scorer frequency | 10.56 | 30.36 | 2.47305 | 0.929885 | 5.38 |
+| Uniform | 10.00 | 30.00 | 2.30259 | 0.900000 | 0.00 |
+
+Top-k ties receive fractional credit. Lower log loss, Brier and ECE are better. Uniform's zero aggregate binned ECE is mechanical (one winner among ten equal probabilities), not evidence of discrimination. Calibration bins are descriptive and uncertain in this small sample.
+
+Paired approximate date-bootstrap 95% intervals, hybrid minus Baseline: log loss **-0.00949 [-0.03472, +0.01411]**; Brier **+0.000070 [-0.004699, +0.004815]**; Top-1 **-2.50 percentage points [-6.19, 0.00]**; Top-3 **-1.25 pp [-6.10, +3.70]**. Dates may remain dependent; these are not proof of superiority or an economic edge.
+
+First-shot diagnostic: 115 games with an eligible observed FG before first score. Phase 2 Top-1 **15.65%**, simpler recent-shot/opening proxy **20.00%**, Uniform **10.00%**. The more complex selector did not improve this metric.
+
+**Verified historical cohort: 0 games. Unverified pre-tip evidence cohort: 120 games.** These forecasts condition on retrospective observed starters, not proven pre-tip availability. This does not mean those players were incorrect starters. The sample contains no observed substitution before first score, which is not evidence that substitution modeling is unnecessary in general.
+
+## Tests and review
+
+Local validation: **349 unit/regression tests passed**, including all existing tests. Full Streamlit smoke suite passed, including previous features, new mobile candidate cards, first-shot distinction, HOLD warnings, roster-failure clearing, chronological comparison, small-sample fitting guards, cohort reporting, exports and changed-input invalidation.
+
+Tests cover probability conservation, seeded reproducibility, explicit tips/types, empirical second chances, free throws and capped trials, invalid identities and sidecars, atomic enrichment/retries/concurrent writes, provider failure and injury freshness, pre-tip archive timing/reschedules, same-day exclusion, final-test label independence of selection, and lock callbacks before test prediction. GitHub's Python 3.11/3.14 workflow runs these tests, UI checks and manifest checks for the published commit; consult the PR checks for their actual status.
+
+## Reproduce and limitations before deployment
+
+Run `python -m unittest discover -v` and `python ui_smoke.py`. Public-data experiment: first `python validation/run_public_sample.py`, then `python validation/run_phase2.py`. It uses public ESPN data, no paid keys, and writes raw/history caches only beneath ignored `data/v3_validation/`. The locked selection file prevents silent retuning. Public feeds can change; recorded fingerprints make differences visible. The user's private laptop history is not available here.
+
+For local research, use a separate branch checkout. Enrich next 20 opening sequences in the dashboard, then run the Phase 2 research panel or chronological test controls in Backtest lab. Fetches happen only on requested actions. The ordinary research-panel blend follows sidebar settings; the historical selected/calibrated blend is reported separately and never silently promoted to live rankings.
+
+Remaining limitations: inherited exclusion of nonstarter first scorers; no independent pre-tip lineup/injury archive; inferred current jumper from past appearances; shot categories rather than verified designed plays; team-level defense rather than individual matchups; fixed ten starters because pregame bench/substitution evidence is missing; simplified technical/and-one/violation handling; fixed shrinkage and missing-data assumptions; MC standard errors measure simulation noise, not total model uncertainty. Short public sample, no historical market prices/ROI, and no demonstrated superiority over Uniform. Live provider confirmation on Windows and deployment/rollback still need operational validation.
+
+Before promotion, collect prospective pre-tip snapshots and richer opening data, evaluate a newly locked independent period/season against Uniform and a calibrated Baseline, and require repeatable gains with uncertainty estimates. The V2.44 updater needs a reviewed allowlist bridge for `simulation.py`, `test_simulation.py`, `V3_REVIEW.md`, `opening_data.py`, `phase2.py`, and `test_phase2.py`. Do not weaken integrity checks or publish this manifest directly to old clients. No bridge or Streamlit deployment is included.
+
+---
+
+# Phase 1 review (historical record; Phase 2 above supersedes current version/results)
+
 # V3 development review — not deployed
 
 Base: published APEX V2.44.0, commit `babec35666c3da1ccdbe2202c68fde2695a14e67`.

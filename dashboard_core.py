@@ -214,7 +214,7 @@ def rank_game(history, game, lineups, confirmed, prices, reports, model="baselin
             fair=100*(1-p)/p if p<=.5 else -100*p/(1-p)
             rows.append({'_game_id':game['gameId'],'_player_id':player['player_id'],'_probability':p,'_research_only':bool(game.get('research_only')),'Model':model,'Matchup':f'{away} @ {home}','Player':player['player'],'Team':team,
                          'Model %':round(p*100,2),'Baseline %':round(baseline[player['player_id']]*(baseline_pa if team==away else 1-baseline_pa)*100,2),'Team first %':round(team_p*100,2),'Within-team share %':round(share*100,2),'Similar-lineup starts':context[player['player_id']][8] if context else None,'Weighted lineup starts':round(context[player['player_id']][9],1) if context else None,'Other-lineup starts':context[player['player_id']][10] if context else None,'Weighted other-lineup starts':round(context[player['player_id']][11],1) if context else None,'Weighted starts':round(recent[player['player_id']][5],1),'Fair odds':round(fair),'Book odds':price[1] if price else '',
-                         'Model EV %':round((p*price[0]-1)*100,2) if price else None,
+                         'Model EV %':round((p*price[0]-1)*100,2) if price and not status.startswith('HOLD:') else None,
                          'Starts':starts,'Observed opening-shot starts':shot_count,'Weighted observed shot starts':round(shot_mass,3),'Shot coverage note':shot_note,'Team games':stats.get(team,{}).get('n',0),
                          'Current-season starts':sum(r['team']==team and r['player_id']==player['player_id'] for r in current),
                          'Injury':report['status'] if report else 'Not flagged / not verified',
@@ -442,3 +442,31 @@ def nba_confirmation_matches(entry,game,selected,now=None):
 def lineup_confirmation_sources(game,lineups,manual,provider,now=None):
     return {team:('NBA feed confirmed' if provider.get(team,{}).get('team')==team and nba_confirmation_matches(provider.get(team,{}),game,players,now)
                    else 'User confirmed' if manual.get(team) is True and len(players)==5 and len({p['player_id'] for p in players})==5 else 'Unconfirmed') for team,players in lineups.items()}
+
+
+def phase2_readiness(game,lineups,manual,provider,rosters,reports,injury_checked_at,now=None):
+    """Research-only diagnostic. Never emits an actionable betting recommendation."""
+    now=now or datetime.now(timezone.utc);messages=[]
+    teams={game[s]['teamTricode'] for s in ('homeTeam','awayTeam')}
+    if set(lineups)!=teams:messages.append('Lineups do not match the scheduled teams.')
+    ids=[p.get('player_id') for players in lineups.values() for p in players]
+    if len(ids)!=10 or len(set(ids))!=10 or any(not isinstance(pid,str) or not pid.isdigit() or int(pid)<=0 for pid in ids):messages.append('Ten distinct valid player identities are required.')
+    for team,players in lineups.items():
+        current=rosters.get(team,[]);roster_ids=[p.get('player_id') for p in current]
+        if not current or len(set(roster_ids))!=len(roster_ids):messages.append(team+': current roster is unavailable or ambiguous.')
+        elif len(players)!=5 or any(p.get('player_id') not in roster_ids for p in players):messages.append(team+': a selected player is no longer on the current roster.')
+    sources=lineup_confirmation_sources(game,lineups,manual,provider,now)
+    if any(v=='Unconfirmed' for v in sources.values()):messages.append('At least one starting five is unverified.')
+    try:
+        checked=datetime.fromisoformat(injury_checked_at.replace('Z','+00:00'))
+        # Legacy UI timestamps are local-naive; timezone cannot be established.
+        if checked.tzinfo is None or not 0<=(now-checked).total_seconds()<=900:raise ValueError()
+    except (ValueError,TypeError,AttributeError):messages.append('Injury report is missing, stale or has no reliable timezone.')
+    for team,players in lineups.items():
+        for player in players:
+            report=injury_for(reports,team,player['player'])
+            if report:messages.append(team+' / '+player['player']+': '+report['status']+'; review availability.')
+    if not game.get('research_only') and not upcoming(game,now):messages.append('Game is not available for pregame research.')
+    if game.get('research_only'):messages.append('Hypothetical matchup; no verified live-game recommendation.')
+    return {'status':'HOLD — '+messages[0] if messages else 'RESEARCH ONLY — no validated betting recommendation',
+            'messages':messages,'sources':sources,'actionable':False,'provider_verified':bool(sources) and all(v=='NBA feed confirmed' for v in sources.values())}

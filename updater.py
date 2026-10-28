@@ -16,7 +16,7 @@ MAX_FILE=2_000_000
 ALLOWED=frozenset(('app.py','dashboard_core.py','first_basket_engine.py','research_tools.py',
  'updater.py','launcher.py','START_APEX.bat','RESTORE_APEX.bat','requirements.txt','README.md',
  'START_HERE.txt','VERSION','test_engine.py','test_dashboard.py','test_research.py','test_updater.py',
- 'simulation.py','test_simulation.py','V3_REVIEW.md','ui_smoke.py','espn_test_fixture.json','GITHUB_SETUP.txt','build_manifest.py','.gitignore'))
+ 'phase2.py','opening_data.py','test_phase2.py','simulation.py','test_simulation.py','V3_REVIEW.md','ui_smoke.py','espn_test_fixture.json','GITHUB_SETUP.txt','build_manifest.py','.gitignore'))
 REQUIRED={'app.py','dashboard_core.py','first_basket_engine.py','research_tools.py','updater.py','launcher.py','START_APEX.bat','requirements.txt','VERSION'}
 
 
@@ -51,6 +51,7 @@ def validate_manifest(manifest):
     files=manifest.get('files')
     if not isinstance(files,dict) or not REQUIRED.issubset(files): raise ValueError('Incomplete update manifest.')
     if version(manifest['version'])>=(3,0,0) and 'simulation.py' not in files:raise ValueError('V3 update is missing the simulation module.')
+    if version(manifest['version'])>=(3,0,1) and not {'phase2.py','opening_data.py'}.issubset(files):raise ValueError('Phase 2 update is missing empirical research modules.')
     if not set(files).issubset(ALLOWED): raise ValueError('Update contains an unexpected or protected filename.')
     for name,digest in files.items():
         if not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest): raise ValueError('Invalid file checksum.')

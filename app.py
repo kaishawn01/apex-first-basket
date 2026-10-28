@@ -13,6 +13,8 @@ import dashboard_core as core
 import research_tools as research
 import updater
 import simulation
+import phase2
+import opening_data
 
 st.set_page_config(page_title='APEX • First Basket',page_icon='🏀',layout='wide')
 st.markdown('''<style>.stApp {background:#0d1420} [data-testid="stMetric"] {background:#172335;border:1px solid #2a3d53;border-radius:12px;padding:16px} .block-container {max-width:1350px} h1 {letter-spacing:-1px}</style>''',unsafe_allow_html=True)
@@ -102,6 +104,10 @@ mc_settings=simulation.asdict(mc_config)
 
 
 hist=eng.read_csv(eng.HISTORY)
+try:phase2_sequences=opening_data.load()
+except (ValueError,OSError):
+    phase2_sequences={}
+    st.warning('Opening-sequence file is unreadable. Phase 2 will label missing empirical data explicitly.')
 a,b,c=st.columns(3)
 a.metric('Historical games',len({r['game_id'] for r in hist}))
 b.metric('Teams in history',len({r['team'] for r in hist}))
@@ -150,7 +156,7 @@ if inj_col.button('Refresh injury reports',use_container_width=True):
     try:
         with st.spinner('Checking BALLDONTLIE…'):
             reports=core.injury_reports(st.session_state['keys'].get('bdl',''))
-        st.session_state['injuries']={'reports':reports,'time':datetime.now().isoformat(timespec='seconds')}
+        st.session_state['injuries']={'reports':reports,'time':datetime.now(ZoneInfo('UTC')).isoformat(timespec='seconds')}
         st.success('Injury reports refreshed.')
     except (RuntimeError,ValueError,KeyError) as exc:
         st.error(str(exc) if isinstance(exc,(RuntimeError,ValueError)) else 'Unexpected injury response.')
@@ -277,7 +283,7 @@ else:
                 bundle={m:core.rank_game(hist,current,choices[g['gameId']],{t:v!='Unconfirmed' for t,v in sources.items()},prices if m==selected_model else {},reports,model=m) for m in ('baseline','recent','lineup')}
                 model_bundles[g['gameId']]=bundle
                 rows.extend(bundle[selected_model])
-            st.session_state['results']={'rows':rows,'model_bundles':model_bundles,'signature':signature,'time':datetime.now().isoformat(timespec='seconds')}
+            st.session_state['results']={'rows':rows,'model_bundles':model_bundles,'signature':signature,'time':datetime.now(ZoneInfo('UTC')).isoformat(timespec='seconds')}
         except (RuntimeError,ValueError,KeyError) as exc:
             st.error(str(exc) if isinstance(exc,(RuntimeError,ValueError)) else 'Unexpected data response. Reload slate.')
     result=st.session_state.get('results')
@@ -311,6 +317,46 @@ else:
                 st.dataframe(comparison_frame,hide_index=True,use_container_width=True)
                 st.caption('Range measures disagreement between these three related heuristics; it is not a confidence interval. Agreement does not establish accuracy. Review starts, injury reports and each model’s status before interpreting the estimates. Rank 1 can include ties.')
                 st.download_button('Download matchup model comparison CSV',comparison_frame.to_csv(index=False).encode(),'apex_matchup_models.csv','text/csv')
+        with st.expander('V3 Phase 2 research · first shot and first score'):
+            p2_games={g['gameId']:g for g in games if g['gameId'] in result.get('model_bundles',{})}
+            if p2_games:
+                p2_gid=st.selectbox('Phase 2 matchup',list(p2_games),format_func=lambda gid:result['model_bundles'][gid]['baseline'][0]['Matchup'])
+                p2_key=json.dumps({'inputs':signature,'game':p2_gid,'config':mc_settings,'sequences':research.fingerprint(phase2_sequences)},sort_keys=True)
+                if st.button('Run Phase 2 research simulation'):
+                    st.session_state.pop('phase2_simulation',None)
+                    try:
+                        current=p2_games[p2_gid]
+                        if not current.get('research_only'):
+                            current=next((g for g in core.fresh_schedule(day) if g['gameId']==p2_gid),None)
+                            if not current or not core.upcoming(current) or current['start_time']!=p2_games[p2_gid]['start_time']:raise ValueError('Game started or changed. Reload the slate.')
+                        fresh_rosters={}
+                        for team in choices[p2_gid]:
+                            try:fresh_rosters[team]=core.roster(team)
+                            except (RuntimeError,ValueError,KeyError):fresh_rosters[team]=[]
+                        ready=core.phase2_readiness(current,choices[p2_gid],manual_confirmations[p2_gid],nba_entries.get(p2_gid,{}),fresh_rosters,reports,inj.get('time'))
+                        if any('roster' in message or 'identit' in message for message in ready['messages']):raise ValueError('Current-team verification failed. Refresh the slate and correct the selected five.')
+                        with st.spinner('Simulating empirical opening sequences…'):
+                            p2_report=phase2.simulate(hist,choices[p2_gid],day,phase2_sequences,mc_config)
+                        st.session_state['phase2_simulation']={'signature':p2_key,'report':p2_report,'readiness':ready,'checked_at':datetime.now(ZoneInfo('UTC')).isoformat()}
+                    except (ValueError,RuntimeError,KeyError) as exc:st.error(str(exc))
+                p2_saved=st.session_state.get('phase2_simulation')
+                if p2_saved and p2_saved['signature']==p2_key and 0<=(datetime.now(ZoneInfo('UTC'))-datetime.fromisoformat(p2_saved['checked_at'])).total_seconds()<=300:
+                    pr=p2_saved['report'];st.warning(p2_saved['readiness']['status'])
+                    for message in p2_saved['readiness']['messages']:st.caption(message)
+                    st.caption('Verification: '+', '.join(t+': '+v for t,v in p2_saved['readiness']['sources'].items()))
+                    st.caption(f"Trials: {pr['config']['trials']:,} · empirical sequence games: {pr['inputs']['sequence_games']} · unresolved: {pr['unresolved_trials']} · effective blend: {pr['effective_hybrid_weight']:.0%}")
+                    people={p['player_id']:(t,p['player']) for t,ps in choices[p2_gid].items() for p in ps}
+                    for rank,pid in enumerate(sorted(pr['hybrid'],key=lambda pid:(-pr['hybrid'][pid],pid))[:5],1):
+                        team,name=people[pid]
+                        st.markdown(f'**{rank}. {name} · {team}**')
+                        st.write(f"Hybrid {pr['hybrid'][pid]:.1%} · Baseline {pr['baseline'][pid]:.1%} · Monte Carlo {pr['simulation'][pid]:.1%}")
+                        st.caption(f"First FG before first score (conditional): {pr['first_shot'][pid]:.1%} · First scoring opportunity: {pr['first_opportunity'][pid]:.1%} · MC sampling SE: {100*pr['hybrid_mc_se'][pid]:.2f} pp")
+                    with st.expander('Phase 2 input evidence and assumptions'):
+                        st.dataframe(pd.DataFrame(pr['inputs']['evidence']),hide_index=True,use_container_width=True)
+                        st.json({'opening_tip_probabilities':pr['inputs']['opening_team'],'transitions':pr['transitions'],'no_FG_before_score_fraction':pr['no_field_goal_fraction'],'assumptions':pr['inputs']['assumptions']})
+                    st.caption('All probabilities are research estimates, including unverified-lineup scenarios. No odds, EV or betting instruction is produced here. First-shot selection is separate from first-score conversion. Top five is a display limit; ties can extend beyond it. Monte Carlo SE is simulation noise, not full model uncertainty. This uses the sidebar exploratory blend; validation-selected calibration appears only in the held-out research report.')
+                    st.download_button('Download Phase 2 research JSON',json.dumps(p2_saved,indent=2).encode(),'apex_phase2_research.json','application/json')
+                elif p2_saved:st.info('Phase 2 inputs changed or verification expired. Run Phase 2 research simulation again.')
         with st.expander('V3 hybrid Monte Carlo · possession simulation'):
             sim_games={g['gameId']:g for g in games if g['gameId'] in result.get('model_bundles',{})}
             if sim_games:
@@ -479,6 +525,17 @@ with st.expander('Build deeper history · prior-season import'):
         if report['skipped']:
             st.warning('Some games could not be imported. Games with a nonstarter first scorer remain excluded by this model.')
             st.dataframe(pd.DataFrame(report['skipped']),hide_index=True,use_container_width=True)
+
+with st.expander('Phase 2 empirical opening sequences'):
+    st.write('Add explicit tip outcomes, typed shots, free throws, turnovers and rebounds from the first three minutes before the first substitution. This separate cache does not change your existing history.')
+    st.caption(f'Saved sequence records: {len(phase2_sequences)}. Public ESPN requests run only when clicked; no paid API keys are used. Historical box-score starters do not establish pre-tip verification.')
+    if st.button('Enrich next 20 opening sequences'):
+        try:
+            progress=st.empty()
+            st.session_state['phase2_enrichment']=opening_data.enrich(hist,20,progress=progress.info)
+            st.rerun()
+        except (ValueError,OSError) as exc:st.error(str(exc))
+    if st.session_state.get('phase2_enrichment'):st.json(st.session_state['phase2_enrichment'])
 
 with st.expander('Opening-shot conversion · enrich saved history'):
     missing_results=sorted({r['game_id'] for r in hist if ((str(r.get('first_team_shot',''))=='1' and str(r.get('first_team_shot_made','')) not in ('0','1')) or r.get('opening_score_path','') not in ('free_throw_before_fg','opening_fg_made','opening_fg_missed')) and r.get('date','')<datetime.now(ZoneInfo('America/New_York')).date().isoformat()},reverse=True)
@@ -654,6 +711,33 @@ with st.expander('Backtest lab · test the model before trusting it'):
         else:st.info('Not enough eligible history to compare the scoring models. Import more history or review the training minimum.')
         st.caption(f"Invalid historical games excluded: {scorecard['excluded_games']}.")
     elif scorecard:st.info('History or training minimum changed. Compare all five scoring models again.')
+    st.markdown('**Phase 2 chronological selection and final test**')
+    p2_start=st.date_input('Phase 2 final-test start',datetime(2025,12,1),key='p2_start').isoformat()
+    p2_end=st.date_input('Phase 2 final-test end',datetime(2025,12,21),key='p2_end').isoformat()
+    st.caption('Weights and calibration are selected only from out-of-sample forecasts before the test start. At least 100 validation games across 20 dates are required to fit temperature. Repeatedly changing the test window turns it into development data; reserve another untouched period. Missing archived pre-tip confirmations are unverified.')
+    p2_archive={}
+    if (eng.DATA/'forward_journal.sqlite3').exists():p2_archive={r['snapshot']['game_id']:r['snapshot'] for r in research.journal_records()}
+    p2_eval_key=json.dumps({'archive':research.fingerprint(p2_archive),'history':research.fingerprint(hist),'sequences':research.fingerprint(phase2_sequences),'start':p2_start,'end':p2_end,'config':mc_settings,'warmup':warmup},sort_keys=True)
+    if st.button('Run Phase 2 held-out comparison'):
+        st.session_state.pop('phase2_evaluation',None)
+        try:
+            progress=st.empty();archive=p2_archive
+            with st.spinner('Selecting on earlier validation dates, then evaluating the final test…'):
+                p2_evaluation=phase2.evaluate_holdout(hist,phase2_sequences,p2_start,p2_end,mc_config,warmup,archive,progress.info)
+            st.session_state['phase2_evaluation']={'signature':p2_eval_key,'report':p2_evaluation}
+        except (ValueError,KeyError,OSError) as exc:st.error(str(exc))
+    p2_eval=st.session_state.get('phase2_evaluation')
+    if p2_eval and p2_eval['signature']==p2_eval_key:
+        pr=p2_eval['report'];st.write(f"Held-out games: {pr['evaluated_games']} · selected weight: {pr['selection']['weight']:.0%} · temperature: {pr['selection']['temperature']}")
+        st.dataframe(pd.DataFrame(pr['summary']),hide_index=True,use_container_width=True)
+        with st.expander('Phase 2 calibration, uncertainty and training audit'):
+            st.dataframe(pd.DataFrame(pr['calibration']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(pr['comparisons']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(pr['diagnostics']),hide_index=True,use_container_width=True)
+            st.json(pr['first_shot'])
+        st.caption('Verified and unverified cohorts are separate. Zero verified games means no verified-lineup performance claim is possible. Uniform and smoothed historical frequency are reference models. Calibration ECE is descriptive and bin-dependent. No automatic promotion or betting edge claim.')
+        st.download_button('Download Phase 2 held-out metrics',pd.DataFrame(pr['details']).to_csv(index=False).encode(),'apex_phase2_holdout.csv','text/csv')
+    elif p2_eval:st.info('Phase 2 data, dates or settings changed. Run Phase 2 held-out comparison again.')
     if st.button('Backtest V3 hybrid vs baseline'):
         try:
             progress=st.empty()

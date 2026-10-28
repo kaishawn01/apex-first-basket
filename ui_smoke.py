@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  with patch.object(research,'season_index',return_value=([indexed_game],[])):
   next(b for b in at.button if b.label=='Check saved history against season schedule').click().run()
 
- at.date_input[0].set_value(date(2027,1,2)).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  assert any('Check schedule coverage again' in x.value for x in at.info)
  assert not any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
  assert any('Prepare a fresh research export' in x.value for x in at.info)
@@ -220,7 +220,7 @@ with patch.object(eng,'read_csv',return_value=history2):
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
  at=AppTest.from_file(str(root/'app.py')).run()
- at.date_input[0].set_value(date(2027,1,2)).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  next(r for r in at.radio if r.label=='Workspace').set_value('Research matchup').run()
  next(s for s in at.selectbox if s.label=='Research team A').set_value('BOS').run()
  next(s for s in at.selectbox if s.label=='Research team B').set_value('NYK').run()
@@ -502,3 +502,41 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  assert not any(d.label=='Download hybrid backtest CSV' for d in at.get('download_button'))
  assert any('Backtest V3 hybrid again' in x.value for x in at.info)
  print('V3 backtest UI passed: matching games, exports, no API calls and configuration invalidation.')
+
+# Phase 2 keeps unverified scenarios explicitly on HOLD and never emits betting actions.
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ original=at.session_state['results']['rows']
+ next(b for b in at.button if b.label=='Run Phase 2 research simulation').click().run()
+ assert not at.exception,list(at.exception)
+ state=at.session_state['phase2_simulation']
+ assert state['readiness']['actionable'] is False and state['readiness']['status'].startswith('HOLD')
+ assert any('First FG before first score' in x.value for x in at.caption)
+ assert any(d.label=='Download Phase 2 research JSON' for d in at.get('download_button'))
+ assert at.session_state['results']['rows']==original
+ with patch.object(core,'roster',side_effect=RuntimeError('Provider offline')):
+  next(b for b in at.button if b.label=='Run Phase 2 research simulation').click().run()
+ assert not at.exception,list(at.exception)
+ assert not any(d.label=='Download Phase 2 research JSON' for d in at.get('download_button'))
+ assert any('Current-team verification failed' in x.value for x in at.error)
+ print('Phase 2 mobile research UI passed: top-five cards, first-shot distinction, HOLD diagnostics, roster failure and preserved rankings.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('No APIs in Phase 2 backtest')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(s for s in at.date_input if s.label=='Phase 2 final-test start').set_value(date(2026,9,5)).run()
+ next(s for s in at.date_input if s.label=='Phase 2 final-test end').set_value(date(2026,9,9)).run()
+ next(b for b in at.button if b.label=='Run Phase 2 held-out comparison').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['phase2_evaluation']['report']
+ assert report['evaluated_games']==5
+ assert report['selection']['weight']==0 and report['selection']['temperature']==1
+ assert any(d.label=='Download Phase 2 held-out metrics' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download Phase 2 held-out metrics' for d in at.get('download_button'))
+ print('Phase 2 evaluation UI passed: chronological windows, small-sample fitting guard, separate cohorts, exports and invalidation.')

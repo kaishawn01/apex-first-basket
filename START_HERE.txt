@@ -1,3 +1,17 @@
+APEX V3 Phase 2 — development preview 3.0.1
+
+Continue on v3/hybrid-monte-carlo / draft PR #1. Do not merge or deploy yet.
+
+Phase 2 adds validated empirical opening sequences, separate first-shot/first-score estimates, typed shots, explicit tip evidence, team/opponent tendencies, second chances, stronger roster/injury diagnostics, mobile candidate cards, and chronological blend/calibration selection. V2.44 Baseline remains the default.
+
+Actual locked final test: 120 games, Baseline Top-1 15.00% vs Hybrid 12.50%; log loss 2.32969 vs 2.32021. The log-loss difference is inconclusive, Brier is slightly worse, and Uniform beats both on proper scores. First-shot accuracy is 15.65% vs 20.00% for the simpler proxy. V3 has NOT demonstrated superiority. No verified pre-tip historical lineup archives were available.
+
+Read V3_REVIEW.md for the complete experiment, limitations, 349 passing local tests and deployment gates. In the dashboard, use Enrich next 20 opening sequences, then the Phase 2 research panel. Backtest lab includes the Phase 2 chronological comparison. Existing API settings and features remain available. Model EV is hidden for HOLD matchups.
+
+The version number is for development compatibility, not approval to deploy. Old updater clients need a reviewed allowlist bridge for the new modules. Test in a separate checkout/folder.
+
+Previous documentation follows:
+
 APEX V3.0 development preview — separate review branch
 
 This branch adds an opt-in hybrid Monte Carlo first-score simulator and hardens NBA starting-lineup verification. It starts from the published V2.44.0 code and preserves the existing ranking models, odds, imports, research tools and journal. Main and your installed app have not been deployed or changed.
