@@ -1,3 +1,81 @@
+# V3 Phase 4 review — development VERSION 3.0.3
+
+**Draft PR #1, branch `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default. No demonstrated repeatable advantage or betting edge.**
+
+## Completed functionality
+
+Phase 4 extends the existing engine, simulation, historical evaluation and Streamlit research panels. It adds a separate SQLite historical ledger with insert-only game checkpoints, raw-response checksums and retrieval/provider timestamps, bounded two-worker collection, at most two connection attempts, persistent HTTP 429 cooldowns, explicit failures and resumable batches. Existing user CSVs, keys, journals and legacy predictions are not overwritten. An invalid five-per-team split cannot enter the starter model; its actual score remains in the outcome ledger.
+
+The append-only forward journal retains successive lineup snapshots, raw NBA evidence, current roster membership, roster/lineup changes, injury status and retrieval time, provider failures, game identity and scheduled start. Official, manual, projected and unknown states remain distinct. Postgame starters never establish historical pre-tip verification. Failed refreshes append evidence and do not erase earlier official snapshots. Predictions require the latest snapshot, no more than five minutes old, valid current-roster identities and a refreshed upcoming-game schedule. Unverified snapshots can generate explicitly labeled research forecasts, not actionable betting recommendations.
+
+Each forecast stores model/source hashes, version, UTC timestamps, archived evidence, six probability vectors, first-shot probabilities, Other mass, trials, seeds, assumptions, sample sizes, unresolved mass handling and data fingerprints. SQL triggers prevent updates/deletes; a SHA-256 chain detects changes. This protects against accidents, not a privileged owner replacing/truncating the whole database or changing the clock; no external timestamp authority is configured. Actual results append separately, including corrections. Reschedules, unresolved identities and non-pre-tip forecasts are excluded explicitly. First-shot misses outside the selected ten count as misses, not silent exclusions.
+
+Manual background jobs keep collection off the Streamlit rendering thread. The mobile research area shows coverage, diagnostics, snapshots, top-five cards, first-shot/first-score differences, Other, baseline/MC/hybrid, simulation uncertainty, calibration, historical reports and prospective exports. Results are stratified by provider confirmation; prospective month/team/opening-context summaries require at least 30 games. No paid API requests occur on page rendering. Credentials remain in existing settings/environment controls and are not journaled.
+
+## Historical expansion and source audit
+
+420 additional unique completed regular-season games were collected: 103 from October 24–November 7, 2023; 117 from November 6–20, 2024; 74 from December 22–31, 2025; 53 from October 21–27, 2026; and 73 from the reserved February 1–10, 2026 period. These are bounded windows, **not complete seasons**.
+
+The reconciled ledger contains **1,110 games**, **1,106 validated first-score outcomes**, **1,106 usable opening-sequence sidecars**, **1,071 explicit jump outcomes**, and **100 free-throw first scores**. Season-ending-year counts are 2024:103, 2025:225, 2026:729, 2027:53. All 1,110 raw-response hashes reconcile. All sources contain explicit bench-player rows, yet all raw first scorers are marked as starters by ESPN. One source has a substitution before its first score. Four games remain ambiguous because of event clock ordering. See `validation/PHASE4_AUDIT.json` for counts and warnings.
+
+This supports the observed zero-bench count in this sample without proving bench first scores impossible. Single-provider flags can be wrong; missing/ambiguous sequences, bounded windows and earlier conditional feature construction can still bias the sample. Other/nonstarter probability remains explicit, estimated from earlier data with the existing fixed prior. No named bench or substitution forecasts were added. Full raw play-by-play is retained; modeled opening sidecars stop at the first substitution or early-window boundary, so “usable” does not mean complete possession coverage. Unknown tip information is not manufactured.
+
+**Inventory limitation:** final reconciliation found eight intact Phase 3 cached games absent from the Phase 4 ledger despite a seed log reporting 690. Cause is not established. They were restored by insert-only import; no old cache or user history was deleted. The original February evaluation used 1,102 ledger records and is preserved unchanged in `PHASE4_RESULTS.json` and the frozen forecast artifact. It was not rerun after seeing outcomes. The reconciled dataset has 1,110 records; results below are NOT claimed to evaluate that revised inventory. See `PHASE4_INVENTORY_AUDIT.json`. Resolve this collection/checkpoint discrepancy before deployment.
+
+## January diagnosis — exploratory, never untouched
+
+The known 159-game January 1–21 sample and original Phase 3 training data were reused only for diagnosis. Sixteen one-factor scenarios include opening possession, role/simple first-shot assignment, conversion, foul frequency and shooter allocation, FT conversion, turnovers, offensive rebounds, opponent conversion, shrinkage, recency and two additional fixed seeds. Results and paired date-bootstrap intervals are in `PHASE4_JANUARY_DIAGNOSTIC.json` and `PHASE4_FOUL_DIAGNOSTIC.json`.
+
+Pure MC top-1 ranged from **8.81% to 11.95%** across seeds 3000–3002; the originally reported 11.95% is therefore sensitive to simulation noise. Neutral tips gave 9.43%, role selection 8.18%, no turnovers 8.81%, no offensive rebounds 9.43%, uniform foul shooters 9.43%, and neutral foul frequency 11.64%. These components may help this sample, but this is not causal proof or independent validation. Neutral conversion gave 12.58% while log loss was essentially unchanged; removing opponent conversion slightly improved log loss. Thirty-day decay had lower January log loss but was not selected. Strong/weak shrinkage scenarios also remove the opponent adjustment and must be compared with that ablation, not interpreted as isolated shrinkage effects. Multiple comparisons are exploratory and unadjusted. No parameter, seed or production default was changed based on January.
+
+## Reserved historical evaluation
+
+`PHASE4_LOCK.json` fixed February 1–10, 2026 and unchanged Phase 3 settings before fetching that period: simple selector, 90-day decay, hybrid weight .5, temperature 1.25, 2,000 trials, seed 3000, 100 prior games. Outcomes from this period were not used for fitting or model selection in this work. Same-day and later information are excluded; each forecast records its last training date. Current-season October 2026 games cannot inform February forecasts.
+
+Of 73 completed games, **72** were evaluated across ten dates; `espn_401810559` was excluded for clock-order conflict. All historical lineup evidence is unverified pre-tip: observed boxscore starters are an oracle-lineup limitation. The period is now known and cannot be reused as an untouched final test. Results apply to the original inventory noted above.
+
+| Model | Top-1 | Top-3 | Log loss | Brier | Calibration ECE (pp) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Literal V2.44 baseline | 15.28% | 37.50% | 2.30122 | .89915 | 1.20 |
+| Baseline + Other | 15.28% | 37.50% | 2.30191 | .89914 | 1.17 |
+| Calibrated baseline | 15.28% | 37.50% | 2.29240 | .89720 | 1.11 |
+| Simple proxy | 15.28% | 38.89% | 2.30919 | .90077 | 1.60 |
+| Pure Monte Carlo | 18.06% | 34.72% | 2.28995 | .89637 | .48 |
+| Selected hybrid | 16.67% | 40.28% | 2.28551 | .89579 | .55 |
+| Uniform starters + same Other | 10.00% | 30.00% | 2.30327 | .90000 | .01 |
+
+Top-k uses fractional tie credit. ECE is descriptive pooled binning, not proof of calibrated individual-player probabilities. Other mass is the same earlier-data estimate for comparable models. Literal uniform over eleven outcomes is also retained in the JSON report. The calibrated baseline temperature was frozen in Phase 3.
+
+Paired date-bootstrap hybrid-minus-Baseline+Other log-loss difference is **−.01640**, 95% interval **[−.04369, +.01082]**; MC difference **−.01196**, interval **[−.03812, +.01882]**. Hybrid top-1 difference is +1.39 percentage points, interval [−3.39,+5.88]; MC +2.78, interval [−4.92,+9.21]. All include no improvement. MC top-3 is lower. First-shot evaluation has 65 eligible games: simple proxy 16.92%, Phase 2 MC selector 15.38%, simple-selector MC 13.85%. Small samples, ten date clusters, oracle lineups, unresolved outcomes and inventory issues prevent a strong accuracy claim. V3 has **not demonstrated repeatable superiority**.
+
+## Actual prospective collection and manual operation
+
+Two manual live runs on October 28, 2026 captured **24 pre-tip snapshots** between 20:13:46 and 20:16:04 UTC, covering 12 games. **Zero snapshots contained two genuinely provider-confirmed fives.** Twelve immutable forecasts were saved before scheduled tip-off; zero have graded outcomes at this review. Injury credentials were unavailable, explicitly recorded as unchecked. These are genuine timestamped projected/unverified research forecasts, not fabricated backfills or confirmed-lineup recommendations. Source hashes identify the prepublication development code used. No prospective accuracy is claimed.
+
+In a separate development checkout, use the Phase 4 dashboard buttons or:
+
+```text
+python phase4_data.py --start 2024-11-21 --end 2024-12-05 --limit 100
+python phase4_forward.py capture
+python phase4_forward.py predict
+python phase4_forward.py grade
+python phase4_forward.py status
+```
+
+Capture and predict before tip-off, within five minutes of each other. Capture repeatedly to preserve lineup changes; the first saved forecast per game remains immutable. The CLI uses `BALLDONTLIE_API_KEY` from the environment; the dashboard uses its existing applied settings. Grading is a separate manual action after completion. Back up `data/phase4` while no job is running. A repeated historical collection resumes missing games; failures and cooldowns remain visible. Do not run the frozen evaluation script again and label its reused period untouched.
+
+No unattended collector has been configured or verified. Local background threads require the app process to remain running; interrupted jobs are shown and must be resumed manually. The only repository workflow is regression CI. GitHub schedules run from the default branch, while this task prohibits merging; Streamlit Community Cloud local-file persistence is not guaranteed. No external durable database/secrets setup was available. References: https://docs.github.com/en/actions/how-tos/troubleshoot-workflows and https://docs.streamlit.io/develop/concepts/connections/connecting-to-data . A deployment decision, persistent store and monitored scheduler are required before claiming reliable unattended capture.
+
+## Validation and deployment disposition
+
+38 Phase 4 tests cover immutable journal timestamps, roster/identity validation, stale/latest snapshots, schedule changes, provider redaction/failures, cache checksums, retries and cooldowns, preserved nonstarter/FT scores, invalid team splits, probability conservation, exact simulator-kernel equivalence and chronological leakage. Full unit/regression and Streamlit smoke results are recorded on PR #1. Existing updater allowlists/checksums and protected data remain enforced; no updater bridge or deployment restriction was bypassed.
+
+Phase 5 should prioritize **prospective data collection and operational reliability**: resolve the ledger discrepancy, independently verify official lineups and injuries near tip-off, persist and monitor collection, pre-register a sufficiently large forward evaluation with frozen models, and compare paired probability scores against uniform/calibrated baselines. Reserve new historical data before further experiments. Do not increase simulator complexity or promote MC based on these small point-estimate gains. Windows launcher behavior, durable hosting, true confirmed-slate capture and sustained prospective scoring remain unverified.
+
+---
+
+## Preserved Phase 3 and earlier review
+
 # V3 Phase 3 review — development VERSION 3.0.2
 
 **Continue draft PR #1 on `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default.** The Phase 3 research path retains the simple first-shot selector; none of the analytical challengers improved both first-shot accuracy and log loss in both validation halves. There is no automatic promotion or betting-edge claim.

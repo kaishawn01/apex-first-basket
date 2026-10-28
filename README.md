@@ -1,3 +1,9 @@
+## V3.0.3 Phase 4 development preview
+
+Continue on `v3/hybrid-monte-carlo`, draft PR #1. Production stays V2.44; do not merge/deploy this preview. Phase 4 adds bounded historical collection, an append-only pre-tip evidence/forecast journal, manual background jobs, prospective grading and mobile research comparisons. See [V3_REVIEW.md](V3_REVIEW.md) for actual counts, reserved evaluation, January diagnostics and limitations. No unattended monitoring is configured. No validated betting edge is claimed.
+
+Manual CLI: `python phase4_forward.py capture`, then `python phase4_forward.py predict` within five minutes and before tip-off; after games finish use `python phase4_forward.py grade`. These commands use a separate `data/phase4` store and preserve existing history. The dashboard has equivalent research controls. API keys remain in existing settings/environment variables.
+
 APEX V3 Phase 3 — development preview 3.0.2
 
 Existing branch v3/hybrid-monte-carlo, draft PR #1. No merge or Streamlit deployment. V2.44 remains the production default.

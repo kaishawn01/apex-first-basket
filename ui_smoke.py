@@ -551,3 +551,26 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
  assert not any(d.label=='Download Phase 2 held-out metrics' for d in at.get('download_button'))
  print('Phase 2 evaluation UI passed: chronological windows, small-sample fitting guard, separate cohorts, exports and invalidation.')
+
+# Phase 4 manual background saves, source provenance, and mobile archive cards.
+import phase4_forward,phase4_data,test_dashboard
+f=test_dashboard.NBAConfirmedLineupTests();f.setUp()
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[f.game]):
+ journal=phase4_forward.Journal(Path(folder)/'phase4'/'forward.sqlite3',clock=lambda:f.now)
+ chosen={t:ps[:5] for t,ps in f.rosters.items()}
+ phase4_forward.snapshot(journal,f.game,chosen,f.rosters,f.parse()['entries']['espn_1'],[],f.now.isoformat())
+ with patch.object(phase4_forward,'Journal',return_value=journal):
+  at=AppTest.from_file(str(root/'app.py')).run()
+  next(b for b in at.button if b.label=='Save eligible Phase 4 forward forecasts').click().run()
+  phase4_data._jobs[str((Path(folder)/'phase4').resolve())].join(15)
+  next(b for b in at.button if b.label=='Refresh Phase 4 job status').click().run()
+  assert not at.exception,list(at.exception)
+  assert len(journal.rows('prediction'))==1
+  assert any(d.label=='Download Phase 4 journal evidence' for d in at.get('download_button'))
+  assert any('Other' in c.value and 'seed' in c.value for c in at.caption)
+  assert any('No eligible prospective results yet' in x.value for x in at.info)
+  before=journal.rows('prediction')[0]
+  next(b for b in at.button if b.label=='Save eligible Phase 4 forward forecasts').click().run()
+  phase4_data._jobs[str((Path(folder)/'phase4').resolve())].join(15)
+  assert journal.rows('prediction')==[before]
+ print('Phase 4 UI passed: manual background job, immutable pre-tip save, mobile cards, Other mass, exports and pending-result distinction.')

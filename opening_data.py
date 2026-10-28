@@ -32,12 +32,12 @@ def category(play,value):
     return 'other'
 
 
-def extract(game,payload):
+def extract(game,payload,allow_nonstarter=False):
     eng.validate_espn_summary(game,payload)
     comp=payload['header']['competitions'][0]
     stamp=datetime.fromisoformat(comp['date'].replace('Z','+00:00'))
     if stamp.tzinfo is None or stamp.astimezone(ZoneInfo('America/New_York')).date().isoformat()!=game['_date']:raise ValueError('Sequence date mismatch.')
-    play,box=eng.espn_game_payloads(payload);rows=eng.extract_game(game,play,box)
+    play,box=eng.espn_game_payloads(payload);rows=eng.extract_game(game,play,box,allow_nonstarter=allow_nonstarter)
     teams={str(c['team']['id']):eng.espn_team(c['team']) for c in comp['competitors']}
     identities={};names={};starters={r['player_id']:r['team'] for r in rows}
     for side in ('homeTeam','awayTeam'):

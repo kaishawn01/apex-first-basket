@@ -1,3 +1,7 @@
+V3.0.3 PHASE 4 DEVELOPMENT ONLY — do not merge/deploy. Production remains V2.44.
+Read V3_REVIEW.md for manual collection, actual evaluation and limitations.
+No unattended monitoring is configured.
+
 APEX V3 Phase 3 — development preview 3.0.2
 
 Existing branch v3/hybrid-monte-carlo, draft PR #1. No merge or Streamlit deployment. V2.44 remains the production default.

@@ -115,6 +115,11 @@ def simulate(history,lineups,target_day,sequences=None,config=None,*,input_trans
     cfg=(config or simulation.SimulationConfig()).validate();sequences=sequences or {}
     inputs=build_inputs(history,lineups,target_day,sequences,cfg)
     if input_transform is not None:inputs=input_transform(inputs)
+    return _simulate_inputs(inputs,lineups,target_day,cfg)
+
+
+def _simulate_inputs(inputs,lineups,target_day,cfg):
+    """Internal kernel for already validated inputs; ablations reuse identical inputs."""
     identity={'date':target_day,'teams':{t:d['players'] for t,d in inputs['teams'].items()},'seed':cfg.seed,'model':'phase2'}
     seed=int.from_bytes(hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).digest()[:8],'big');rng=random.Random(seed)
     teams=list(inputs['teams']);base=inputs['baseline'];wins=Counter();firstshots=Counter();opportunities=Counter();unresolved=0;no_fg=0

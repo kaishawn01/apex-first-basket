@@ -54,16 +54,20 @@ def with_other(probs,mass):
     if not 0<=mass<1 or not probs or any(not math.isfinite(v) or v<0 for v in probs.values()) or abs(sum(probs.values())-1)>1e-8:raise ValueError('Invalid probability distribution')
     return {**{pid:(1-mass)*p for pid,p in probs.items()},OTHER:mass}
 
-def forecast(history,lineups,day,sequences,records,config,method='simple',half_life=90):
+def apply_selection(inputs,probs):
+    for team,data in inputs['teams'].items():
+        mass=sum(probs[pid] for pid in data['players']);inputs['opening_team'][team]=mass
+        share={pid:probs[pid]/mass for pid in data['players']}
+        # Remove category-dependent shooter selection; retain learned shot types and conversion.
+        data['category_players']={cat:share for cat in data['opening_category']};data['opening_share']=share
+    return inputs
+
+def forecast(history,lineups,day,sequences,records,config,method='simple',half_life=90,*,input_transform=None):
     chosen={}
     def transform(inputs):
         probs,counts=selector(history,lineups,day,inputs,method,half_life);chosen.update(probs=probs,counts=counts)
-        for team,data in inputs['teams'].items():
-            mass=sum(probs[pid] for pid in data['players']);inputs['opening_team'][team]=mass
-            share={pid:probs[pid]/mass for pid in data['players']}
-            # Remove category-dependent shooter selection; retain learned shot types and conversion.
-            data['category_players']={cat:share for cat in data['opening_category']};data['opening_share']=share
-        return inputs
+        apply_selection(inputs,probs)
+        return input_transform(inputs) if input_transform is not None else inputs
     report=phase2.simulate(history,lineups,day,sequences,config,input_transform=transform)
     report['inputs']['assumptions'].append('Simple selector removes category-conditioned shooter assignment; first attempts retain team shot-category mix, while player-specific mix applies to later and second-chance attempts.')
     mass,evidence=other_prior(records,day,lineups)
