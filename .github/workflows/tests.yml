@@ -1,0 +1,32 @@
+name: APEX regression tests
+on:
+  pull_request:
+  push:
+    branches: [main, 'v3/**']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -v
+      - run: python ui_smoke.py
+      - name: Verify release manifest
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          from updater import validate_manifest
+          manifest=validate_manifest(json.loads(Path('update_manifest.json').read_text()))
+          assert manifest['version']==Path('VERSION').read_text().strip()
+          for name,digest in manifest['files'].items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest,name
+          PY

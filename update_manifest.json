@@ -1,26 +1,29 @@
 {
-  "version": "2.44.0",
+  "version": "3.0.0",
   "files": {
     ".gitignore": "eaf33bc9a2246b9c1f1cdf5c0bfa24a938bca4b4adf11344e8a0ec11e6ea530d",
     "GITHUB_SETUP.txt": "cca67b59e5395479f519174c30628cc5c51e35d1b3f13b97866783f5d8bf01fa",
-    "README.md": "f7cd37bce4a6f5f02541c5fa32e1b73aa7dce6e695da4606f3fbd0b19d497eb4",
+    "README.md": "a0dc0019c3028181523b685f669ed910653fac3229ef48e45a49205dfe6d7457",
     "RESTORE_APEX.bat": "8c55339a54fca931fb749d181bb5b5524f4f3b31d1436d1d184b11fedabaa531",
     "START_APEX.bat": "69e6ba6a14a9aa2833e1d0865f90d6425fe611b5641e920b7267d6777550494c",
-    "START_HERE.txt": "ea96120cbeccf195364d5702a1122c885b8a3fe49463ad211a3d66ebecc483a2",
-    "VERSION": "95bdc4352d1d3be8d7f75ac51ecfedc079f70083ecdacf9f50fb9ef3dabcdb47",
-    "app.py": "d939a09322f8f725d2cfb0b297b8602af1106899365590a303ee7a221dcdc3a1",
+    "START_HERE.txt": "9e60408ff2c95480e4a61027fad5e068e79d9d4016d00cb65f68064fe7e330a9",
+    "V3_REVIEW.md": "37d2000abdf55d066c1fa8456f456ef046adcb8b651ab229de712241cbb94440",
+    "VERSION": "2985be8b28d3ade858e8d8fb4bc22f565b1bf6020dff982dce141f7721b9999c",
+    "app.py": "8d46c6cfdef90f320023b449ba7abf906f1b509ebc2b91a413a821b3dfce9862",
     "build_manifest.py": "27ecd04e30ba5d2794e64d7ffbe2767cdc72c73ba7c3420eeecf37a784a9f20f",
-    "dashboard_core.py": "a47717a18aa6001db44ba527f46522809231b628fd7b16e73e16c88218d12bf3",
+    "dashboard_core.py": "8b4458d43657f858c21a96e4bbc2f81fc0ef9d2868e13174a9cc2c52b573d691",
     "espn_test_fixture.json": "a4e608701398983bb25bc7778de137cc1f6e1b78ba0ac73f0e9d8889e7f0f296",
     "first_basket_engine.py": "206475e417ce0590f61410b2d3e3e2c09bb2a5f72ba654ee80094d9f9ca7e530",
     "launcher.py": "f99199efc48df6e00753c9e9cbd0b6613013abf21aed20cdc3e706c9e9580c1a",
     "requirements.txt": "805261a099292f4dee655260228fa6eeed02de81969795be3159a1c8db609f90",
     "research_tools.py": "d6e7684a1dc62bbd9ea78229f1c635eda4a5975ffc902b8edf72452827f923e1",
+    "simulation.py": "a1615ef4cfae023558f9273a33d5211ee9bfd9954dac396af19da6beda7ecb69",
     "test_dashboard.py": "b3303f935464435d9443b3a2026e6aa727c90721bba7fce63777f3ad575894bd",
     "test_engine.py": "afffbd90b3c2c5ce787cb160e05e4e861b26e4f1c409af952f5081f9c9ee222e",
     "test_research.py": "16c9cdc0dcb70a0972c01580d1b71580c2faaeed36faf763b38f3f1184f99329",
+    "test_simulation.py": "54613ea7b4660ade1f717e7d8a2ed993902965fdbfb1c9735dcf0683b9bfffd5",
     "test_updater.py": "84f6ebd9b5095dbbd0c947e59c7e8ebbb007182e3e314cc6b43f94948945b2b6",
-    "ui_smoke.py": "92559613ca567027d679805ac74c7ea9419a7c92156c68ec6c8cfb540ba061a4",
-    "updater.py": "eeeaf7e773b893ef0272e50ce25ff11b136e53ebb9f8b388e3ea31111ab03077"
+    "ui_smoke.py": "e3c1eb6215ef846a7b65e97db4fa8736ba19ac471c90f3e711c94e9dfce4470b",
+    "updater.py": "5580418e7d85020a9b4264e22389e1ff628693e6bcad42809aa1654ea6770331"
   }
 }

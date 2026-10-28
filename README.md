@@ -1,3 +1,23 @@
+APEX V3.0 development preview — separate review branch
+
+This branch adds an opt-in hybrid Monte Carlo first-score simulator and hardens NBA starting-lineup verification. It starts from the published V2.44.0 code and preserves the existing ranking models, odds, imports, research tools and journal. Main and your installed app have not been deployed or changed.
+
+Read V3_REVIEW.md before testing or merging. It documents the historical inputs, explicit possession assumptions, leakage controls, limitations, tests and deployment gates. The V2.44 updater needs a reviewed allowlist bridge before it can accept the new V3 modules; do not publish this manifest directly as a one-step automatic update.
+
+For a local preview, use a separate checkout/folder, install requirements.txt and run:
+python -m streamlit run app.py --server.address 127.0.0.1
+
+Load a slate, review/confirm both starting fives and run existing rankings. Open V3 hybrid Monte Carlo · possession simulation. Settings are in the sidebar. Backtest lab includes Backtest V3 hybrid vs baseline, using saved earlier-date history and identical evaluation games. Simulations are research-only; no automatic model promotion or claimed betting edge.
+
+Offline backtest:
+python simulation.py --history data/history_espn.csv --output data/v3_report.json --trials 2000 --min-training 100
+
+Run automated checks:
+python -m unittest discover -v
+python ui_smoke.py
+
+The V2.44 documentation below remains for existing features.
+
 APEX V2.44.0 — Recent opening-shot role inputs
 
 After Run rankings, expand Recent opening-shot role · prediction preview. This new experimental forecast uses each selected player's last five recorded starts on the same team, retaining only starts within 60 days before the prediction date. At least three of these starts must have an observed team opening shooter to activate the input. Unknown opening shooters do not count as misses, and the engine does not search farther back to replace unknown starts within the last-five set. These are recorded starts in the saved history, not a claim of complete appearance coverage.

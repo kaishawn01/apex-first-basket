@@ -12,10 +12,11 @@ import first_basket_engine as eng
 import dashboard_core as core
 import research_tools as research
 import updater
+import simulation
 
 st.set_page_config(page_title='APEX • First Basket',page_icon='🏀',layout='wide')
 st.markdown('''<style>.stApp {background:#0d1420} [data-testid="stMetric"] {background:#172335;border:1px solid #2a3d53;border-radius:12px;padding:16px} .block-container {max-width:1350px} h1 {letter-spacing:-1px}</style>''',unsafe_allow_html=True)
-st.caption('APEX / NBA RESEARCH DESK · V' + updater.current_version())
+st.caption('APEX / NBA RESEARCH DESK · V' + updater.current_version() + ' · V3 DEVELOPMENT PREVIEW')
 st.title('First basket. One workspace.')
 st.write('Sync history, review projected starters, and compare first-score estimates with market prices.')
 st.info('Experimental model • Free throws count • Projected lineups require confirmation • No validated betting edge')
@@ -84,6 +85,20 @@ with st.sidebar:
         st.caption('Compare hypothetical starting fives at any time. No odds or forward-journal saves. Current rosters are used; this is not a historical replay.')
     if selected_model=='lineup':st.caption('Lineup context emphasizes past starts with four or five of the selected teammates. Similar-lineup games are counted once, with other-lineup starts supplying the recent-form anchor. With no similar starts it falls back to recent form. It does not infer injury replacements or opening plays.')
     st.caption('Recent form uses a 90-day half-life, smoothed first-shot involvement, and scoring share conditional on the team scoring first. These settings have not been fitted or validated as better.')
+
+
+with st.sidebar.expander('V3 simulation settings'):
+    mc_trials=st.selectbox('Monte Carlo trials',[1000,5000,20000],index=1)
+    mc_weight=st.slider('Hybrid simulation weight',0.0,0.8,0.35,0.05)
+    mc_seed=int(st.number_input('Simulation seed',min_value=0,max_value=2147483647,value=3000,step=1))
+    st.caption('Scenario assumptions below are not learned from your saved opening-event data.')
+    mc_turnover=st.number_input('Turnover probability per event',0.0,0.5,0.13,0.01)
+    mc_foul=st.number_input('Two-shot foul probability per event',0.0,0.5,0.10,0.01)
+    mc_rebound=st.number_input('Offensive rebound probability after a miss',0.0,1.0,0.24,0.01)
+    mc_ft=st.number_input('Free-throw make probability',0.0,1.0,0.77,0.01)
+mc_config=simulation.SimulationConfig(trials=mc_trials,seed=mc_seed,hybrid_weight=mc_weight,
+    turnover_rate=mc_turnover,shooting_foul_rate=mc_foul,offensive_rebound_rate=mc_rebound,free_throw_rate=mc_ft)
+mc_settings=simulation.asdict(mc_config)
 
 
 hist=eng.read_csv(eng.HISTORY)
@@ -170,7 +185,14 @@ else:
         try:
             with st.spinner('Checking fresh schedule and NBA starting lineups…'):
                 fresh_games=core.fresh_schedule(day)
-                usable_rosters={team:players for team,players in slate['rosters'].items() if team not in slate.get('unavailable_rosters',[])}
+                usable_rosters={}
+                for team in slate['rosters']:
+                    try:
+                        usable_rosters[team]=core.roster(team)
+                        slate['rosters'][team]=usable_rosters[team]
+                    except (RuntimeError,ValueError,KeyError,TypeError):
+                        st.warning(team+': roster refresh failed; NBA confirmation is unavailable for this team.')
+                slate['unavailable_rosters']=[team for team in slate['rosters'] if team not in usable_rosters]
                 st.session_state['nba_lineups']=core.fetch_nba_confirmed_lineups(day,fresh_games,usable_rosters)
         except (RuntimeError,ValueError,KeyError,TypeError):st.warning('NBA lineup check failed. Provider confirmations were cleared. Review projections or confirm the announced five manually.')
     nba_state=st.session_state.get('nba_lineups',{})
@@ -221,7 +243,7 @@ else:
                         confirmations[gid][team]=provider_confirmed or manual_confirmations[gid][team]
                         st.caption('NBA FEED CONFIRMED' if provider_confirmed else 'USER CONFIRMED' if confirmed else 'PROJECTED / UNCONFIRMED')
                         if nba_entry:
-                            st.caption('NBA source timestamp (timezone not supplied by feed): '+nba_entry['source_timestamp'])
+                            st.caption('NBA source timestamps: '+', '.join(nba_entry.get('source_timestamps',[nba_entry['source_timestamp']]))+' · timezone: '+nba_entry.get('source_timezone','unspecified'))
                             if not provider_confirmed:st.info('NBA confirmation is expired, does not match this five, or the game changed. Reload NBA starters or verify manually.')
             confirmation_sources[gid]=core.lineup_confirmation_sources(g,choices[gid],manual_confirmations[gid],nba_entries.get(gid,{}))
     st.markdown('### Market & rankings')
@@ -289,6 +311,40 @@ else:
                 st.dataframe(comparison_frame,hide_index=True,use_container_width=True)
                 st.caption('Range measures disagreement between these three related heuristics; it is not a confidence interval. Agreement does not establish accuracy. Review starts, injury reports and each model’s status before interpreting the estimates. Rank 1 can include ties.')
                 st.download_button('Download matchup model comparison CSV',comparison_frame.to_csv(index=False).encode(),'apex_matchup_models.csv','text/csv')
+        with st.expander('V3 hybrid Monte Carlo · possession simulation'):
+            sim_games={g['gameId']:g for g in games if g['gameId'] in result.get('model_bundles',{})}
+            if sim_games:
+                sim_gid=st.selectbox('Simulate matchup',list(sim_games),format_func=lambda gid:result['model_bundles'][gid]['baseline'][0]['Matchup'])
+                sim_game=sim_games[sim_gid]
+                sim_verified=all(confirmations[sim_gid].values())
+                sim_key=json.dumps({'ranking':signature,'game':sim_gid,'config':mc_settings},sort_keys=True)
+                if not sim_verified and not sim_game.get('research_only'):st.info('Confirm both starting fives before simulating a scheduled game. Manual and NBA verification remain distinct.')
+                if st.button('Run hybrid possession simulation',disabled=not sim_verified and not sim_game.get('research_only')):
+                    try:
+                        if not sim_game.get('research_only'):
+                            sim_current=next((g for g in core.fresh_schedule(day) if g['gameId']==sim_gid),None)
+                            if not sim_current or not core.upcoming(sim_current) or sim_current['start_time']!=sim_game['start_time']:
+                                raise ValueError('Game started or schedule changed. Reload the slate.')
+                            current_sources=core.lineup_confirmation_sources(sim_current,choices[sim_gid],manual_confirmations[sim_gid],nba_entries.get(sim_gid,{}))
+                            if current_sources!=confirmation_sources[sim_gid] or 'Unconfirmed' in current_sources.values():
+                                raise ValueError('Starting-lineup verification expired or changed. Refresh and rerun rankings.')
+                        with st.spinner('Simulating possessions until the first score…'):
+                            simulated=simulation.simulate(hist,choices[sim_gid],day,mc_config)
+                        st.session_state['hybrid_simulation']={'signature':sim_key,'report':simulated,'verification':confirmation_sources[sim_gid]}
+                    except (ValueError,RuntimeError,KeyError) as exc:st.error(str(exc))
+                sim_saved=st.session_state.get('hybrid_simulation')
+                if sim_saved and sim_saved['signature']==sim_key:
+                    sim_report=sim_saved['report']
+                    st.dataframe(pd.DataFrame(simulation.prediction_rows(sim_report,choices[sim_gid])),hide_index=True,use_container_width=True)
+                    st.write(f"Effective simulation weight: {sim_report['effective_hybrid_weight']:.0%} · unresolved trials: {sim_report['unresolved_trials']} / {mc_trials}")
+                    if not sim_report['minimum_history_met']:st.warning('Fewer than ten earlier team games on at least one side: hybrid falls back to Baseline.')
+                    if not any(r['Known opening outcomes'] for r in sim_report['inputs']['evidence']):st.warning('No known opening-shot outcomes for these players: make probabilities use the neutral prior.')
+                    if sim_report['unresolved_fraction']>.01:st.warning('More than 1% of simulations reached the event cap. Review assumptions before interpreting results.')
+                    st.write('Lineup verification: '+', '.join(t+': '+v for t,v in sim_saved['verification'].items()))
+                    st.json({'opening_team_proxy':sim_report['inputs']['opening_team'],'transitions':sim_report['transitions'],'config':sim_report['config']})
+                    st.download_button('Download hybrid simulation JSON',json.dumps(sim_saved,indent=2).encode(),'apex_hybrid_simulation.json','application/json')
+                elif sim_saved:st.info('Simulation settings, matchup or ranking inputs changed. Run the simulation again.')
+                st.caption('Hybrid combines the existing Baseline with simulated first-score frequencies. Free throws count. The opening-team input is a historical first-action proxy, not a verified jump-ball model. Later shot choices reuse opening-shot shares; foul shooters use conditional first-score shares. Turnovers, two-shot fouls, rebounds and free-throw accuracy are explicit assumptions. No substitutions, and-ones, technicals or full play design are modeled. Capped trials retain Baseline probability mass. Monte Carlo SE measures simulation noise only, not model uncertainty. Main rankings, odds and journal forecasts remain unchanged in this development preview.')
         with st.expander('Recent opening-shot role · prediction preview'):
             role_bundles=result.get('model_bundles',{})
             if role_bundles:
@@ -598,6 +654,24 @@ with st.expander('Backtest lab · test the model before trusting it'):
         else:st.info('Not enough eligible history to compare the scoring models. Import more history or review the training minimum.')
         st.caption(f"Invalid historical games excluded: {scorecard['excluded_games']}.")
     elif scorecard:st.info('History or training minimum changed. Compare all five scoring models again.')
+    if st.button('Backtest V3 hybrid vs baseline'):
+        try:
+            progress=st.empty()
+            with st.spinner('Running chronological hybrid simulations…'):
+                st.session_state['hybrid_backtest']=simulation.backtest(hist,warmup,mc_config,progress.info)
+        except ValueError as exc:st.error(str(exc))
+    hybrid_test=st.session_state.get('hybrid_backtest')
+    if hybrid_test and hybrid_test['fingerprint']==research.fingerprint(hist) and hybrid_test['config']==mc_settings and hybrid_test['min_training']==warmup:
+        st.markdown('**V3 leakage-free historical comparison**')
+        if hybrid_test['summary']:
+            st.dataframe(pd.DataFrame(hybrid_test['summary']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(hybrid_test['comparisons']),hide_index=True,use_container_width=True)
+            st.dataframe(pd.DataFrame(hybrid_test['diagnostics']),hide_index=True,use_container_width=True)
+            st.download_button('Download hybrid backtest CSV',pd.DataFrame(hybrid_test['details']).to_csv(index=False).encode(),'apex_hybrid_backtest.csv','text/csv')
+            st.download_button('Download hybrid training audit CSV',pd.DataFrame(hybrid_test['diagnostics']).to_csv(index=False).encode(),'apex_hybrid_training_audit.csv','text/csv')
+        else:st.info('Not enough valid saved history for the hybrid backtest. Import history or review the training minimum.')
+        st.caption(f"Excluded invalid games: {len(hybrid_test['excluded'])}. Both models use identical games and observed historical starting fives. Whole dates are withheld from training until evaluated; only the preceding 400 days are used. Settings stay fixed throughout a run. Newest-quarter and active-hybrid views are diagnostics, not untouched holdouts. Repeated setting changes can overfit these results; historical rosters/lineup announcement timing and nonstarter-scorer exclusion remain limitations. No automatic model promotion.")
+    elif hybrid_test:st.info('History, training minimum or simulation settings changed. Backtest V3 hybrid again.')
     if st.button('Test recent opening-shot roles'):
         with st.spinner('Testing recent role inputs against Recent form…'):
             st.session_state['recent_role_comparison']=research.compare_recent_role(hist,warmup)

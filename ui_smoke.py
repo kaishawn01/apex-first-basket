@@ -461,3 +461,44 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  assert not any(d.label=='Download recent role backtest CSV' for d in at.get('download_button'))
  assert any('Test recent opening-shot roles again' in x.value for x in at.info)
  print('Recent role UI passed: preview evidence, fallback, lineup invalidation, backtest export and stale settings.')
+
+# V3 UI is opt-in; existing ranking and journal behavior remains unchanged.
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ assert next(b for b in at.button if b.label=='Run hybrid possession simulation').disabled
+ for cb in at.checkbox:
+  if cb.label.startswith('I verified'):cb.check()
+ at.run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ original=at.session_state['results']['rows']
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ with patch.object(core,'request',side_effect=AssertionError('No paid or extra APIs')):
+  next(b for b in at.button if b.label=='Run hybrid possession simulation').click().run()
+ assert not at.exception,list(at.exception)
+ saved=at.session_state['hybrid_simulation']
+ assert saved['report']['effective_hybrid_weight']==0
+ assert at.session_state['results']['rows']==original
+ assert any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ assert any('Run the simulation again' in x.value for x in at.info)
+ next(m for m in at.multiselect if m.label.startswith('BOS')).set_value(['10','11','12','13','15']).run()
+ assert not any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ print('V3 simulation UI passed: confirmations, fallback, preserved rankings, exports and input invalidation.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('No APIs during backtest')):
+ at=AppTest.from_file(str(root/'app.py')).run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(b for b in at.button if b.label=='Backtest V3 hybrid vs baseline').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['hybrid_backtest']
+ assert report['evaluated_games']==10
+ assert any(d.label=='Download hybrid backtest CSV' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download hybrid backtest CSV' for d in at.get('download_button'))
+ assert any('Backtest V3 hybrid again' in x.value for x in at.info)
+ print('V3 backtest UI passed: matching games, exports, no API calls and configuration invalidation.')

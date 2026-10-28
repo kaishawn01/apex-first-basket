@@ -333,6 +333,25 @@ def matchup_leader_board(rows):
 NBA_LINEUP_URL='https://stats.nba.com/js/data/leaders/00_daily_lineups_{day}.json'
 
 
+def lineup_name_key(value):
+    """Conservative accent/punctuation normalization; do not remove name suffixes."""
+    import unicodedata
+    text=unicodedata.normalize('NFKD',str(value))
+    return eng.norm(''.join(ch for ch in text if not unicodedata.combining(ch)))
+
+
+def lineup_timestamp_valid(value,day,now):
+    from zoneinfo import ZoneInfo
+    try:
+        stamp=datetime.fromisoformat(value.replace('Z','+00:00'))
+        if stamp.tzinfo is None:
+            # NBA currently omits the timezone. Validate its calendar date without
+            # inventing an offset or treating it as UTC for age calculations.
+            return stamp.date().isoformat()==day
+        return stamp.astimezone(ZoneInfo('America/New_York')).date().isoformat()==day and (stamp-now).total_seconds()<=300
+    except (TypeError,ValueError,AttributeError):return False
+
+
 def parse_nba_confirmed_lineups(payload,day,games,rosters,now=None):
     """Map only explicit five-position NBA confirmations to unique ESPN roster names."""
     from datetime import date
@@ -355,11 +374,17 @@ def parse_nba_confirmed_lineups(payload,day,games,rosters,now=None):
             messages.append(gid+': duplicate NBA game identity.');continue
         if type(source.get('gameStatus')) is not int or source['gameStatus']!=1 or not str(source.get('gameId','')).isdigit():
             messages.append(gid+': NBA game is not explicitly pregame.');continue
+        positioned_ids={side:{str(p.get('personId','')) for p in source[side].get('players',[])
+                              if isinstance(p,dict) and p.get('position')}
+                        if isinstance(source[side].get('players'),list) else set() for side in ('awayTeam','homeTeam')}
+        if source['awayTeam'].get('teamId')==source['homeTeam'].get('teamId') or positioned_ids['awayTeam'] & positioned_ids['homeTeam']:
+            messages.append(gid+': duplicate NBA team or starter identity across sides.');continue
         for side,team in (('awayTeam',away),('homeTeam',home)):
             try:
                 data=source[side];players=data['players']
                 if type(data.get('teamId')) is not int or data['teamId']<=0:raise ValueError('Invalid NBA team ID')
                 if not isinstance(players,list):raise ValueError('Invalid player list')
+                if any(not isinstance(r,dict) for r in players):raise ValueError('Malformed player entry')
                 positioned=[r for r in players if r.get('position')]
                 if len(positioned)!=5 or {r.get('position') for r in positioned}!={'PG','SG','SF','PF','C'}:
                     raise ValueError('No complete five-position starting lineup')
@@ -369,21 +394,23 @@ def parse_nba_confirmed_lineups(payload,day,games,rosters,now=None):
                 if len(set(source_ids))!=5 or any(not pid.isdigit() or int(pid)<=0 for pid in source_ids):raise ValueError('Invalid NBA player IDs')
                 if any(r.get('teamId')!=data['teamId'] for r in positioned):raise ValueError('NBA player team mismatch')
                 timestamps={r['timestamp'] for r in positioned}
-                if len(timestamps)!=1 or any(datetime.fromisoformat(t.replace('Z','+00:00')).date().isoformat()!=day for t in timestamps):
-                    raise ValueError('Mixed or wrong-date lineup timestamps')
+                if any(not lineup_timestamp_valid(t,day,now) for t in timestamps):
+                    raise ValueError('Wrong-date, invalid or future lineup timestamp')
                 roster=rosters.get(team,[]);mapped=[]
                 for player in positioned:
-                    name=eng.norm(player['playerName'])
-                    matches=[r for r in roster if name and eng.norm(r['player'])==name]
+                    name=lineup_name_key(player['playerName'])
+                    matches=[r for r in roster if name and lineup_name_key(r['player'])==name]
                     if len(matches)!=1:raise ValueError('Starter name does not uniquely match the loaded team roster')
                     mapped.append(matches[0]['player_id'])
-                if len(set(mapped))!=5:raise ValueError('Duplicate mapped player IDs')
+                if len(set(mapped))!=5 or any(not isinstance(pid,str) or not pid.isdigit() or int(pid)<=0 for pid in mapped):raise ValueError('Invalid or duplicate mapped player IDs')
                 entries.setdefault(gid,{})[team]={'game_id':gid,'date':day,'start_time':game['start_time'],
                     'home':home,'away':away,'team':team,'player_ids':mapped,'nba_player_ids':source_ids,
-                    'nba_game_id':str(source['gameId']),'source':'NBA daily lineup feed','source_timestamp':next(iter(timestamps)),
+                    'nba_game_id':str(source['gameId']),'source':'NBA daily lineup feed','source_timestamp':max(timestamps),'source_timestamps':sorted(timestamps),
+                    'source_timezone':'unspecified' if any(datetime.fromisoformat(t.replace('Z','+00:00')).tzinfo is None for t in timestamps) else 'explicit offsets',
                     'fetched_at':now.isoformat(),'source_url':NBA_LINEUP_URL.format(day=day.replace('-',''))}
-            except (ValueError,KeyError,TypeError,AttributeError):
-                messages.append(team+': no usable confirmed five; keep the lineup unconfirmed or verify it manually.')
+            except (ValueError,KeyError,TypeError,AttributeError) as exc:
+                reason=str(exc) if isinstance(exc,ValueError) else 'Missing or malformed lineup fields'
+                messages.append(team+': '+reason+'. Keep unconfirmed or verify manually.')
     return {'day':day,'entries':entries,'messages':messages,'fetched_at':now.isoformat()}
 
 
@@ -402,10 +429,16 @@ def nba_confirmation_matches(entry,game,selected,now=None):
         return (not game.get('research_only') and upcoming(game,now) and 0<=age<=300 and
                 entry['game_id']==game['gameId'] and entry['date']==game['_date'] and entry['start_time']==game['start_time'] and
                 entry['home']==game['homeTeam']['teamTricode'] and entry['away']==game['awayTeam']['teamTricode'] and
+                entry.get('team') in {game['homeTeam']['teamTricode'],game['awayTeam']['teamTricode']} and
+                entry.get('source')=='NBA daily lineup feed' and str(entry.get('nba_game_id','')).isdigit() and
+                len(entry['player_ids'])==5 and len(set(entry['player_ids']))==5 and
+                len(entry.get('nba_player_ids',[]))==5 and len(set(entry['nba_player_ids']))==5 and
+                bool(entry.get('source_timestamps',[entry.get('source_timestamp')])) and
+                all(lineup_timestamp_valid(t,game['_date'],now) for t in entry.get('source_timestamps',[entry.get('source_timestamp')])) and
                 len(ids)==5 and len(set(ids))==5 and set(ids)==set(entry['player_ids']))
     except (KeyError,TypeError,ValueError):return False
 
 
 def lineup_confirmation_sources(game,lineups,manual,provider,now=None):
-    return {team:('NBA feed confirmed' if nba_confirmation_matches(provider.get(team,{}),game,players,now)
-                   else 'User confirmed' if manual.get(team) and len(players)==5 else 'Unconfirmed') for team,players in lineups.items()}
+    return {team:('NBA feed confirmed' if provider.get(team,{}).get('team')==team and nba_confirmation_matches(provider.get(team,{}),game,players,now)
+                   else 'User confirmed' if manual.get(team) is True and len(players)==5 and len({p['player_id'] for p in players})==5 else 'Unconfirmed') for team,players in lineups.items()}
