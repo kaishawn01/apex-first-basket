@@ -15,6 +15,8 @@ import updater
 import simulation
 import phase2
 import opening_data
+import phase3
+import outcome_data
 
 st.set_page_config(page_title='APEX • First Basket',page_icon='🏀',layout='wide')
 st.markdown('''<style>.stApp {background:#0d1420} [data-testid="stMetric"] {background:#172335;border:1px solid #2a3d53;border-radius:12px;padding:16px} .block-container {max-width:1350px} h1 {letter-spacing:-1px}</style>''',unsafe_allow_html=True)
@@ -337,8 +339,10 @@ else:
                         if any('roster' in message or 'identit' in message for message in ready['messages']):raise ValueError('Current-team verification failed. Refresh the slate and correct the selected five.')
                         with st.spinner('Simulating empirical opening sequences…'):
                             p2_report=phase2.simulate(hist,choices[p2_gid],day,phase2_sequences,mc_config)
+                        if not current.get('research_only'):
+                            outcome_data.archive_lineup(current,choices[p2_gid],manual_confirmations[p2_gid],nba_entries.get(p2_gid,{}),fresh_rosters,reports,inj.get('time'))
                         st.session_state['phase2_simulation']={'signature':p2_key,'report':p2_report,'readiness':ready,'checked_at':datetime.now(ZoneInfo('UTC')).isoformat()}
-                    except (ValueError,RuntimeError,KeyError) as exc:st.error(str(exc))
+                    except (ValueError,RuntimeError,KeyError,OSError) as exc:st.error(str(exc))
                 p2_saved=st.session_state.get('phase2_simulation')
                 if p2_saved and p2_saved['signature']==p2_key and 0<=(datetime.now(ZoneInfo('UTC'))-datetime.fromisoformat(p2_saved['checked_at'])).total_seconds()<=300:
                     pr=p2_saved['report'];st.warning(p2_saved['readiness']['status'])
@@ -356,6 +360,33 @@ else:
                         st.json({'opening_tip_probabilities':pr['inputs']['opening_team'],'transitions':pr['transitions'],'no_FG_before_score_fraction':pr['no_field_goal_fraction'],'assumptions':pr['inputs']['assumptions']})
                     st.caption('All probabilities are research estimates, including unverified-lineup scenarios. No odds, EV or betting instruction is produced here. First-shot selection is separate from first-score conversion. Top five is a display limit; ties can extend beyond it. Monte Carlo SE is simulation noise, not full model uncertainty. This uses the sidebar exploratory blend; validation-selected calibration appears only in the held-out research report.')
                     st.download_button('Download Phase 2 research JSON',json.dumps(p2_saved,indent=2).encode(),'apex_phase2_research.json','application/json')
+                    with st.expander('Phase 3 · complete outcomes and simpler selection'):
+                        st.caption('Research only. Simple first-shot selector retained; no model promotion. Other covers outcomes outside the selected ten, not a named bench-player prediction.')
+                        try:p3_outcomes=outcome_data.load()
+                        except (ValueError,OSError,TypeError) as exc:
+                            p3_outcomes={};st.warning('Complete-outcome ledger unavailable: '+str(exc))
+                        p3_key=p2_key+research.fingerprint(p3_outcomes)+p2_saved['checked_at']
+                        if st.button('Run Phase 3 research comparison'):
+                            st.session_state.pop('phase3_simulation',None)
+                            try:
+                                if not p2_games[p2_gid].get('research_only') and not core.upcoming(p2_games[p2_gid]):raise ValueError('Game started; reload the slate.')
+                                report=phase3.forecast(hist,choices[p2_gid],day,phase2_sequences,p3_outcomes,mc_config)
+                                st.session_state['phase3_simulation']={'signature':p3_key,'report':report}
+                            except (ValueError,RuntimeError,KeyError) as exc:st.error(str(exc))
+                        saved3=st.session_state.get('phase3_simulation')
+                        if saved3 and saved3['signature']==p3_key:
+                            p3=saved3['report'];st.warning('RESEARCH ONLY · '+p2_saved['readiness']['status'])
+                            st.write(f"Other/nonstarter probability: {p3['other_mass']:.2%} · completed outcome sample: {p3['other_evidence']['games']} · trials: {p3['config']['trials']:,}")
+                            if p3['other_evidence']['games']<100:st.warning('Small complete-outcome sample: Other mass relies heavily on an assumed 1% prior.')
+                            for i,pid in enumerate(sorted(p3['hybrid'],key=lambda pid:-p3['hybrid'][pid])[:5],1):
+                                st.markdown(f"**{i}. {people[pid][1]} · {people[pid][0]}**")
+                                st.write(f"Baseline {p3['complete']['Baseline + Other'][pid]:.1%} · MC {p3['complete']['Monte Carlo'][pid]:.1%} · Hybrid {p3['complete']['Hybrid'][pid]:.1%}")
+                                st.caption(f"First-shot proxy {p3['first_shot_proxy'][pid]:.1%} · simulated first FG before score {p3['first_shot'][pid]:.1%}")
+                            st.caption('Player first-score probabilities plus Other sum to 100%. First-shot displays remain conditional on the selected starters. The historical conditional model still learns from starter-only CSV rows; complete outcomes estimate Other separately. MC uncertainty excludes model and lineup error.')
+                            st.json({'selection_status':'Simple retained; unvalidated research challenger','assumptions':p3['inputs']['assumptions'],'other_evidence':p3['other_evidence'],'sampling_se':p3['hybrid_mc_se']})
+                            st.download_button('Download Phase 3 research JSON',json.dumps(saved3,indent=2).encode(),'apex_phase3_research.json','application/json')
+                        elif saved3:st.info('Phase 3 inputs changed; rerun research comparison.')
+
                 elif p2_saved:st.info('Phase 2 inputs changed or verification expired. Run Phase 2 research simulation again.')
         with st.expander('V3 hybrid Monte Carlo · possession simulation'):
             sim_games={g['gameId']:g for g in games if g['gameId'] in result.get('model_bundles',{})}
@@ -525,6 +556,26 @@ with st.expander('Build deeper history · prior-season import'):
         if report['skipped']:
             st.warning('Some games could not be imported. Games with a nonstarter first scorer remain excluded by this model.')
             st.dataframe(pd.DataFrame(report['skipped']),hide_index=True,use_container_width=True)
+
+with st.expander('Phase 3 complete outcomes · selection-bias audit'):
+    st.write('Preserve actual first scorers, including bench players and free throws, in a separate research ledger. Existing history is not overwritten. Postgame starters never establish pre-tip confirmation.')
+    complete_day=st.date_input('Complete outcome import date',datetime(2025,12,1),key='complete_day').isoformat()
+    if st.button('Import complete outcomes for this date'):
+        try:
+            st.session_state['complete_outcome_import']=outcome_data.collect_day(complete_day,progress=st.info)
+        except (ValueError,RuntimeError,KeyError,OSError) as exc:st.error(str(exc))
+    if st.session_state.get('complete_outcome_import'):st.json(st.session_state['complete_outcome_import'])
+    try:st.json(outcome_data.audit(outcome_data.load()))
+    except (ValueError,OSError,TypeError) as exc:st.warning('Complete-outcome ledger unavailable: '+str(exc))
+    st.caption('Pregame research runs now append timestamped projected/manual/provider lineup snapshots locally. Only current provider evidence can establish official confirmation; unavailable or expired evidence remains unverified.')
+    phase3_review=eng.ROOT/'validation'/'PHASE3_RESULTS.json'
+    if phase3_review.exists():
+        with st.expander('Phase 3 frozen historical performance'):
+            try:
+                review3=json.loads(phase3_review.read_text());st.dataframe(pd.DataFrame(review3['summary']),hide_index=True,use_container_width=True)
+                st.caption('January 2026 was reserved before model selection. These results are now known and cannot serve as an untouched test for later tuning.')
+                st.json({'sample':review3['games'],'verified_pretip_games':review3['verified_pretip_games'],'selection':review3['selection'],'note':review3['note']})
+            except (ValueError,KeyError,OSError) as exc:st.warning('Historical review unavailable: '+str(exc))
 
 with st.expander('Phase 2 empirical opening sequences'):
     st.write('Add explicit tip outcomes, typed shots, free throws, turnovers and rebounds from the first three minutes before the first substitution. This separate cache does not change your existing history.')

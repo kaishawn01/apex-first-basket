@@ -324,7 +324,7 @@ def opening_score_path(actions,scorer,first_shot):
     return ''
 
 
-def extract_game(game, play, box):
+def extract_game(game, play, box, allow_nonstarter=False):
     actions = [a for a in sorted_actions(play) if int(a.get("period", 0)) == 1]
     if not actions:
         raise ValueError("Missing first-period plays")
@@ -368,7 +368,7 @@ def extract_game(game, play, box):
             })
     if len(found) != 10:
         raise ValueError(f"Expected 10 starters, got {len(found)} (skip suspect game)")
-    if sum(int(r["first_scorer"]) for r in found) != 1:
+    if not allow_nonstarter and sum(int(r["first_scorer"]) for r in found) != 1:
         raise ValueError("First scorer is not one of the ten starters; game excluded")
     return found
 

@@ -1,3 +1,94 @@
+# V3 Phase 3 review — development VERSION 3.0.2
+
+**Continue draft PR #1 on `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default.** The Phase 3 research path retains the simple first-shot selector; none of the analytical challengers improved both first-shot accuracy and log loss in both validation halves. There is no automatic promotion or betting-edge claim.
+
+## What changed
+
+- Added a separate complete first-score ledger (`outcome_data.py`). Actual starters, bench scorers and unknown starter status are distinct. Legitimate free throws count. Missing scoring identities, conflicting sequences, clock reversals and inconsistent score totals remain explicit unresolved records/errors. Unrelated missing bench IDs no longer discard a known first score. An unparseable later play can block starter features without erasing the known first scorer.
+- Legacy CSV imports and existing research/odds/journal features retain their behavior. `extract_game(..., allow_nonstarter=True)` is an opt-in research bridge; the default still requires one starter scorer. Full outcomes are not forced into a starter row. The complete ledger is separate and raw source caches are not published.
+- Added eleven-outcome probability support: ten selected players plus `OTHER`. Complete models scale conditional starter probabilities by (1 − Other mass). The literal legacy baseline has zero Other support; a real Other outcome gives it infinite log loss rather than a fabricated starter winner. A separate Baseline + Other wrapper allows comparable full-support evaluation.
+- Other mass uses only earlier resolved games with valid modeling lineups, a 400-day window and a fixed Beta(0.5, 49.5) prior (1% prior mean). This prior is an assumption, not an estimated NBA rate. Conditional player models still train on starter-scorer rows; first-shot feature selection bias may remain. Named bench-player/substitution forecasts are not supported.
+- Reused the existing Phase 2 possession simulator via an optional input transform; did not build a competing engine. The simple challenger removes category-conditioned first-shooter assignment. First attempts retain team category mix; later/second-chance shots retain player-specific mix. Tips, turnovers, foul trips, type-specific conversion and rebounds are retained. This simplified independence assumption is explicitly disclosed.
+- Added role, empirical, 50/50 role blend, category/tip bundle, neutral-possession and opponent-history ablations at 30/90/180-day half-lives, with shrinkage and sample diagnostics. First-team attempt proxies are distinct from actual first FG before first score and later scoring opportunities.
+- Added append-only timestamped pre-tip snapshots for Phase 2 research runs, preserving projected/manual/provider sources, game/start identity, selected five, source evidence and injury time. Existing journal evidence remains intact. Failed roster checks prevent snapshots; provider failures/staleness cannot establish confirmation. Historical verified cohorts require an archived provider snapshot matching the recorded start and selected IDs. Box scores never establish pre-tip verification.
+- Added mobile Phase 3 candidate cards, Other mass, assumptions, sample warnings, complete-outcome import/audit, frozen performance reporting and JSON exports. New panels remain research-only, with no odds/EV recommendation. Stale Phase 2 verification gates the Phase 3 panel too.
+
+## Why Phase 2's first-shot selection weakened
+
+A replay of the original 120-game December sample reproduced the original 115 eligible first-shot results exactly: simple proxy **23/115 (20.00%)**, Phase 2 simulated first-shot **18/115 (15.65%)**. The Phase 2 category/tip input bundle, before possession simulation, hit **19/115 (16.52%)**. Most of the drop therefore appeared before simulation; simulation/exposure conditioning and random sampling account for the remaining difference in these predictions, not necessarily a causal effect.
+
+On those same known games, role-only, empirical, 50/50 role blend and opponent adjustments each hit 22/115 (19.13%). Minor log-loss changes did not justify a replacement. The 78 games with fewer than five prior exact-lineup appearances had simple/Phase 2 accuracy 21.79%/16.67%; the 16 low-start cases had 6.25%/0%. All five net lost hits were among players with prior first-team-shot frequency at least 20%. These are descriptive, overlapping, small-sample groups—not a discovery of stable player types or individual defensive causes. Actual positions/defender assignments were unavailable.
+
+Unresolved hypotheses include correlated role/lineup predictors, sparse category and tip samples, shrinkage strength, team-possession estimation, and conditioning first-shot probability on a FG occurring before the first score. Category and tip effects remain bundled; this study does not identify their individual causal contributions. The original December results are known development diagnostics, never reused as an untouched final test.
+
+## Selection-bias and coverage audit
+
+Development ledger: **531 games**, including **108 completed games from October 22–November 5, 2024**, plus the cached October–December 2025 period. Of these, 529 outcomes resolved as starter scorers; two clock-order conflicts remained ambiguous. Seven summaries formerly rejected for missing unrelated player IDs were recovered. All scheduled/summary/sequence failures and unresolved records are retained in the artifacts.
+
+Combined ledger after the final test: **690 games**; outcome counts **{'starter': 688, 'ambiguous': 2}**; **63 free-throw first scores**. Final-test audit: **159 fetched summaries**, counts **{'starter': 159}**, from **159 scheduled completed games**. Full warning lists are in PHASE3_RESULTS.json. No observed resolved bench scorer means the real-world impact of nonstarter inclusion cannot be estimated from this sample; synthetic tests establish correct handling, not empirical validation of the Other prior. Unknown outcomes are not silently treated as starters.
+
+## Frozen chronological evaluation
+
+Protocol: `validation/PHASE3_LOCK.json`. Development ends December 21, 2025. **342 chronological validation games** select parameters; they use strictly earlier dates, including the expanded prior-season sample where it lies within 400 days. No same-day outcome trains another forecast. Validation chooses the **simple selector, 90-day decay, 50% MC blend, temperature 1.25**. The separately calibrated baseline also selects temperature 1.25. Selection was written before any January summary was fetched. Temperature scaling has a dedicated eleven-outcome path; the legacy ten-outcome helper is unchanged.
+
+The genuinely reserved evaluation was **January 1–21, 2026: 159 modeled games**. December 22–31 was not collected, leaving a documented training gap. During this rolling test, earlier January outcomes can train later January dates; selection settings never change. The final test is now known and must not be used to tune a future model. No public sample has archived provider-verified pre-tip lineups: verified cohort is zero, all modeled games have unverified pre-tip evidence and retrospective observed starting fives.
+
+| Model | Top-1 % | Top-3 % | Log loss | Brier | ECE pp |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy Baseline | 8.81 | 30.82 | 2.36412 | 0.912288 | 2.50 |
+| Baseline + Other | 8.81 | 30.82 | 2.36504 | 0.912264 | 2.49 |
+| Simple proxy | 9.43 | 30.82 | 2.35252 | 0.911299 | 1.93 |
+| Monte Carlo | 11.95 | 32.70 | 2.31468 | 0.902439 | 0.91 |
+| Phase 2 hybrid | 8.81 | 28.30 | 2.35268 | 0.909799 | 2.01 |
+| Selected hybrid | 8.81 | 30.19 | 2.32101 | 0.903360 | 1.28 |
+| Calibrated baseline | 8.81 | 30.82 | 2.34304 | 0.907571 | 1.87 |
+| Uniform | 9.09 | 27.27 | 2.39790 | 0.909091 | 0.00 |
+| Uniform + Other | 10.00 | 30.00 | 2.30351 | 0.900001 | 0.02 |
+
+
+On this single reserved test, the selected hybrid improves log loss and Brier relative to Baseline + Other, with paired intervals excluding zero. Top-1 does not improve, top-3 is slightly lower, and Uniform + Other has better point estimates on both proper scores. This is limited probability-score improvement, not demonstrated overall superiority or a deployment case. The Phase 2 hybrid row is the uncalibrated exploratory 35% blend, not its old validation-selected calibrated forecast.
+
+Lower log loss/Brier/ECE is better. Top-k ties get fractional credit. The eleven-way Uniform benchmark gives Other the same mass as each player; Uniform + Other uses equal probabilities within the ten-player field and the same earlier-data Other prior as the complete models. A zero aggregate calibration bin error for uniform probabilities is mechanical, not discrimination. ECE uses fixed bins and is uncertain in a small sample. This study includes eleven outcome categories, so ECE is comparable within this table, not directly to the old ten-player Phase 2 ECE.
+
+Final-test first-shot diagnostics: eligible **146**; simple proxy **15.75%**, Phase 2 simulated first-shot **14.73%**, simple-selector simulation **16.44%**. Analytical proxy and simulation differ in conditioning/exposure; they should not be conflated. First-shot ablation log loss uses a declared numerical floor of 1e-15; paired metric diagnostics retain non-finite raw simulation losses and withhold undefined log-loss intervals.
+
+Paired approximate date-bootstrap 95% intervals, candidate minus **Baseline + Other** (hit-rate differences in percentage points):
+
+- Selected hybrid: Log loss -0.04403 [-0.06805, -0.02347]; Brier -0.00890 [-0.01238, -0.00589]; Top-1 hit percentage points +0.00000 [-2.54777, +2.35294]; Top-3 hit percentage points -0.62893 [-5.26316, +5.55556]
+- Calibrated baseline: Log loss -0.02200 [-0.03535, -0.01076]; Brier -0.00469 [-0.00677, -0.00275]; Top-1 hit percentage points +0.00000 [+0.00000, +0.00000]; Top-3 hit percentage points +0.00000 [+0.00000, +0.00000]
+- Monte Carlo: Log loss -0.05037 [-0.07833, -0.02725]; Brier -0.00983 [-0.01418, -0.00602]; Top-1 hit percentage points +3.14465 [-0.69930, +6.70732]; Top-3 hit percentage points +1.88679 [-3.97351, +8.97436]
+
+Dates can remain dependent. These intervals and calibration tables do not establish profitable bets. No historical prices/ROI were evaluated.
+
+## Comparable before/after check on known games
+
+The original Phase 2 baseline/hybrid results on the 120 common December games are recorded in PHASE3_DIAGNOSTICS.json. Original published values: Baseline top-1 15.00%, log loss 2.32969; hybrid top-1 12.50%, log loss 2.32021. Phase 3 on exactly the common target games:
+
+| Model | Top-1 % | Top-3 % | Log loss | Brier | ECE pp |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Phase 3 Legacy Baseline | 16.67 | 36.25 | 2.31999 | 0.900985 | 1.81 |
+| Phase 3 Selected hybrid | 15.83 | 38.33 | 2.30533 | 0.899215 | 0.33 |
+| Phase 3 Calibrated baseline | 16.67 | 36.25 | 2.30886 | 0.899065 | 1.44 |
+
+
+Training was expanded/repaired, so this comparison is not a controlled attribution to one feature and is not a fresh test. The January table above is the relevant held-out check.
+
+## Tests, reproducibility and deployment limits
+
+Local automated validation: **387 unit/regression tests**, including nonstarter and FT outcomes, identity errors, probability conservation, eleven-outcome calibration, cached/uncached ablation equality, strict chronological inputs, future-outcome perturbation, provider failures and archive timestamp/reschedule checks. Full Streamlit smoke checks include legacy features, Other probability mass, the simple selector, warnings, pre-tip snapshots and result invalidation. GitHub CI checks Python 3.11 and 3.14, UI and manifest integrity; see the PR for actual published-commit results.
+
+Reproduce: `python validation/run_public_sample.py`, `python validation/run_phase2.py`, then `python validation/run_phase3.py`. The last command caches public responses under ignored `data/phase3_validation`, uses at most two request workers, stops on rate limits, records failures, freezes selection before fetching test data, and refuses a changed existing selection. `python validation/diagnose_original_phase2.py` replays the known Phase 2 diagnostic. `python validation/analyze_phase3.py` adds descriptive patterns and paired intervals without changing model settings. Public provider revisions may change fingerprints and must be reviewed rather than bypassing a lock.
+
+In the dashboard, import complete outcomes for a prior date into the separate ledger, then run Phase 2 research and expand Phase 3. A fresh checkout includes frozen validation reports; updater program manifests intentionally exclude raw data and research datasets. Existing personal files, API keys and installed environments are preserved.
+
+Remaining gates: prospective verified lineup/injury archives; more complete seasons and rare nonstarter examples; resolve clock-order ambiguities; validate current jumper and individual defensive assignments; improve opening shot-type/selector dependence; support bench/substitution modeling only with evidence; independently validate calibration and any candidate improvement. Live Windows/provider checks and an updater allowlist bridge for `phase3.py`, `outcome_data.py`, `test_phase3.py` (plus the earlier V3 modules) remain required before rollout. Do not weaken hashes or protected-file rules.
+
+**Phase 4 recommendation: prioritize data collection and prospective validation, with targeted model work guided by ablations. Controlled deployment is not yet justified.**
+
+---
+
+# Previous phase reviews (historical record)
+
 # V3 Phase 2 review — VERSION 3.0.1, development only
 
 ## Decision: retain V2.44 Baseline

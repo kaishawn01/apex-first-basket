@@ -137,7 +137,8 @@ with patch.object(eng,'read_csv',return_value=history2):
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  next(b for b in at.button if b.label=='Run walk-forward evaluation').click().run()
  assert not at.exception,list(at.exception)
- metrics=next(d.value for d in at.dataframe if 'Log loss' in d.value.columns)
+ # Select the live walk-forward table, excluding the new frozen Phase 3 review.
+ metrics=next(d.value for d in at.dataframe if 'Log loss' in d.value.columns and 'cohort' not in d.value.columns)
  assert metrics.iloc[0]['Evaluated games']==10
  assert any(d.label=='Download game-by-game backtest' for d in at.get('download_button'))
  next(b for b in at.button if b.label=='Compare baseline vs recent form').click().run()
@@ -518,6 +519,16 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
  assert any('First FG before first score' in x.value for x in at.caption)
  assert any(d.label=='Download Phase 2 research JSON' for d in at.get('download_button'))
  assert at.session_state['results']['rows']==original
+ next(b for b in at.button if b.label=='Run Phase 3 research comparison').click().run()
+ assert not at.exception,list(at.exception)
+ p3=at.session_state['phase3_simulation']['report']
+ assert abs(sum(p3['complete']['Hybrid'].values())-1)<1e-10
+ assert p3['selector']=='simple' and p3['other_evidence']['games']==0
+ assert any('Other/nonstarter probability' in x.value for x in at.markdown)
+ assert any(d.label=='Download Phase 3 research JSON' for d in at.get('download_button'))
+ assert (Path(folder)/'pregame_lineups.jsonl').exists()
+ assert at.session_state['results']['rows']==original
+ print('Phase 3 UI passed: complete probability mass, simple selector, pre-tip archive, warnings and preserved rankings.')
  with patch.object(core,'roster',side_effect=RuntimeError('Provider offline')):
   next(b for b in at.button if b.label=='Run Phase 2 research simulation').click().run()
  assert not at.exception,list(at.exception)

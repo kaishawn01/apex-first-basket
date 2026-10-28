@@ -1,0 +1,38 @@
+{
+  "development_end": "2025-12-21",
+  "test_start": "2026-01-01",
+  "test_end": "2026-01-21",
+  "earlier_training_start": "2024-10-22",
+  "earlier_training_end": "2024-11-05",
+  "minimum_prior_games": 100,
+  "trials": 2000,
+  "seed": 3000,
+  "selectors": [
+    "simple",
+    "role",
+    "empirical",
+    "hybrid",
+    "phase2",
+    "neutral_tip",
+    "opponent"
+  ],
+  "half_lives": [
+    30,
+    90,
+    180
+  ],
+  "weights": [
+    0,
+    0.15,
+    0.35,
+    0.5
+  ],
+  "temperatures": [
+    0.8,
+    1,
+    1.25
+  ],
+  "selection": "validation log loss; selector replacement additionally requires two chronological validation halves improve first-shot log loss and accuracy",
+  "default": "simple selector, Baseline production",
+  "note": "December 1\u201321 is known development data. January 2026 has not been downloaded or inspected for this experiment."
+}

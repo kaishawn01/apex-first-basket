@@ -1,3 +1,15 @@
+APEX V3 Phase 3 — development preview 3.0.2
+
+Existing branch v3/hybrid-monte-carlo, draft PR #1. No merge or Streamlit deployment. V2.44 remains the production default.
+
+Adds a separate complete first-score ledger (starter/bench/unknown/ambiguous), explicit Other probability, simpler first-shot research selection, empirical ablations, pre-tip lineup archives, and mobile research cards. Existing features/settings remain available. The original 15.65% vs 20.00% first-shot result was reproduced; most lost hits appeared in input weighting before simulation. No replacement cleared both validation halves.
+
+342 validation games froze settings before the January 1–21, 2026 test (159 modeled games). Read V3_REVIEW.md for measured results, uncertainty, coverage and deployment limits. Do not interpret new complexity or the version number as proof of improved accuracy.
+
+To research locally: use a separate branch checkout, import complete outcomes for a prior date, run Phase 2 research, then expand Phase 3. Data stays separate from the legacy CSV. Pregame research runs append source-labeled lineup snapshots. No paid requests occur merely by opening these panels.
+
+Previous documentation follows:
+
 APEX V3 Phase 2 — development preview 3.0.1
 
 Continue on v3/hybrid-monte-carlo / draft PR #1. Do not merge or deploy yet.
