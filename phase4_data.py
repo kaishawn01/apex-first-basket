@@ -1,5 +1,5 @@
 """Resumable research collection. Separate SQLite checkpoint store; legacy CSVs untouched."""
-import json,hashlib,sqlite3,threading,time,copy
+import json,hashlib,sqlite3,threading,time,copy,uuid
 from pathlib import Path
 from datetime import datetime,timezone,date,timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +17,13 @@ def connect(root=None):
     c.executescript('''CREATE TABLE IF NOT EXISTS games(gid TEXT PRIMARY KEY,record TEXT NOT NULL,sequence TEXT,raw_hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS failures(id INTEGER PRIMARY KEY,at TEXT,gid TEXT,stage TEXT,reason TEXT);
     CREATE TABLE IF NOT EXISTS attempts(gid TEXT PRIMARY KEY,n INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS status(key TEXT PRIMARY KEY,value TEXT);''')
+    CREATE TABLE IF NOT EXISTS status(key TEXT PRIMARY KEY,value TEXT);
+    CREATE TABLE IF NOT EXISTS import_receipts(id INTEGER PRIMARY KEY,gid TEXT,raw_hash TEXT,committed_at TEXT,receipt TEXT);
+    CREATE TRIGGER IF NOT EXISTS games_no_update BEFORE UPDATE ON games BEGIN SELECT RAISE(ABORT,'Historical games are immutable'); END;
+    CREATE TRIGGER IF NOT EXISTS games_no_delete BEFORE DELETE ON games BEGIN SELECT RAISE(ABORT,'Historical games are immutable'); END;
+    CREATE TRIGGER IF NOT EXISTS receipts_no_update BEFORE UPDATE ON import_receipts BEGIN SELECT RAISE(ABORT,'Import receipts are immutable'); END;
+    CREATE TRIGGER IF NOT EXISTS receipts_no_delete BEFORE DELETE ON import_receipts BEGIN SELECT RAISE(ABORT,'Import receipts are immutable'); END;''')
+    c.execute('PRAGMA synchronous=FULL')
     return c
 
 class Client:
@@ -49,7 +55,7 @@ class Client:
                     raise RateLimited('HTTP 429; cooldown recorded until '+until.isoformat())
                 r.raise_for_status();data=r.json()
                 wrapper={'provider':'ESPN','retrieved_at':datetime.now(timezone.utc).isoformat(),'provider_date':r.headers.get('Date'),'url':url,'params':params,'payload':data,'sha256':digest(data)}
-                tmp=path.with_suffix('.tmp');tmp.write_text(canonical(wrapper));tmp.replace(path);return wrapper
+                tmp=path.with_suffix('.'+uuid.uuid4().hex+'.tmp');tmp.write_text(canonical(wrapper));tmp.replace(path);return wrapper
             except (requests.Timeout,requests.ConnectionError):
                 if attempt:raise RuntimeError('Provider connection failed after two bounded attempts') from None
                 self.sleep(1)
@@ -84,11 +90,14 @@ def ingest(game,wrapper,root=None):
     firstq=[x for x in p.get('plays',[]) if x.get('period',{}).get('number')==1]
     record['source_opening_metadata']={'first_quarter_events':len(firstq),'substitution_events':sum('substitution' in str(x.get('type',{}).get('text','')).lower() or ' enters the game for ' in str(x.get('text','')).lower() for x in firstq),'first_scorer_starter_flag_source':'ESPN postgame boxscore; never pre-tip verification'}
     with connect(root) as c:
+        c.execute('BEGIN IMMEDIATE')
         exists=c.execute('SELECT raw_hash FROM games WHERE gid=?',(game['gameId'],)).fetchone()
         if exists:
             if exists[0]!=digest(p):raise ValueError('Conflicting source for existing game; original checkpoint preserved')
             return False
         c.execute('INSERT INTO games VALUES(?,?,?,?)',(game['gameId'],canonical(record),canonical(seq) if seq else None,digest(p)))
+        receipt={'game_id':game['gameId'],'raw_hash':digest(p),'record_hash':digest(record),'sequence_hash':digest(seq),'source_retrieved_at':wrapper.get('retrieved_at')}
+        c.execute('INSERT INTO import_receipts(gid,raw_hash,committed_at,receipt) VALUES(?,?,?,?)',(game['gameId'],digest(p),datetime.now(timezone.utc).isoformat(),canonical(receipt)))
     return True
 
 def failure(root,gid,stage,reason):

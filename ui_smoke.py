@@ -574,3 +574,27 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
   phase4_data._jobs[str((Path(folder)/'phase4').resolve())].join(15)
   assert journal.rows('prediction')==[before]
  print('Phase 4 UI passed: manual background job, immutable pre-tip save, mobile cards, Other mass, exports and pending-result distinction.')
+
+# Phase 5: no provider activity on render; real workflow exercised with labeled fixtures.
+import os
+import phase5_store,phase5_protocol,phase5_runner,phase5_ui,phase5_integrity,test_phase5
+fixture=test_phase5.RunnerTests();fixture.setUp()
+try:
+ with patch.object(eng,'DATA',Path(fixture.tmp.name)),patch.object(eng,'read_csv',return_value=history),patch.object(phase5_store,'configured_store',return_value=fixture.s),patch.object(phase5_ui,'Providers',return_value=fixture.p),patch.object(phase5_integrity,'model_data',return_value=(fixture.h,fixture.seq,{})),patch.dict(os.environ,{'APEX_DATABASE_URL':'fixture-configured'}):
+  # Store is injected; the environment marker only makes the monitoring panel visible.
+  at=AppTest.from_file(str(root/'app.py')).run()
+  assert not at.exception,list(at.exception)
+  assert fixture.p.schedule_calls==0
+  next(b for b in at.button if b.label=='Run due Phase 5 forecast checkpoints').click().run()
+  phase4_data._jobs[str((Path(fixture.tmp.name)/'phase5').resolve())].join(20)
+  next(b for b in at.button if b.label=='Refresh Phase 5 monitoring').click().run()
+  assert not at.exception,list(at.exception)
+  assert len(fixture.s.rows('prediction'))==1
+  assert any(d.label=='Download Phase 5 monitoring report' for d in at.get('download_button'))
+  assert any('STALE / historical forecast' in w.value for w in at.warning)
+  assert any('Below initial 300-game milestone' in i.value for i in at.info)
+  calls=fixture.p.schedule_calls
+  next(b for b in at.button if b.label=='Refresh Phase 5 monitoring').click().run()
+  assert fixture.p.schedule_calls==calls
+ print('Phase 5 UI passed: read-only monitoring, manual checkpoint, immutable forecast cards, stale labels, milestones and export; no provider calls on render.')
+finally:fixture.tearDown()

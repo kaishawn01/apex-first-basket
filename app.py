@@ -18,6 +18,7 @@ import opening_data
 import phase3
 import outcome_data
 import phase4_ui
+import phase5_ui
 
 st.set_page_config(page_title='APEX • First Basket',page_icon='🏀',layout='wide')
 st.markdown('''<style>.stApp {background:#0d1420} [data-testid="stMetric"] {background:#172335;border:1px solid #2a3d53;border-radius:12px;padding:16px} .block-container {max-width:1350px} h1 {letter-spacing:-1px}</style>''',unsafe_allow_html=True)
@@ -559,6 +560,7 @@ with st.expander('Build deeper history · prior-season import'):
             st.dataframe(pd.DataFrame(report['skipped']),hide_index=True,use_container_width=True)
 
 phase4_ui.render(hist,st.session_state['keys'].get('bdl',''))
+phase5_ui.render(st.session_state['keys'].get('bdl',''))
 
 with st.expander('Phase 3 complete outcomes · selection-bias audit'):
     st.write('Preserve actual first scorers, including bench players and free throws, in a separate research ledger. Existing history is not overwritten. Postgame starters never establish pre-tip confirmation.')
