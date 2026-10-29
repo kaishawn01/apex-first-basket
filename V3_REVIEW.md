@@ -1,3 +1,21 @@
+# Phase 9 — V3.0.8: entitlement diagnostics and source decision
+
+**Live acceptance remains blocked.** Continued the existing branch and draft PR #1. No account credential was accessible; zero account/sports API requests, zero new historical games and zero genuine forecasts/results. Main remains V2.44.0. No subscription, trial, paid endpoint, scheduler, dashboard or training-bundle deployment was activated.
+
+Extended `phase8_access.py` with a two-read local `inspect` command, hidden key entry, sanitized NBA subscription/renewal observations and documented quota reporting. Expired/malformed/inactive evidence fails closed. A failed entitlement refresh now revokes the previous in-memory grant. Unknown response values cannot leak through diagnostic output. Paid endpoints remain disabled regardless of the reported tier; existing budgets, cooldowns, official paths and GET-only transport are preserved.
+
+The material provider finding is that BDL lineups are documented as available only after game start. They cannot certify pre-tip starters. Existing All-Star access is unverified and would not provide Plays. The source follow-up did not establish a compatible permitted zero-new-cost replacement. The new migration document is a design, not a speculative importer or a completed source mapping. No alternative provider is mislabeled as ESPN.
+
+Local regression: 601 tests, 593 passed, eight PostgreSQL-only tests skipped locally; 21 new Phase 9 tests. Full Streamlit smoke passed. GitHub CI and the preserved synthetic cloud workflow are pending publication at this implementation checkpoint; exact results will be recorded in `validation/PHASE9_RESULTS.json`.
+
+The 1,110-game ledger passes a read-only SQLite integrity check; 1,106 resolved outcomes and the prior 780-game training candidate are preserved. Model source, frozen evaluations, Phase 7 registered protocol/settings and dispatcher remain unchanged. No accuracy optimization or new independent performance claim is made.
+
+Acceptance: **A blocked** (credential unavailable); **B blocked** (no verified complete source); **C not attempted** (no authorized sample to migrate); **D blocked** (data prerequisites); **E not attempted** (no genuine pre-tip publication). Synthetic cloud success cannot satisfy these levels.
+
+See `PHASE9_ENTITLEMENTS.md` for the trusted-computer command, `PHASE9_HISTORICAL_SOURCES.md` for ranked sources and an unsent permission inquiry, and `PHASE9_DATA_MIGRATION.md` for source-native requirements. These boundaries are the next task, not additional simulator complexity.
+
+---
+
 # Phase 8 — V3.0.7: data access and controlled live readiness
 
 **Status: no genuine NBA forecast yet.** The existing V3 branch/PR is continued, not rebuilt. Main/V2.44 is untouched, the dispatcher remains a disabled template, and no paid service or trial is enabled.

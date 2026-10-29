@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "version": "3.0.8",
+  "reviewed_on": "2026-10-29",
+  "prior_head": "04e6015ee697b6f5728a99b178795907d2f4609e",
+  "production_sha": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "production_version": "2.44.0",
+  "status": "Diagnostics implemented; genuine acceptance blocked",
+  "acceptance": {
+    "A": "blocked \u2014 no authorized credential",
+    "B": "blocked \u2014 no verified compatible zero-new-cost event source",
+    "C": "not attempted \u2014 migration design only, no authorized sample",
+    "D": "blocked \u2014 training and current-game prerequisites incomplete",
+    "E": "not attempted \u2014 no genuine forecast"
+  },
+  "actual_account_verified": false,
+  "account_requests": 0,
+  "sports_api_requests": 0,
+  "new_historical_games": 0,
+  "genuine_forecasts": 0,
+  "genuine_results": 0,
+  "historical_games_preserved": 1110,
+  "resolved_first_scores_preserved": 1106,
+  "ledger_integrity": "ok",
+  "ledger_sha256": "8b789c55a83f501c4d0279d9529d3273d1b560db250466644eed81e99ad2c913",
+  "new_source_adapter_implemented": false,
+  "model_protocol": "apex-v3.0.6-live-01",
+  "model_source_changed": false,
+  "registered_settings_changed": false,
+  "dispatcher_changed": false,
+  "production_changed": false,
+  "new_spending_authorized": 0,
+  "paid_services_enabled": false,
+  "local_tests": {
+    "total": 601,
+    "passed": 593,
+    "skipped_postgres": 8,
+    "new_phase9_tests": 21,
+    "seconds": 6.245,
+    "python": "3.12.14",
+    "full_streamlit_smoke": "passed"
+  },
+  "ci": {
+    "status": "pending publication"
+  },
+  "cloud_fixture": {
+    "status": "pending existing workflow",
+    "genuine": false
+  },
+  "prospective_accuracy": null,
+  "limitations": [
+    "No secure account inspection occurred",
+    "Published subscription/endpoint coverage is not current account entitlement",
+    "BDL lineup endpoint is post-start only",
+    "No permitted compatible historical replacement or source-native migration validated",
+    "Prior eight-game discrepancy root cause remains unresolved"
+  ],
+  "next_action": "Run the trusted local read-only inspection; resolve permitted event history before one controlled genuine observation."
+}
