@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 0000000000000000000000000000000000000000 # Replace only with reviewed Phase 7 implementation SHA.
+          ref: 95e4a736bb72d64012d6af9688ba857bffcb380d # Reviewed Phase 7 implementation; no arbitrary ref input.
           persist-credentials: false
       - name: Enforce correct model and no retry reuse
         run: |

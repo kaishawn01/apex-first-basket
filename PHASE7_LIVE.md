@@ -81,3 +81,7 @@ The primary protocol remains latest eligible 30–600-second forecast with remot
 8. Roll back by disabling the global switch and cancelling in-progress runs. Retain journals/data branch unchanged, disable the dispatcher and leave V2.44 running. Never force-push evidence or bypass updater checks.
 
 The original eight-game omission and local SQLite corruption causes remain unresolved. This phase validates a different durable archive path; it does not claim those causes have been explained. All frozen historical experiments remain preserved.
+
+## Observed Phase 7 validation
+
+554 tests passed in GitHub CI on Python 3.11 and 3.14, including PostgreSQL; locally 546 passed and eight PostgreSQL tests were skipped. Full Streamlit and manifest checks passed. Workflow 40815545939 ran generation, fresh-runner reconciliation and display verification in 30/25/30 seconds. Its one synthetic forecast and result are explicitly test-only and use a fixed fixture clock. No real provider requests, live NBA forecasts, real outcome grades or unattended live jobs were observed. This demonstrates the controlled code path, not completion of the real-data acceptance criteria.
