@@ -1,0 +1,84 @@
+name: APEX isolated cloud fixture
+on:
+  workflow_dispatch:
+  push:
+    branches: ['v3/hybrid-monte-carlo']
+    paths: ['phase6_*.py', '.github/workflows/apex-cloud.yml']
+# No production schedule. See PHASE6_CLOUD.md before activating anything.
+permissions:
+  contents: read
+concurrency:
+  group: apex-research-data-writer
+  cancel-in-progress: false
+jobs:
+  forecast:
+    if: github.repository == 'kaishawn01/apex-first-basket' && github.event.repository.private == false && github.ref == 'refs/heads/v3/hybrid-monte-carlo' && vars.APEX_AUTOMATION_DISABLED != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          ref: apex-research-data
+          path: cloud-data
+          fetch-depth: 0
+      - name: Generate labeled fixture and prove duplicate prevention
+        run: python phase6_cli.py fixture-generate --journal "cloud-data/fixtures/$GITHUB_SHA/journal.json"
+      - name: Publish compact forecast to durable data branch
+        run: python phase6_git.py publish --root cloud-data --file "fixtures/$GITHUB_SHA/journal.json"
+  reconcile:
+    needs: forecast
+    if: vars.APEX_AUTOMATION_DISABLED != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          ref: apex-research-data
+          path: cloud-data
+          fetch-depth: 0
+      - name: Reconcile fixture outcome on a fresh runner
+        run: python phase6_cli.py fixture-grade --journal "cloud-data/fixtures/$GITHUB_SHA/journal.json"
+      - name: Publish separate immutable fixture result
+        run: python phase6_git.py publish --root cloud-data --file "fixtures/$GITHUB_SHA/journal.json"
+  verify:
+    needs: reconcile
+    if: vars.APEX_AUTOMATION_DISABLED != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          ref: apex-research-data
+          path: cloud-data
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify persisted timestamps, grading and dashboard rendering
+        run: |
+          python phase6_git.py verify --root cloud-data --file "fixtures/$GITHUB_SHA/journal.json"
+          python phase6_smoke.py "cloud-data/fixtures/$GITHUB_SHA/journal.json"
+# No upload-artifact, dependency cache, paid provider secrets, billing changes or wagers.

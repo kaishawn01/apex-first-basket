@@ -1,3 +1,37 @@
+# V3 Phase 6 review — development VERSION 3.0.5
+
+Continue existing draft PR #1 on `v3/hybrid-monte-carlo`. **Do not merge, activate production scheduling, or deploy the dashboard.** Main/V2.44, the 1,110-game historical ledger and all prior frozen evaluations/journals remain unchanged.
+
+## Implementation
+
+Phase 6 adds a headless batch entry point around the existing Phase 4 forecast function and Monte Carlo simulator, without changing weights or replacing the engine. It separates manual, schedule-window and validation execution. A compact append-only JSON journal preserves probabilities, Other, first-shot vectors, lineup status, provenance hashes/timestamps, model settings, uncertainty, separate outcome versions and diagnostics. Original forecasts are never rewritten.
+
+A dedicated `apex-research-data` branch provides repository-native persistence. Publication verifies prefix integrity and fast-forward updates, confirms the remote ref, records the first observed publication time, then publishes derived dashboard metrics. Hash chains, atomic replacement, locks, explicit capacity stops and fresh-clone recovery tests protect against accidental corruption. It does not claim to diagnose Phase 5's unexplained SQLite incident or prevent a privileged owner from rewriting Git history.
+
+The isolated cloud fixture workflow uses standard Ubuntu runners in the verified public repository, bounded eight-minute jobs and a common concurrency group. No artifact uploads, paid providers, cache upgrades, purchases, deployment or schedule are enabled. Fixtures are explicitly synthetic and cannot enter real prospective results. A separate disabled live-workflow template documents activation; default-branch trigger limitations and GitHub scheduling delays remain explicit.
+
+The cloud provider wrapper allows credential-free ESPN/NBA only, blocks paid hosts/keys/redirects, reserves at most 80 attempts per run and 400 per Eastern day, and preserves cooldown diagnostics. Actual Odds API/BALLDONTLIE account quotas and billing settings could not be verified; those services remain disabled in the collector. Existing local odds functionality is preserved.
+
+A Phase 6 dashboard panel reads compact persisted forecasts and derived publication reports, exposes stale/unconfirmed/missing-data labels and displays top-five baseline/MC/hybrid candidates, first-shot probabilities, Other and uncertainty. Page rendering makes no paid requests. Mobile hosting instructions are prepared; no Streamlit service is connected or deployed.
+
+## Experiment and data boundary
+
+`apex-v3.0.5-cloud-01` is a new declared experiment with unchanged model parameters and its own source hashes. Phase 5's frozen 3.0.4 protocol is preserved, including its version guard; continuing that original experiment requires its original code. No frozen February evaluation is rerun or represented as a result of corrected data.
+
+Primary prospective metrics require a qualifying forecast and verified remote publication before tip-off; log loss/Brier and paired date-bootstrap comparisons remain primary. Top-1/3/5, first-shot accuracy, calibration, confidence, snapshot type, lineup cohort and model version are descriptive. Repeated snapshots do not increase the one-game primary sample. Test forecasts and retrospective outcomes remain segregated. No odds means no ROI. There are no new live prospective results in Phase 6.
+
+Live cloud forecasting still needs an explicitly reviewed, appropriately licensed training bundle; existing personal history is not silently published. Schedules/default-branch routing and mobile publication require approval. Reliable near-tip official lineup coverage, the original eight-game discrepancy and local storage incident causes remain unresolved.
+
+## Validation status
+
+Initial local suite: 531 tests discovered, 523 passed, eight PostgreSQL integration tests reserved for CI. Local fixture forecast/reconciliation, fresh Git clone, immutable timestamp, duplicate prevention, competing-writer rejection and dashboard rendering passed. Full UI and GitHub cloud evidence are recorded below after execution; implementation alone is not proof of operational automation.
+
+See `PHASE6_CLOUD.md` for architecture, verified public-runner cost basis, unknown billing settings, safeguards, scheduling/retention limitations, deployment instructions and exact approval boundaries.
+
+---
+
+## Preserved Phase 5 and earlier review
+
 # V3 Phase 5 review — development VERSION 3.0.4
 
 **Continue draft PR #1 on `v3/hybrid-monte-carlo`. Do not merge or deploy. V2.44 remains the production default.** Phase 5 adds operational infrastructure and prospective experiment controls; it does not change the prediction weights or claim a validated advantage.

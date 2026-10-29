@@ -1,3 +1,7 @@
+APEX V3.0.5 Phase 6 — development research only
+
+Cloud fixture workflow and repository-native archive are prepared on the V3 branch. Live schedules and mobile deployment remain disabled. Read PHASE6_CLOUD.md and V3_REVIEW.md. V2.44 production is unchanged.
+
 ## V3.0.4 Phase 5 development preview
 
 Draft PR #1 remains on `v3/hybrid-monte-carlo`; V2.44 production is unchanged. Phase 5 adds transaction receipts/reconciliation, provider evidence diagnostics, scheduled-checkpoint code, a PostgreSQL adapter, immutable successive forecasts, separate grading and a frozen prospective protocol. **No live scheduler or cloud database is configured.** See [PHASE5_OPERATIONS.md](PHASE5_OPERATIONS.md) for setup and [V3_REVIEW.md](V3_REVIEW.md) for actual observations, recovery incidents and validation limits. Do not merge/deploy this preview without an explicit decision.

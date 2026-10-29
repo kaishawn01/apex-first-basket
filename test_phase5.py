@@ -177,6 +177,7 @@ class FakeProviders:
 
 class RunnerTests(unittest.TestCase):
     def setUp(self):
+        self.version_patch=patch('updater.current_version',return_value='3.0.4');self.version_patch.start();self.addCleanup(self.version_patch.stop)
         self.tmp=tempfile.TemporaryDirectory();self.f=test_dashboard.NBAConfirmedLineupTests();self.f.setUp();self.now=providers.stamp(self.f.game['start_time'])-timedelta(minutes=60);self.s=storage.Store(Path(self.tmp.name)/'ops.db',clock=lambda:self.now);self.p=FakeProviders(self);protocol.register(self.s);self.h,self.seq,_=sample_history()
     def tearDown(self):self.tmp.cleanup()
     def tick(self,observe=False):
@@ -228,6 +229,7 @@ class RunnerTests(unittest.TestCase):
 
 class GradeTests(unittest.TestCase):
     def setUp(self):
+        self.version_patch=patch('updater.current_version',return_value='3.0.4');self.version_patch.start();self.addCleanup(self.version_patch.stop)
         self.tmp=tempfile.TemporaryDirectory();f=test_research.OpeningResultEnrichmentTests();f.setUp();self.raw=copy.deepcopy(f.payload);self.raw['header']['season']={'year':2026,'type':2};self.game=outcome_data.game_from_payload(self.raw);self.game['gameStatus']=1;self.now=providers.stamp(self.game['start_time'])-timedelta(minutes=10)
         self.s=storage.Store(Path(self.tmp.name)/'ops.db',clock=lambda:self.now);protocol.register(self.s)
         result=outcome_data.extract(self.game,self.raw);lineups={t:[{'player_id':r['player_id'],'player':r['player']} for r in result['rows'] if r['team']==t] for t in {r['team'] for r in result['rows']}}
@@ -275,7 +277,7 @@ class RecoveryDetailsTests(unittest.TestCase):
         f=EvidenceTests();f.setUp();f.p['games'][0]['homeTeam']['players'][0]['personId']=100;r=f.resolve();self.assertFalse(r['provider_verified']);self.assertFalse(r['valid_identities'])
     def test_storage_outage_does_not_trigger_provider_calls(self):
         s=Mock();s.get.side_effect=storage.StorageError('database offline');p=Mock()
-        with self.assertRaises(storage.StorageError):runner.tick(s,p)
+        with patch('updater.current_version',return_value='3.0.4'),self.assertRaises(storage.StorageError):runner.tick(s,p)
         p.schedule.assert_not_called()
 
     def test_concurrent_real_clock_receipts_are_ordered(self):
