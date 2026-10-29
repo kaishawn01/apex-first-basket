@@ -11,6 +11,7 @@ from phase4_data import digest
 
 class Phase7Tests(unittest.TestCase):
     def setUp(self):
+        version_patch=patch('updater.current_version',return_value='3.0.6');version_patch.start();self.addCleanup(version_patch.stop)
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.now=datetime(2027,1,2,21,tzinfo=timezone.utc);self.j=Journal(self.root/'journal.json',clock=lambda:self.now);self.s=Store(self.root/'ops.db',clock=lambda:self.now);self.p=FixtureProviders(lambda:self.now);self.b=fixture.empty_bundle(self.p.game['_date'])
     def tearDown(self):self.tmp.cleanup()
     def generate(self,run='one',slot='manual'):return live.generate(self.j,self.s,self.p,self.p.game,self.b,slot,run,True)

@@ -1,3 +1,5 @@
+APEX development V3.0.7 — Phase 8: data-access diagnostics. No live activation; production remains V2.44. See PHASE8_DATA_ACCESS.md and PHASE8_LIVE_OPERATIONS.md.
+
 APEX V3.0.6 Phase 7 — controlled live readiness; source permissions unresolved
 
 No live scheduling, public dashboard or paid service is enabled. Read PHASE7_LIVE.md and V3_REVIEW.md. V2.44 remains unchanged.

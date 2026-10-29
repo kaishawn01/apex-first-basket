@@ -1,3 +1,21 @@
+# Phase 8 — V3.0.7: data access and controlled live readiness
+
+**Status: no genuine NBA forecast yet.** The existing V3 branch/PR is continued, not rebuilt. Main/V2.44 is untouched, the dispatcher remains a disabled template, and no paid service or trial is enabled.
+
+The source audit covers thirteen options. BALLDONTLIE now documents analytical/model permission, but Free and the reported All-Star tier do not provide the plays needed to replace the ESPN-derived history. The actual account/key is unavailable in this workspace. Open dataset labels do not establish a separate upstream grant; no complete zero-new-cost replacement was verified. See `PHASE8_DATA_ACCESS.md` and `validation/PHASE8_SOURCE_AUDIT.json` for sources and exact scope/coverage gaps.
+
+Implemented `phase8_access.py`: read-only account inspection, zero-cost endpoint allowlist, persisted 20-attempt daily limit, 13-second spacing, explicit 429 cooldown, no automatic retries/redirects/billing mutations, redacted diagnostics, and separate provider identity parsing. Source-review evidence and cross-provider mapping validators reject missing/stale/ambiguous evidence. This diagnostic client is not a complete replacement live provider adapter; it does not authorize ESPN training or enable a paid BDL endpoint. The new mobile-friendly Phase 8 panel performs no provider calls.
+
+The model, Phase 5 frozen hashes, Phase 7 source files and registered configuration are unchanged. A V3.0.7 test wrapper exercises the existing 3.0.6 model protocol with explicitly synthetic fixtures. It must never be used to disguise a genuine prediction's version. No historical or prospective accuracy claim is added. The October 28 training candidate remains unapproved: 782 records, 780 usable training games, two ambiguous outcomes. No additional historical data was collected, uploaded or silently remapped.
+
+Local validation: **580 tests, 572 passed, eight PostgreSQL-only tests skipped; 26 new Phase 8 tests**. Full Streamlit smoke and the new no-network panel test passed. The resumed environment initially lacked dependencies; a fresh isolated environment installed unchanged requirements before the successful regression run. Cloud test and CI observations will be appended only after actual completion.
+
+Remaining: permitted opening-event history, secure existing account inspection, validated current-roster/ID mapping, genuine pre-tip remote publication and later verified outcome. No real forecast, live outcome, unattended scheduler or public dashboard is claimed. The earlier integrity root cause remains unresolved. Next phase should resolve these data prerequisites and perform one controlled observation rather than retune the model.
+
+Operations: `PHASE8_LIVE_OPERATIONS.md`. Machine-readable evidence: `validation/PHASE8_RESULTS.json`.
+
+---
+
 # V3 Phase 7 review — development VERSION 3.0.6
 
 **Not technically complete for live NBA acceptance.** Phase 7 implements and tests the controlled live path, but permissible historical/source access has not been established, so no genuine live forecast was generated. No schedule, public dashboard, paid provider or V3 merge was activated. Main/V2.44 remains unchanged; PR #1 stays draft.

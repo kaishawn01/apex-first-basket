@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "version": "3.0.7",
+  "reviewed_on": "2026-10-29",
+  "status": "Implementation tested locally; genuine forecast blocked",
+  "prior_head": "c68a5f4197382a81ad30e640ac96a097cf32a2bb",
+  "production_sha": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "production_version": "2.44.0",
+  "model_protocol": "apex-v3.0.6-live-01",
+  "model_weights_changed": false,
+  "frozen_model_hashes_match": true,
+  "existing_phase7_sources_changed": false,
+  "source_candidates_reviewed": 13,
+  "end_to_end_source_verified": false,
+  "new_historical_games": 0,
+  "genuine_forecasts": 0,
+  "genuine_outcomes": 0,
+  "live_sports_api_requests": 0,
+  "account_inspection_requests": 0,
+  "credentials_available": false,
+  "new_services_or_paid_trials": 0,
+  "scheduler_enabled": false,
+  "dispatcher_changed": false,
+  "local_tests": {
+    "total": 580,
+    "passed": 572,
+    "skipped_postgres": 8,
+    "new_phase8_tests": 26,
+    "seconds": 5.766,
+    "python": "3.12.14",
+    "streamlit_smoke": "passed"
+  },
+  "cloud_fixture": {
+    "status": "not yet verified for Phase 8",
+    "genuine": false
+  },
+  "ci": {
+    "status": "pending publication"
+  },
+  "resolved": [
+    "Identified BDL published analytical-use permission",
+    "Added free-only read-only access diagnostics",
+    "Documented minimum model and genuine-archive inputs"
+  ],
+  "blockers": [
+    "No approved compatible historical event dataset",
+    "No secure credential/account entitlement inspection",
+    "No validated BDL-to-existing-model identity/event migration",
+    "No actual pre-tip game or remote live receipt",
+    "No approved dispatcher installation or public deployment"
+  ],
+  "limitations": [
+    "General player listing is not active roster confirmation",
+    "Synthetic workflow is not prospective performance",
+    "Earlier eight-game discrepancy cause remains unresolved",
+    "Source coverage and permission review must precede a live run"
+  ],
+  "preserved_phase7_training_audit": {
+    "cutoff_exclusive": "2026-10-28",
+    "window_records": 782,
+    "usable_training_games": 780,
+    "rows": 7800,
+    "usable_sequences": 780,
+    "ambiguous_retained": 2,
+    "published": false
+  },
+  "prospective_accuracy": null,
+  "next_recommendation": "Resolve permitted opening-event history and inspect existing BDL entitlement securely; no further model complexity or paid activation."
+}
