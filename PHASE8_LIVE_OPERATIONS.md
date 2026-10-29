@@ -55,3 +55,9 @@ The user has not authorized dispatcher installation, live scheduling or a public
 If the local diagnostic fails, retain its state file and respect cooldowns. If publication fails, preserve the journal, clone the data branch afresh and run `phase6_git.py verify`; do not force-push or replace evidence with an empty archive. Global disable stops subsequent jobs; an already running job must be canceled separately. Capacity limits still stop collection rather than delete forecasts. Returning to V2.44 requires no deployment rollback because production never changed.
 
 See `validation/PHASE8_RESULTS.json` and the Phase 8 section of `V3_REVIEW.md` for actual test and cloud observations. A synthetic workflow pass demonstrates mechanics only, not permission clearance, live reliability or predictive advantage.
+
+## Observed acceptance results
+
+October 29, 2026: local regression discovered 580 tests, with 572 passes and eight local PostgreSQL skips; GitHub CI passed on Python 3.11 and 3.14 with PostgreSQL enabled. Full Streamlit smoke passed. [Cloud run 40908949521](https://github.com/kaishawn01/apex-first-basket/actions/runs/40908949521) completed all three fresh-runner jobs in 88 total job-seconds. One synthetic forecast and one synthetic result survived independent retrieval with the original forecast unchanged. Fixture probability/hash parity with Phase 7 is exact; this is not predictive validation.
+
+The public standard-runner cost basis was rechecked against [GitHub billing documentation](https://docs.github.com/en/billing/concepts/product-billing/github-actions). No larger runners, paid APIs, artifacts/cache services or new infrastructure were activated. Account billing settings remain unavailable. Real-data acceptance is still blocked; no genuine forecast or result was collected.
