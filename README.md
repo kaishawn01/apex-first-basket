@@ -1,3 +1,7 @@
+APEX V3.0.6 Phase 7 — controlled live readiness; source permissions unresolved
+
+No live scheduling, public dashboard or paid service is enabled. Read PHASE7_LIVE.md and V3_REVIEW.md. V2.44 remains unchanged.
+
 APEX V3.0.5 Phase 6 — development research only
 
 Cloud fixture workflow and repository-native archive are prepared on the V3 branch. Live schedules and mobile deployment remain disabled. Read PHASE6_CLOUD.md and V3_REVIEW.md. V2.44 production is unchanged.

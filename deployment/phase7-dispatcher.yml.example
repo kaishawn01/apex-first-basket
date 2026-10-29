@@ -1,0 +1,64 @@
+# REVIEW TEMPLATE ONLY. Do not install on main without owner approval.
+name: APEX approved pinned research dispatcher
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [manual, validation]
+        default: manual
+  # Enable only after owner approval. Four modest Eastern-time wakeups/day:
+  # schedule:
+  #   - cron: '0 10 * * *'
+  #     timezone: America/New_York
+  #   - cron: '30 17 * * *'
+  #     timezone: America/New_York
+  #   - cron: '30 18 * * *'
+  #     timezone: America/New_York
+  #   - cron: '0 9 * * *'
+  #     timezone: America/New_York
+permissions:
+  contents: read
+concurrency:
+  group: apex-research-data-writer
+  cancel-in-progress: false
+jobs:
+  research:
+    if: github.repository == 'kaishawn01/apex-first-basket' && github.event.repository.private == false && vars.APEX_AUTOMATION_DISABLED != 'true' && vars.APEX_LIVE_COLLECTION_APPROVED == 'true' && vars.APEX_DATA_PERMISSION_VERIFIED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    env:
+      APEX_AUTOMATION_DISABLED: ${{ vars.APEX_AUTOMATION_DISABLED }}
+      APEX_LIVE_COLLECTION_APPROVED: 'true'
+      MODE: ${{ github.event_name == 'schedule' && (github.event.schedule == '0 9 * * *' && 'validation' || 'scheduled') || inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0000000000000000000000000000000000000000 # Replace only with reviewed Phase 7 implementation SHA.
+          persist-credentials: false
+      - name: Enforce correct model and no retry reuse
+        run: |
+          test "$(cat VERSION)" = '3.0.6'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          ref: apex-research-data
+          path: cloud-data
+          fetch-depth: 0
+      - name: Decrypt only reviewed training data into ephemeral runner storage
+        env:
+          TRAINING_PASSPHRASE: ${{ secrets.APEX_TRAINING_PASSPHRASE }}
+        run: |
+          test -n "$TRAINING_PASSPHRASE"
+          printf '%s' "$TRAINING_PASSPHRASE" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --output "$RUNNER_TEMP/training.json.gz" --decrypt cloud-data/bootstrap/training.json.gz.gpg
+          python -c 'import gzip,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"]); f=gzip.open(p/"training.json.gz","rb"); b=f.read(25000001); assert len(b)<=25000000; (p/"training.json").write_bytes(b)'
+      - name: Permission, quota, model, real status and durable-publication gates
+        run: python phase7_live.py "$MODE" --journal cloud-data/live/journal.json --training "$RUNNER_TEMP/training.json" --permission cloud-data/bootstrap/permission.json --data-root cloud-data
+# No workflow ref input, no paid API secrets, no artifacts/caches, no dashboard deploy.
+# A permission file is evidence of a prior human review; it cannot grant provider rights.

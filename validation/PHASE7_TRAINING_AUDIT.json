@@ -1,0 +1,41 @@
+{
+  "source_games": 1110,
+  "window_games": 782,
+  "validated_first_scores": 780,
+  "training_games": 780,
+  "history_rows": 7800,
+  "usable_sequences": 780,
+  "ambiguous_games": 2,
+  "excluded_games": 328,
+  "excluded_reason_counts": {
+    "outside strictly earlier 400-day window": 328
+  },
+  "dropped_private_or_unknown_row_fields": [],
+  "bytes": 7936079,
+  "gzip_bytes": 547793,
+  "bundle_sha256": "d66600594d83af6e04e3b8059f4a728f3c9488e28689fcb732d6b35dbb1e443b",
+  "data_sha256": "47d6771035b0e5fe46cd7fc627fa5dc751b7697c33b1f873c1f77c38beb6dde6",
+  "provenance_sha256": "812673d20a5b1a56c17d01b666d711a9d77bb764d5ee93480afed6abe07b0358",
+  "cutoff_exclusive": "2026-10-28",
+  "publication_approved": false,
+  "minimum_model_fields": [
+    "game_id",
+    "date",
+    "team",
+    "opponent",
+    "player_id",
+    "player",
+    "first_team_shot",
+    "first_game_shot",
+    "first_scorer",
+    "first_fg_scorer",
+    "team_scored_first",
+    "tip_first_action",
+    "opening_shot_observed",
+    "first_team_shot_made",
+    "opening_score_path"
+  ],
+  "source_providers": [
+    "ESPN"
+  ]
+}

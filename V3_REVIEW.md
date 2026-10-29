@@ -1,3 +1,37 @@
+# V3 Phase 7 review — development VERSION 3.0.6
+
+**Not technically complete for live NBA acceptance.** Phase 7 implements and tests the controlled live path, but permissible historical/source access has not been established, so no genuine live forecast was generated. No schedule, public dashboard, paid provider or V3 merge was activated. Main/V2.44 remains unchanged; PR #1 stays draft.
+
+## Findings and implemented changes
+
+The existing Phase 6 cloud fixture was independently rechecked and manually rerun again (run 40809534434, attempt 3); all three jobs passed and the original single synthetic forecast/result remained unchanged. The existing historical ledger contains 1,110 games, 1,106 validated first scores. Frozen Phase 5/6 model/experiment files and the February artifacts are preserved.
+
+The source-rights audit found no recorded permission covering the ESPN-derived training data or automated live collection. Disney's published terms explicitly restrict automated extraction and model-related use. No new live sports-provider requests were made under this uncertainty. A private repository or encryption would not resolve licensing. No paid-source account entitlement was assumed.
+
+`phase7_training.py` builds a deterministic allowlisted candidate from read-only SQLite and validates identities, complete outcomes, source hashes, typed sequences and exclusive 400-day cutoffs. The October 28 candidate contains **782 window records, 780 validated training games / 7,800 rows, 780 sequences and two retained ambiguous outcomes**; 328 older records are excluded. It is **7,936,079 bytes / 547,793 compressed** and was not published. Only aggregate audit metadata/hashes are committed. The builder remains reproducible for owner/provider review.
+
+An offline serialization-parity check used the existing model on the original and compact training data with the same settings: **maximum probability difference 0.0; first-shot vectors identical**. This is a data-format test, not a genuine forecast or new accuracy evaluation. See `validation/PHASE7_PARITY.json` and `validation/PHASE7_TRAINING_AUDIT.json`.
+
+`phase7_live.py` reuses the existing forecast function, simulator, provider transport, immutable journal, Git publication and outcome grader. It declares `apex-v3.0.6-live-01`, keeps all model weights/trials/seeds and primary timing rules unchanged, binds permission evidence to the candidate hash and expires stale grants. Paid providers remain blocked. Each generated forecast is published immediately; any publication failure stops the batch. New manual invocation IDs produce new snapshots, while retries deduplicate. Cutoffs, bundle/provenance hashes and top-five candidates are archived.
+
+The dispatcher under `deployment/phase7-dispatcher.yml.example` is review-only, pins the reviewed implementation SHA, accepts no arbitrary code ref, uses public standard Ubuntu runners, limited permissions/timeouts/concurrency, and requires separate global/live/data-permission decisions. It is not installed on main. Four proposed Eastern wakeups reserve at most 320 of the unchanged 400 attempts/day; precise near-tip capture is not guaranteed. Early forecasts remain secondary observations instead of weakening the primary experiment.
+
+The existing dashboard gains a read-only live-readiness summary. It separates real forecasts, verified pre-tip publication, outcomes, pending records, execution failures and quota allowance. No provider calls or deployment occur when rendering it.
+
+## Validation and remaining acceptance boundary
+
+Local regression suite: **554 discovered; 546 passed; eight PostgreSQL integration tests reserved for GitHub CI**. Full existing Streamlit smoke suite is preserved. Phase 7 adds 23 tests for training integrity/permissions, original protocol preservation, new snapshots versus retries, missing lineups, delayed/start/rescheduled games, failed publication, source failures and separate grading. An incidental midnight rollover in legacy fixtures was isolated with a fixed test clock rather than modifying frozen provider code.
+
+Cloud Phase 7 fixture and final CI results are recorded below after execution. The fixture uses a declared fixed synthetic clock, never masquerades as live evidence, and does not require provider requests. Phase 6's prior real execution timestamps remain preserved unchanged.
+
+**Zero genuine Phase 7 forecasts, zero genuine outcomes, zero unattended live runs.** The required permitted training dataset and real pregame demonstration are missing, so autonomous-operation and live technical acceptance are not claimed. Original integrity-incident causes and reliable officially confirmed pre-tip coverage remain unresolved. No model superiority or betting advantage is established.
+
+Exact next decisions: establish applicable provider permission; review/approve the dataset and permitted private/public storage arrangement; approve the narrowly pinned dispatcher separately without merging V3; run a controlled real pregame test; only then approve a modest schedule and verify an actual unattended pre-tip publication. No spending is authorized by any of these steps. See `PHASE7_LIVE.md` for commands, evidence schema, private-data alternative and rollback.
+
+---
+
+## Preserved Phase 6 and earlier review
+
 # V3 Phase 6 review — development VERSION 3.0.5
 
 Continue existing draft PR #1 on `v3/hybrid-monte-carlo`. **Do not merge, activate production scheduling, or deploy the dashboard.** Main/V2.44, the 1,110-game historical ledger and all prior frozen evaluations/journals remain unchanged.

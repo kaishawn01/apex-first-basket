@@ -11,6 +11,7 @@ from phase5_providers import ProviderError
 
 class CloudTests(unittest.TestCase):
     def setUp(self):
+        self.legacy_version=patch('updater.current_version',return_value='3.0.5');self.legacy_version.start();self.addCleanup(self.legacy_version.stop)
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.now=datetime(2027,1,2,21,tzinfo=timezone.utc);self.j=journal.Journal(self.root/'journal.json',clock=lambda:self.now);self.s=Store(self.root/'ops.db',clock=lambda:self.now);self.p=FixtureProviders(lambda:self.now)
     def tearDown(self):self.tmp.cleanup()
     def forecast(self,slot='checkpoint-10',test=True):return cloud.generate(self.j,self.s,self.p,self.p.game,([],{},{}),slot,'test-run',test)
@@ -120,6 +121,10 @@ class CloudTests(unittest.TestCase):
 
 class GitTests(unittest.TestCase):
     def setUp(self):
+        # Fixed legacy fixture clock avoids an incidental midnight game-date rollover.
+        fixed=datetime(2027,1,2,21,tzinfo=timezone.utc)
+        clock_patch=patch('phase6_fixture.datetime');mock_clock=clock_patch.start();mock_clock.now.return_value=fixed;self.addCleanup(clock_patch.stop)
+        journal_patch=patch('phase6_fixture.Journal',side_effect=lambda path:journal.Journal(path,clock=lambda:fixed));journal_patch.start();self.addCleanup(journal_patch.stop)
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.bare=self.root/'remote.git';self.work=self.root/'work';subprocess.run(['git','init','--bare',str(self.bare)],check=True,capture_output=True);subprocess.run(['git','clone',str(self.bare),str(self.work)],check=True,capture_output=True);archive.git(self.work,'checkout','-b',archive.BRANCH);(self.work/'README.md').write_text('fixture');archive.git(self.work,'add','README.md');archive.git(self.work,'-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','init');archive.git(self.work,'push','origin','HEAD');self.rel='fixtures/'+'a'*40+'/journal.json'
     def tearDown(self):self.tmp.cleanup()
     def test_forecast_survives_new_clone_grading_and_duplicate_publish(self):
