@@ -104,7 +104,7 @@ class ForwardTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.pred(s)
     def test_saved_forecast_is_unique_complete_and_versioned(self):
         self.assertTrue(self.pred());self.assertFalse(self.pred());p=self.j.rows('prediction')[0]['payload']
-        self.assertEqual(p['model_version'],'3.0.8');self.assertEqual(p['seed'],3000)
+        self.assertEqual(p['model_version'],'3.0.9');self.assertEqual(p['seed'],3000)
         for probs in p['forecasts'].values():self.assertAlmostEqual(sum(probs.values()),1);self.assertIn('OTHER',probs)
         self.assertAlmostEqual(sum(p['first_shot_proxy'].values()),1)
     def test_current_schedule_reschedule_blocks_save(self):

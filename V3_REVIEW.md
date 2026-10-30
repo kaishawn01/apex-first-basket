@@ -1,3 +1,17 @@
+# Phase 10 — V3.0.9: DunkAPI Free Pilot preparation
+
+**Five actual games have not been ingested. Source compatibility is not established.** The existing V3 branch and draft PR continue; V2.44, model sources and frozen settings remain unchanged. NBA-specific upstream permission remains unresolved after reviewing the current terms and timing/rights documentation. No account check, sports-data request, trial, subscription, credit purchase, scheduling or deployment occurred.
+
+Implemented `phase10_dunk.py` as a quarantined source audit with injected synthetic transport only. There is no enabled live HTTP transport or live CLI. It reuses the append-only Store, binds exactly five game IDs, reserves credits durably before calls, enforces min(100, free balance), caches original response bytes/hashes, rejects automatic repeats after failed/interrupted attempts, and retains explicit incomplete/invalid game reports. Host/path, response, timeout, lease and cooldown bounds are fixture-tested.
+
+The audit checks historical starters, identities, event order, clocks, scores, free throws, first FG attempts and first points. Pagination requires explicit terminal evidence and count reconciliation. Derived ratings/expected points/odds are excluded from audit output. Numeric identity equality is never a crosswalk. Full game/team migration and production model integration remain blocked; no alternative source is mislabeled ESPN.
+
+Local validation: **639 tests; 631 passed and eight PostgreSQL-only skips; 38 new Phase 10 tests.** Full Streamlit smoke passed. Five synthetic games use 75 simulated credits; 100-credit stop, lower balance, duplicate prevention, pagination, timeouts, interruption and backup recovery pass. Supported-version GitHub CI is pending at this implementation checkpoint. No new historical accuracy result or live compatibility claim is made.
+
+See `PHASE10_DUNK_PILOT.md` for permissions, request budget, private storage, hidden process-local environment setup and an unsent provider clarification request. Actual results/limitations: `validation/PHASE10_RESULTS.json`. Do not use fixtures as genuine observations or manually alter permission gates to obtain a live result.
+
+---
+
 # Phase 9 — V3.0.8: entitlement diagnostics and source decision
 
 **Live acceptance remains blocked.** Continued the existing branch and draft PR #1. No account credential was accessible; zero account/sports API requests, zero new historical games and zero genuine forecasts/results. Main remains V2.44.0. No subscription, trial, paid endpoint, scheduler, dashboard or training-bundle deployment was activated.
