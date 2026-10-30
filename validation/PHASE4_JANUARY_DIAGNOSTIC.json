@@ -1,0 +1,640 @@
+{
+  "sample": "Known January 1\u201321, 2026: exploratory only",
+  "games": 159,
+  "summary": [
+    {
+      "variant": "reference",
+      "Evaluated games": 159,
+      "Top-1 hit %": 11.949685534591195,
+      "Top-3 hit %": 32.704402515723274,
+      "Log loss": 2.3146786086405577,
+      "Brier": 0.90243878099213,
+      "Calibration ECE pp": 0.908776338191569
+    },
+    {
+      "variant": "neutral_tip",
+      "Evaluated games": 159,
+      "Top-1 hit %": 9.433962264150944,
+      "Top-3 hit %": 34.276729559748425,
+      "Log loss": 2.318875918931915,
+      "Brier": 0.903160902684801,
+      "Calibration ECE pp": 1.1081279627816578
+    },
+    {
+      "variant": "role_selector",
+      "Evaluated games": 159,
+      "Top-1 hit %": 8.176100628930818,
+      "Top-3 hit %": 33.0188679245283,
+      "Log loss": 2.342661260825388,
+      "Brier": 0.9084917926188671,
+      "Calibration ECE pp": 2.1705806942706753
+    },
+    {
+      "variant": "neutral_conversion",
+      "Evaluated games": 159,
+      "Top-1 hit %": 12.578616352201259,
+      "Top-3 hit %": 31.446540880503143,
+      "Log loss": 2.315073257624896,
+      "Brier": 0.9025173671957715,
+      "Calibration ECE pp": 1.0712769199714605
+    },
+    {
+      "variant": "uniform_foul_shooter",
+      "Evaluated games": 159,
+      "Top-1 hit %": 9.433962264150944,
+      "Top-3 hit %": 32.075471698113205,
+      "Log loss": 2.3194057817294693,
+      "Brier": 0.9033418306345332,
+      "Calibration ECE pp": 1.4134996555980117
+    },
+    {
+      "variant": "neutral_ft_accuracy",
+      "Evaluated games": 159,
+      "Top-1 hit %": 11.320754716981131,
+      "Top-3 hit %": 32.38993710691824,
+      "Log loss": 2.3152571419785195,
+      "Brier": 0.9026056597062824,
+      "Calibration ECE pp": 0.9947360402374703
+    },
+    {
+      "variant": "no_turnovers",
+      "Evaluated games": 159,
+      "Top-1 hit %": 8.80503144654088,
+      "Top-3 hit %": 30.81761006289308,
+      "Log loss": 2.3264107728436287,
+      "Brier": 0.9053098635423183,
+      "Calibration ECE pp": 1.4640729370134635
+    },
+    {
+      "variant": "no_offensive_rebounds",
+      "Evaluated games": 159,
+      "Top-1 hit %": 9.433962264150944,
+      "Top-3 hit %": 31.446540880503143,
+      "Log loss": 2.3197878222453827,
+      "Brier": 0.903484397113918,
+      "Calibration ECE pp": 1.2435403289470752
+    },
+    {
+      "variant": "no_opponent_conversion",
+      "Evaluated games": 159,
+      "Top-1 hit %": 10.062893081761006,
+      "Top-3 hit %": 32.38993710691824,
+      "Log loss": 2.314171221733425,
+      "Brier": 0.9024916261419861,
+      "Calibration ECE pp": 0.9654967261969651
+    },
+    {
+      "variant": "strong_conversion_shrinkage",
+      "Evaluated games": 159,
+      "Top-1 hit %": 11.320754716981131,
+      "Top-3 hit %": 34.59119496855346,
+      "Log loss": 2.3138336483567645,
+      "Brier": 0.9020847693761789,
+      "Calibration ECE pp": 1.0904005704614366
+    },
+    {
+      "variant": "weak_conversion_shrinkage",
+      "Evaluated games": 159,
+      "Top-1 hit %": 10.69182389937107,
+      "Top-3 hit %": 36.16352201257862,
+      "Log loss": 2.317032761863191,
+      "Brier": 0.9028369548366691,
+      "Calibration ECE pp": 0.9468243382267104
+    },
+    {
+      "variant": "selection_decay_30",
+      "Evaluated games": 159,
+      "Top-1 hit %": 10.69182389937107,
+      "Top-3 hit %": 33.333333333333336,
+      "Log loss": 2.3113785028206957,
+      "Brier": 0.9017589311782861,
+      "Calibration ECE pp": 0.49980464294761767
+    },
+    {
+      "variant": "selection_decay_180",
+      "Evaluated games": 159,
+      "Top-1 hit %": 11.635220125786164,
+      "Top-3 hit %": 32.075471698113205,
+      "Log loss": 2.3155614000467835,
+      "Brier": 0.902591462035666,
+      "Calibration ECE pp": 1.1731874827380935
+    },
+    {
+      "variant": "seed_3001",
+      "Evaluated games": 159,
+      "Top-1 hit %": 10.69182389937107,
+      "Top-3 hit %": 31.132075471698112,
+      "Log loss": 2.3298025865296856,
+      "Brier": 0.9058336878522509,
+      "Calibration ECE pp": 1.5655686427740845
+    },
+    {
+      "variant": "seed_3002",
+      "Evaluated games": 159,
+      "Top-1 hit %": 8.80503144654088,
+      "Top-3 hit %": 30.50314465408805,
+      "Log loss": 2.3142520907731474,
+      "Brier": 0.9031964008447564,
+      "Calibration ECE pp": 1.240570365706469
+    }
+  ],
+  "comparisons": [
+    {
+      "variant": "neutral_tip",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.004197310291356968,
+          "95% lower": -0.011840872902321631,
+          "95% upper": 0.018382481428793732,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.0007221216926709713,
+          "95% lower": -0.0030159673787941875,
+          "95% upper": 0.003977165964105135,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -2.5157232704402515,
+          "95% lower": -6.122448979591836,
+          "95% upper": 0.6211180124223602,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 1.5723270440251573,
+          "95% lower": -2.6490066225165565,
+          "95% upper": 5.202312138728324,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "role_selector",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.02798265218483057,
+          "95% lower": 0.014408242336629278,
+          "95% upper": 0.0424625717864226,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.006053011626737128,
+          "95% lower": 0.0033988685527620954,
+          "95% upper": 0.008802598148782032,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -3.7735849056603774,
+          "95% lower": -7.6923076923076925,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 0.31446540880503143,
+          "95% lower": -6.089743589743589,
+          "95% upper": 5.9880239520958085,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "neutral_conversion",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.0003946489843382722,
+          "95% lower": -0.012679588262529276,
+          "95% upper": 0.012921691396258862,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 7.858620364155644e-05,
+          "95% lower": -0.002068630709119178,
+          "95% upper": 0.002037350059834089,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 0.6289308176100629,
+          "95% lower": -2.6490066225165565,
+          "95% upper": 4.026845637583892,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -1.2578616352201257,
+          "95% lower": -6.25,
+          "95% upper": 2.9069767441860463,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "uniform_foul_shooter",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.004727173088911356,
+          "95% lower": -0.005141741718511419,
+          "95% upper": 0.014606643069255671,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.0009030496424032821,
+          "95% lower": -0.0009549634474010644,
+          "95% upper": 0.002749583572515833,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -2.5157232704402515,
+          "95% lower": -4.938271604938271,
+          "95% upper": -0.5952380952380952,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -0.6289308176100629,
+          "95% lower": -4.651162790697675,
+          "95% upper": 3.4965034965034967,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "neutral_ft_accuracy",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.0005785333379618946,
+          "95% lower": -0.0022259939797492395,
+          "95% upper": 0.003102546250001915,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.00016687871415234305,
+          "95% lower": -0.00040427260764089415,
+          "95% upper": 0.0006689407439319958,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -0.6289308176100629,
+          "95% lower": -1.9867549668874174,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -0.31446540880503143,
+          "95% lower": -2.666666666666667,
+          "95% upper": 1.8181818181818181,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "no_turnovers",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.011732164203071192,
+          "95% lower": -0.004348825016854193,
+          "95% upper": 0.026530835484612603,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.0028710825501883338,
+          "95% lower": -0.00010004713877571495,
+          "95% upper": 0.005784486423923037,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -3.1446540880503147,
+          "95% lower": -6.962025316455696,
+          "95% upper": 0.6802721088435374,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -1.8867924528301887,
+          "95% lower": -7.006369426751593,
+          "95% upper": 2.7210884353741496,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "no_offensive_rebounds",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.005109213604825013,
+          "95% lower": -0.0021315939978819956,
+          "95% upper": 0.012350108539631175,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.001045616121788115,
+          "95% lower": -0.0005026817757025844,
+          "95% upper": 0.002479707374146988,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -2.5157232704402515,
+          "95% lower": -6.097560975609756,
+          "95% upper": 0.6211180124223602,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -1.2578616352201257,
+          "95% lower": -5.405405405405405,
+          "95% upper": 3.205128205128205,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "no_opponent_conversion",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.0005073869071328789,
+          "95% lower": -0.006442390320370611,
+          "95% upper": 0.004617907902234594,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 5.284514985609172e-05,
+          "95% lower": -0.0011320845246540316,
+          "95% upper": 0.0010830277457736272,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -1.8867924528301887,
+          "95% lower": -4.57516339869281,
+          "95% upper": 0.6802721088435374,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -0.31446540880503143,
+          "95% lower": -1.7751479289940828,
+          "95% upper": 0.949367088607595,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "strong_conversion_shrinkage",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.0008449602837932853,
+          "95% lower": -0.009480437648164607,
+          "95% upper": 0.006784553331530937,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0003540116159511901,
+          "95% lower": -0.0018617825164520777,
+          "95% upper": 0.0010009476856008915,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -0.6289308176100629,
+          "95% lower": -3.3707865168539324,
+          "95% upper": 2.4096385542168677,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 1.8867924528301887,
+          "95% lower": -1.3245033112582782,
+          "95% upper": 5.161290322580645,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "weak_conversion_shrinkage",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.0023541532226331705,
+          "95% lower": -0.006710736009829705,
+          "95% upper": 0.01113290403532872,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.00039817384453902247,
+          "95% lower": -0.0012936673514342897,
+          "95% upper": 0.0020206329291135904,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -1.2578616352201257,
+          "95% lower": -4.72972972972973,
+          "95% upper": 1.2987012987012987,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 3.459119496855346,
+          "95% lower": -0.30864197530864196,
+          "95% upper": 6.666666666666667,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "selection_decay_30",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.0033001058198620227,
+          "95% lower": -0.012635669678767355,
+          "95% upper": 0.005009032921843715,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0006798498138439182,
+          "95% lower": -0.002552293645049855,
+          "95% upper": 0.0010416882941974167,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -1.2578616352201257,
+          "95% lower": -3.691275167785235,
+          "95% upper": 0.684931506849315,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 0.6289308176100629,
+          "95% lower": -3.4013605442176873,
+          "95% upper": 4.848484848484849,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "selection_decay_180",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.0008827914062255865,
+          "95% lower": -0.0023130927705295027,
+          "95% upper": 0.004102363054875042,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.00015268104353598167,
+          "95% lower": -0.0004266730263742516,
+          "95% upper": 0.0007368971774464393,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -0.31446540880503143,
+          "95% lower": -1.0344827586206897,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -0.6289308176100629,
+          "95% lower": -2.6143790849673203,
+          "95% upper": 1.3157894736842104,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "seed_3001",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": 0.015123977889128094,
+          "95% lower": 0.0011526111788087295,
+          "95% upper": 0.027863242165947176,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.003394906860120877,
+          "95% lower": 0.0007082554256634167,
+          "95% upper": 0.005874286264581972,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -1.2578616352201257,
+          "95% lower": -5.421686746987952,
+          "95% upper": 2.127659574468085,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -1.5723270440251573,
+          "95% lower": -7.575757575757576,
+          "95% upper": 4.022988505747127,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "variant": "seed_3002",
+      "games": 159,
+      "dates": 21,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.00042651786741028906,
+          "95% lower": -0.018507316608541997,
+          "95% upper": 0.014974747799897556,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": 0.0007576198526264838,
+          "95% lower": -0.0021733491958903063,
+          "95% upper": 0.003399440886782299,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": -3.1446540880503147,
+          "95% lower": -5.454545454545454,
+          "95% upper": -1.1560693641618496,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -2.20125786163522,
+          "95% lower": -8.176100628930817,
+          "95% upper": 2.2988505747126435,
+          "Better direction": "Higher"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "No settings selected from this report. Multiple exploratory comparisons; no multiplicity correction.",
+    "Zeroing turnovers/rebounds is a counterfactual diagnostic, not a proposed NBA model.",
+    "Conversion shrinkage variants remove opponent conversion too; compare them to no_opponent_conversion.",
+    "Selection decay changes only first-shot selection, not all simulator recency weights.",
+    "Seeds are sensitivity checks, never a best-seed search."
+  ]
+}

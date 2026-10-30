@@ -1,0 +1,161 @@
+{
+  "version": "3.0.6",
+  "implementation_commit": "95e4a736bb72d64012d6af9688ba857bffcb380d",
+  "technical_readiness": "Implemented; real-data acceptance blocked",
+  "successful_manual_live_collection": false,
+  "unattended_scheduling_activated": false,
+  "genuine_live_forecasts": 0,
+  "genuine_outcomes_verified": 0,
+  "new_live_provider_requests": 0,
+  "training_candidate_publicly_uploaded": false,
+  "paid_services_enabled": false,
+  "production_main_expected": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "prior_phase6_rerun": {
+    "run": 40809534434,
+    "attempt": 3,
+    "status": "success",
+    "original_forecast_and_result_preserved": true
+  },
+  "local_tests": {
+    "discovered": 554,
+    "passed": 546,
+    "postgres_skipped_locally": 8,
+    "runtime_seconds": 6.26,
+    "streamlit_smoke": "passed"
+  },
+  "training_audit": {
+    "source_games": 1110,
+    "window_games": 782,
+    "validated_first_scores": 780,
+    "training_games": 780,
+    "history_rows": 7800,
+    "usable_sequences": 780,
+    "ambiguous_games": 2,
+    "excluded_games": 328,
+    "excluded_reason_counts": {
+      "outside strictly earlier 400-day window": 328
+    },
+    "dropped_private_or_unknown_row_fields": [],
+    "bytes": 7936079,
+    "gzip_bytes": 547793,
+    "bundle_sha256": "d66600594d83af6e04e3b8059f4a728f3c9488e28689fcb732d6b35dbb1e443b",
+    "data_sha256": "47d6771035b0e5fe46cd7fc627fa5dc751b7697c33b1f873c1f77c38beb6dde6",
+    "provenance_sha256": "812673d20a5b1a56c17d01b666d711a9d77bb764d5ee93480afed6abe07b0358",
+    "cutoff_exclusive": "2026-10-28",
+    "publication_approved": false,
+    "minimum_model_fields": [
+      "game_id",
+      "date",
+      "team",
+      "opponent",
+      "player_id",
+      "player",
+      "first_team_shot",
+      "first_game_shot",
+      "first_scorer",
+      "first_fg_scorer",
+      "team_scored_first",
+      "tip_first_action",
+      "opening_shot_observed",
+      "first_team_shot_made",
+      "opening_score_path"
+    ],
+    "source_providers": [
+      "ESPN"
+    ]
+  },
+  "serialization_parity": {
+    "test": "Offline serialization parity only; not a genuine forecast",
+    "target_day": "2026-10-28",
+    "trials": 2000,
+    "seed": 3000,
+    "original_training_games": 780,
+    "compact_training_games": 780,
+    "maximum_probability_difference": 0.0,
+    "identical_first_shot": true,
+    "model_parameters_changed": false
+  },
+  "cloud_tests": {
+    "run": 40815545939,
+    "status": "success",
+    "jobs": [
+      {
+        "id": 123255613724,
+        "name": "forecast",
+        "conclusion": "success",
+        "seconds": 30
+      },
+      {
+        "id": 123255783617,
+        "name": "reconcile",
+        "conclusion": "success",
+        "seconds": 25
+      },
+      {
+        "id": 123255922197,
+        "name": "verify",
+        "conclusion": "success",
+        "seconds": 30
+      }
+    ],
+    "synthetic_forecasts": 1,
+    "synthetic_results": 1,
+    "fixed_fixture_clock": "2027-01-02T21:00:00+00:00",
+    "journal_head": "28e3efa780c9c312ffbc3ade987c7a0f020dc4bf605e94b804f7747b8607bfa0",
+    "archive_path": "fixtures/95e4a736bb72d64012d6af9688ba857bffcb380d/journal.json"
+  },
+  "ci": {
+    "runs": [
+      40815552804,
+      40815545868
+    ],
+    "status": "success",
+    "python": [
+      "3.11",
+      "3.14"
+    ],
+    "jobs": [
+      [
+        {
+          "id": 123255634516,
+          "name": "test (3.14)",
+          "conclusion": "success",
+          "seconds": 88
+        },
+        {
+          "id": 123255635035,
+          "name": "test (3.11)",
+          "conclusion": "success",
+          "seconds": 77
+        }
+      ],
+      [
+        {
+          "id": 123255613576,
+          "name": "test (3.14)",
+          "conclusion": "success",
+          "seconds": 92
+        },
+        {
+          "id": 123255613671,
+          "name": "test (3.11)",
+          "conclusion": "success",
+          "seconds": 72
+        }
+      ]
+    ]
+  },
+  "source_review": {
+    "ESPN": "No applicable permission grant established; published terms restrict automated extraction/model-related use",
+    "NBA": "Permission unverified",
+    "account_billing_and_paid_api_quotas": "Unavailable; paid sources remain blocked"
+  },
+  "blockers": [
+    "Permissible historical and live data arrangement",
+    "Explicit review/approval of training storage and forecast publication",
+    "Owner approval before pinned dispatcher installation on main",
+    "Genuine pre-tip forecast and independent read/grade not yet observed",
+    "Prior integrity causes and reliable official lineups remain unresolved"
+  ],
+  "scheduler_limits": "Four proposed Eastern wakeups, at most 320 reserved attempts/day. No minute-level reliability guarantee; no schedule activated."
+}

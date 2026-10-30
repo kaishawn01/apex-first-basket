@@ -1,0 +1,2780 @@
+{
+  "summary": [
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.301220362491088,
+      "Brier": 0.8991454333109729,
+      "Calibration ECE pp": 1.200645672920786
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.3019070402336355,
+      "Brier": 0.8991374845530091,
+      "Calibration ECE pp": 1.1693695985506487
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 38.888888888888886,
+      "Log loss": 2.3091860017130563,
+      "Brier": 0.90076608223714,
+      "Calibration ECE pp": 1.5994199066131656
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 34.72222222222222,
+      "Log loss": 2.289946243205449,
+      "Brier": 0.8963699503888094,
+      "Calibration ECE pp": 0.4837242463436432
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.294014791438292,
+      "Brier": 0.8979274226840592,
+      "Calibration ECE pp": 0.8728557375919715
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 16.666666666666668,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.28550525519071,
+      "Brier": 0.8957893240307206,
+      "Calibration ECE pp": 0.5516457511692463
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.29240423120524,
+      "Brier": 0.8971953838337124,
+      "Calibration ECE pp": 1.1103845155631353
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Uniform",
+      "Evaluated games": 72,
+      "Top-1 hit %": 9.090909090909092,
+      "Top-3 hit %": 27.272727272727266,
+      "Log loss": 2.3978952727983707,
+      "Brier": 0.9090909090909088,
+      "Calibration ECE pp": 0.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Uniform + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 10.0,
+      "Top-3 hit %": 30.0,
+      "Log loss": 2.3032717707365933,
+      "Brier": 0.9000005187441837,
+      "Calibration ECE pp": 0.012480760756366196
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.301220362491088,
+      "Brier": 0.8991454333109729,
+      "Calibration ECE pp": 1.200645672920786
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.3019070402336355,
+      "Brier": 0.8991374845530091,
+      "Calibration ECE pp": 1.1693695985506487
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 38.888888888888886,
+      "Log loss": 2.3091860017130563,
+      "Brier": 0.90076608223714,
+      "Calibration ECE pp": 1.5994199066131656
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 34.72222222222222,
+      "Log loss": 2.289946243205449,
+      "Brier": 0.8963699503888094,
+      "Calibration ECE pp": 0.4837242463436432
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.294014791438292,
+      "Brier": 0.8979274226840592,
+      "Calibration ECE pp": 0.8728557375919715
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 16.666666666666668,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.28550525519071,
+      "Brier": 0.8957893240307206,
+      "Calibration ECE pp": 0.5516457511692463
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.29240423120524,
+      "Brier": 0.8971953838337124,
+      "Calibration ECE pp": 1.1103845155631353
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Uniform",
+      "Evaluated games": 72,
+      "Top-1 hit %": 9.090909090909092,
+      "Top-3 hit %": 27.272727272727266,
+      "Log loss": 2.3978952727983707,
+      "Brier": 0.9090909090909088,
+      "Calibration ECE pp": 0.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Uniform + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 10.0,
+      "Top-3 hit %": 30.0,
+      "Log loss": 2.3032717707365933,
+      "Brier": 0.9000005187441837,
+      "Calibration ECE pp": 0.012480760756366196
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Legacy Baseline",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Baseline + Other",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Simple proxy",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Monte Carlo",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Phase 2 hybrid",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Selected hybrid",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Calibrated baseline",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Uniform",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Uniform + Other",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Simple proxy",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Uniform",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Uniform + Other",
+      "Evaluated games": 0,
+      "Top-1 hit %": null,
+      "Top-3 hit %": null,
+      "Log loss": null,
+      "Brier": null,
+      "Calibration ECE pp": null
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.301220362491088,
+      "Brier": 0.8991454333109729,
+      "Calibration ECE pp": 1.200645672920786
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.3019070402336355,
+      "Brier": 0.8991374845530091,
+      "Calibration ECE pp": 1.1693695985506487
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 38.888888888888886,
+      "Log loss": 2.3091860017130563,
+      "Brier": 0.90076608223714,
+      "Calibration ECE pp": 1.5994199066131656
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 34.72222222222222,
+      "Log loss": 2.289946243205449,
+      "Brier": 0.8963699503888094,
+      "Calibration ECE pp": 0.4837242463436432
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 18.055555555555557,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.294014791438292,
+      "Brier": 0.8979274226840592,
+      "Calibration ECE pp": 0.8728557375919715
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Evaluated games": 72,
+      "Top-1 hit %": 16.666666666666668,
+      "Top-3 hit %": 40.27777777777778,
+      "Log loss": 2.28550525519071,
+      "Brier": 0.8957893240307206,
+      "Calibration ECE pp": 0.5516457511692463
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Evaluated games": 72,
+      "Top-1 hit %": 15.277777777777779,
+      "Top-3 hit %": 37.5,
+      "Log loss": 2.29240423120524,
+      "Brier": 0.8971953838337124,
+      "Calibration ECE pp": 1.1103845155631353
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Uniform",
+      "Evaluated games": 72,
+      "Top-1 hit %": 9.090909090909092,
+      "Top-3 hit %": 27.272727272727266,
+      "Log loss": 2.3978952727983707,
+      "Brier": 0.9090909090909088,
+      "Calibration ECE pp": 0.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Uniform + Other",
+      "Evaluated games": 72,
+      "Top-1 hit %": 10.0,
+      "Top-3 hit %": 30.0,
+      "Log loss": 2.3032717707365933,
+      "Brier": 0.9000005187441837,
+      "Calibration ECE pp": 0.012480760756366196
+    }
+  ],
+  "comparisons": [
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.016401785042925696,
+          "95% lower": -0.04368957052156539,
+          "95% upper": 0.010820581751109861,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.00334816052228839,
+          "95% lower": -0.007655985159529865,
+          "95% upper": 0.0011868806057728093,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 1.3888888888888888,
+          "95% lower": -3.389830508474576,
+          "95% upper": 5.88235294117647,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -3.3333333333333335,
+          "95% upper": 8.75,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.009502809028395488,
+          "95% lower": -0.02728159402866195,
+          "95% upper": 0.006032996015442127,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0019421007192966199,
+          "95% lower": -0.00498521314127793,
+          "95% upper": 0.0011056664343806098,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.01196079702818664,
+          "95% lower": -0.038120412396109506,
+          "95% upper": 0.018819242383393015,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0027675341641996264,
+          "95% lower": -0.007416163310860837,
+          "95% upper": 0.0023356758762512423,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -4.918032786885246,
+          "95% upper": 9.210526315789473,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -2.7777777777777777,
+          "95% lower": -14.516129032258066,
+          "95% upper": 7.228915662650602,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.016401785042925696,
+          "95% lower": -0.04368957052156539,
+          "95% upper": 0.010820581751109861,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.00334816052228839,
+          "95% lower": -0.007655985159529865,
+          "95% upper": 0.0011868806057728093,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 1.3888888888888888,
+          "95% lower": -3.389830508474576,
+          "95% upper": 5.88235294117647,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -3.3333333333333335,
+          "95% upper": 8.75,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.009502809028395488,
+          "95% lower": -0.02728159402866195,
+          "95% upper": 0.006032996015442127,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0019421007192966199,
+          "95% lower": -0.00498521314127793,
+          "95% upper": 0.0011056664343806098,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.01196079702818664,
+          "95% lower": -0.038120412396109506,
+          "95% upper": 0.018819242383393015,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0027675341641996264,
+          "95% lower": -0.007416163310860837,
+          "95% upper": 0.0023356758762512423,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -4.918032786885246,
+          "95% upper": 9.210526315789473,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -2.7777777777777777,
+          "95% lower": -14.516129032258066,
+          "95% upper": 7.228915662650602,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Selected hybrid",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Calibrated baseline",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Other outcomes",
+      "model": "Monte Carlo",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Selected hybrid",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Verified pre-tip lineups",
+      "model": "Monte Carlo",
+      "games": 0,
+      "dates": 0,
+      "metrics": []
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.016401785042925696,
+          "95% lower": -0.04368957052156539,
+          "95% upper": 0.010820581751109861,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.00334816052228839,
+          "95% lower": -0.007655985159529865,
+          "95% upper": 0.0011868806057728093,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 1.3888888888888888,
+          "95% lower": -3.389830508474576,
+          "95% upper": 5.88235294117647,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -3.3333333333333335,
+          "95% upper": 8.75,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.009502809028395488,
+          "95% lower": -0.02728159402866195,
+          "95% upper": 0.006032996015442127,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0019421007192966199,
+          "95% lower": -0.00498521314127793,
+          "95% upper": 0.0011056664343806098,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": 0.0,
+          "95% lower": 0.0,
+          "95% upper": 0.0,
+          "Better direction": "Higher"
+        }
+      ]
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "games": 72,
+      "dates": 10,
+      "metrics": [
+        {
+          "Metric": "Log loss",
+          "Candidate minus baseline": -0.01196079702818664,
+          "95% lower": -0.038120412396109506,
+          "95% upper": 0.018819242383393015,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Brier",
+          "Candidate minus baseline": -0.0027675341641996264,
+          "95% lower": -0.007416163310860837,
+          "95% upper": 0.0023356758762512423,
+          "Better direction": "Lower"
+        },
+        {
+          "Metric": "Top-1 hit percentage points",
+          "Candidate minus baseline": 2.7777777777777777,
+          "95% lower": -4.918032786885246,
+          "95% upper": 9.210526315789473,
+          "Better direction": "Higher"
+        },
+        {
+          "Metric": "Top-3 hit percentage points",
+          "Candidate minus baseline": -2.7777777777777777,
+          "95% lower": -14.516129032258066,
+          "95% upper": 7.228915662650602,
+          "Better direction": "Higher"
+        }
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6116315869344422,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 342,
+      "Predicted %": 7.870239469354995,
+      "Observed %": 8.47953216374269
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 265,
+      "Predicted %": 12.126533312212938,
+      "Observed %": 10.943396226415095
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.693834596220483,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Legacy Baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.827029895016885,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6507082103718203,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 343,
+      "Predicted %": 7.871059195417388,
+      "Observed %": 8.454810495626822
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Band": "0.10-0.15",
+      "Player forecasts": 264,
+      "Predicted %": 12.126247320593162,
+      "Observed %": 10.984848484848484
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.6823845014009,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Baseline + Other",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.811755699121825,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Band": "0.00-0.05",
+      "Player forecasts": 100,
+      "Predicted %": 1.253779425450652,
+      "Observed %": 2.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Band": "0.05-0.10",
+      "Player forecasts": 370,
+      "Predicted %": 7.6790588498273555,
+      "Observed %": 9.18918918918919
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Band": "0.10-0.15",
+      "Player forecasts": 255,
+      "Predicted %": 11.911538067970035,
+      "Observed %": 10.588235294117647
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Band": "0.15-0.20",
+      "Player forecasts": 54,
+      "Predicted %": 16.786980614988842,
+      "Observed %": 12.962962962962962
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Simple proxy",
+      "Band": "0.20-0.30",
+      "Player forecasts": 13,
+      "Predicted %": 22.263932498235157,
+      "Observed %": 15.384615384615385
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Band": "0.00-0.05",
+      "Player forecasts": 94,
+      "Predicted %": 1.1321581759029353,
+      "Observed %": 1.0638297872340425
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Band": "0.05-0.10",
+      "Player forecasts": 378,
+      "Predicted %": 7.916255312023337,
+      "Observed %": 8.201058201058201
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Band": "0.10-0.15",
+      "Player forecasts": 270,
+      "Predicted %": 12.008604455501901,
+      "Observed %": 12.222222222222221
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Band": "0.15-0.20",
+      "Player forecasts": 42,
+      "Predicted %": 16.31266507183826,
+      "Observed %": 11.904761904761903
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Monte Carlo",
+      "Band": "0.20-0.30",
+      "Player forecasts": 8,
+      "Predicted %": 21.72218593969776,
+      "Observed %": 25.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 120,
+      "Predicted %": 1.6603509213338827,
+      "Observed %": 3.3333333333333335
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 341,
+      "Predicted %": 7.786237587546959,
+      "Observed %": 8.211143695014663
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 268,
+      "Predicted %": 12.070977859593288,
+      "Observed %": 11.567164179104477
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 52,
+      "Predicted %": 16.615228739539173,
+      "Observed %": 13.461538461538462
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Phase 2 hybrid",
+      "Band": "0.20-0.30",
+      "Player forecasts": 11,
+      "Predicted %": 22.421537387216606,
+      "Observed %": 18.181818181818183
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 86,
+      "Predicted %": 0.9063366174480302,
+      "Observed %": 1.1627906976744187
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 373,
+      "Predicted %": 8.173715590030413,
+      "Observed %": 8.04289544235925
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 305,
+      "Predicted %": 11.815092896512946,
+      "Observed %": 12.459016393442624
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Selected hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 28,
+      "Predicted %": 16.773421513631344,
+      "Observed %": 10.714285714285714
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 98,
+      "Predicted %": 1.2285355139066747,
+      "Observed %": 4.081632653061225
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 362,
+      "Predicted %": 8.084557258219512,
+      "Observed %": 8.011049723756907
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 290,
+      "Predicted %": 11.906266305182108,
+      "Observed %": 10.689655172413794
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 39,
+      "Predicted %": 16.407467986516515,
+      "Observed %": 20.51282051282051
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Calibrated baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 3,
+      "Predicted %": 20.095104061575775,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Uniform",
+      "Band": "0.05-0.10",
+      "Player forecasts": 792,
+      "Predicted %": 9.090909090909092,
+      "Observed %": 9.090909090909092
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Uniform + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 72,
+      "Predicted %": 0.06864418416001486,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "All resolved modeled games",
+      "model": "Uniform + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 720,
+      "Predicted %": 9.993135581584,
+      "Observed %": 10.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6116315869344422,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 342,
+      "Predicted %": 7.870239469354995,
+      "Observed %": 8.47953216374269
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 265,
+      "Predicted %": 12.126533312212938,
+      "Observed %": 10.943396226415095
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.693834596220483,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Legacy Baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.827029895016885,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6507082103718203,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 343,
+      "Predicted %": 7.871059195417388,
+      "Observed %": 8.454810495626822
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Band": "0.10-0.15",
+      "Player forecasts": 264,
+      "Predicted %": 12.126247320593162,
+      "Observed %": 10.984848484848484
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.6823845014009,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Baseline + Other",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.811755699121825,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Band": "0.00-0.05",
+      "Player forecasts": 100,
+      "Predicted %": 1.253779425450652,
+      "Observed %": 2.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Band": "0.05-0.10",
+      "Player forecasts": 370,
+      "Predicted %": 7.6790588498273555,
+      "Observed %": 9.18918918918919
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Band": "0.10-0.15",
+      "Player forecasts": 255,
+      "Predicted %": 11.911538067970035,
+      "Observed %": 10.588235294117647
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Band": "0.15-0.20",
+      "Player forecasts": 54,
+      "Predicted %": 16.786980614988842,
+      "Observed %": 12.962962962962962
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Simple proxy",
+      "Band": "0.20-0.30",
+      "Player forecasts": 13,
+      "Predicted %": 22.263932498235157,
+      "Observed %": 15.384615384615385
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Band": "0.00-0.05",
+      "Player forecasts": 94,
+      "Predicted %": 1.1321581759029353,
+      "Observed %": 1.0638297872340425
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Band": "0.05-0.10",
+      "Player forecasts": 378,
+      "Predicted %": 7.916255312023337,
+      "Observed %": 8.201058201058201
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Band": "0.10-0.15",
+      "Player forecasts": 270,
+      "Predicted %": 12.008604455501901,
+      "Observed %": 12.222222222222221
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Band": "0.15-0.20",
+      "Player forecasts": 42,
+      "Predicted %": 16.31266507183826,
+      "Observed %": 11.904761904761903
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Monte Carlo",
+      "Band": "0.20-0.30",
+      "Player forecasts": 8,
+      "Predicted %": 21.72218593969776,
+      "Observed %": 25.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 120,
+      "Predicted %": 1.6603509213338827,
+      "Observed %": 3.3333333333333335
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 341,
+      "Predicted %": 7.786237587546959,
+      "Observed %": 8.211143695014663
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 268,
+      "Predicted %": 12.070977859593288,
+      "Observed %": 11.567164179104477
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 52,
+      "Predicted %": 16.615228739539173,
+      "Observed %": 13.461538461538462
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Phase 2 hybrid",
+      "Band": "0.20-0.30",
+      "Player forecasts": 11,
+      "Predicted %": 22.421537387216606,
+      "Observed %": 18.181818181818183
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 86,
+      "Predicted %": 0.9063366174480302,
+      "Observed %": 1.1627906976744187
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 373,
+      "Predicted %": 8.173715590030413,
+      "Observed %": 8.04289544235925
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 305,
+      "Predicted %": 11.815092896512946,
+      "Observed %": 12.459016393442624
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Selected hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 28,
+      "Predicted %": 16.773421513631344,
+      "Observed %": 10.714285714285714
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 98,
+      "Predicted %": 1.2285355139066747,
+      "Observed %": 4.081632653061225
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 362,
+      "Predicted %": 8.084557258219512,
+      "Observed %": 8.011049723756907
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 290,
+      "Predicted %": 11.906266305182108,
+      "Observed %": 10.689655172413794
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 39,
+      "Predicted %": 16.407467986516515,
+      "Observed %": 20.51282051282051
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Calibrated baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 3,
+      "Predicted %": 20.095104061575775,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Uniform",
+      "Band": "0.05-0.10",
+      "Player forecasts": 792,
+      "Predicted %": 9.090909090909092,
+      "Observed %": 9.090909090909092
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Uniform + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 72,
+      "Predicted %": 0.06864418416001486,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "Starter outcomes",
+      "model": "Uniform + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 720,
+      "Predicted %": 9.993135581584,
+      "Observed %": 10.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6116315869344422,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 342,
+      "Predicted %": 7.870239469354995,
+      "Observed %": 8.47953216374269
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 265,
+      "Predicted %": 12.126533312212938,
+      "Observed %": 10.943396226415095
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.693834596220483,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Legacy Baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.827029895016885,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 123,
+      "Predicted %": 1.6507082103718203,
+      "Observed %": 3.2520325203252036
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 343,
+      "Predicted %": 7.871059195417388,
+      "Observed %": 8.454810495626822
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Band": "0.10-0.15",
+      "Player forecasts": 264,
+      "Predicted %": 12.126247320593162,
+      "Observed %": 10.984848484848484
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Band": "0.15-0.20",
+      "Player forecasts": 50,
+      "Predicted %": 16.6823845014009,
+      "Observed %": 18.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Baseline + Other",
+      "Band": "0.20-0.30",
+      "Player forecasts": 12,
+      "Predicted %": 21.811755699121825,
+      "Observed %": 8.333333333333332
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Band": "0.00-0.05",
+      "Player forecasts": 100,
+      "Predicted %": 1.253779425450652,
+      "Observed %": 2.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Band": "0.05-0.10",
+      "Player forecasts": 370,
+      "Predicted %": 7.6790588498273555,
+      "Observed %": 9.18918918918919
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Band": "0.10-0.15",
+      "Player forecasts": 255,
+      "Predicted %": 11.911538067970035,
+      "Observed %": 10.588235294117647
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Band": "0.15-0.20",
+      "Player forecasts": 54,
+      "Predicted %": 16.786980614988842,
+      "Observed %": 12.962962962962962
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Simple proxy",
+      "Band": "0.20-0.30",
+      "Player forecasts": 13,
+      "Predicted %": 22.263932498235157,
+      "Observed %": 15.384615384615385
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Band": "0.00-0.05",
+      "Player forecasts": 94,
+      "Predicted %": 1.1321581759029353,
+      "Observed %": 1.0638297872340425
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Band": "0.05-0.10",
+      "Player forecasts": 378,
+      "Predicted %": 7.916255312023337,
+      "Observed %": 8.201058201058201
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Band": "0.10-0.15",
+      "Player forecasts": 270,
+      "Predicted %": 12.008604455501901,
+      "Observed %": 12.222222222222221
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Band": "0.15-0.20",
+      "Player forecasts": 42,
+      "Predicted %": 16.31266507183826,
+      "Observed %": 11.904761904761903
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Monte Carlo",
+      "Band": "0.20-0.30",
+      "Player forecasts": 8,
+      "Predicted %": 21.72218593969776,
+      "Observed %": 25.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 120,
+      "Predicted %": 1.6603509213338827,
+      "Observed %": 3.3333333333333335
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 341,
+      "Predicted %": 7.786237587546959,
+      "Observed %": 8.211143695014663
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 268,
+      "Predicted %": 12.070977859593288,
+      "Observed %": 11.567164179104477
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 52,
+      "Predicted %": 16.615228739539173,
+      "Observed %": 13.461538461538462
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Phase 2 hybrid",
+      "Band": "0.20-0.30",
+      "Player forecasts": 11,
+      "Predicted %": 22.421537387216606,
+      "Observed %": 18.181818181818183
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Band": "0.00-0.05",
+      "Player forecasts": 86,
+      "Predicted %": 0.9063366174480302,
+      "Observed %": 1.1627906976744187
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Band": "0.05-0.10",
+      "Player forecasts": 373,
+      "Predicted %": 8.173715590030413,
+      "Observed %": 8.04289544235925
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Band": "0.10-0.15",
+      "Player forecasts": 305,
+      "Predicted %": 11.815092896512946,
+      "Observed %": 12.459016393442624
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Selected hybrid",
+      "Band": "0.15-0.20",
+      "Player forecasts": 28,
+      "Predicted %": 16.773421513631344,
+      "Observed %": 10.714285714285714
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Band": "0.00-0.05",
+      "Player forecasts": 98,
+      "Predicted %": 1.2285355139066747,
+      "Observed %": 4.081632653061225
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Band": "0.05-0.10",
+      "Player forecasts": 362,
+      "Predicted %": 8.084557258219512,
+      "Observed %": 8.011049723756907
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Band": "0.10-0.15",
+      "Player forecasts": 290,
+      "Predicted %": 11.906266305182108,
+      "Observed %": 10.689655172413794
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Band": "0.15-0.20",
+      "Player forecasts": 39,
+      "Predicted %": 16.407467986516515,
+      "Observed %": 20.51282051282051
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Calibrated baseline",
+      "Band": "0.20-0.30",
+      "Player forecasts": 3,
+      "Predicted %": 20.095104061575775,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Uniform",
+      "Band": "0.05-0.10",
+      "Player forecasts": 792,
+      "Predicted %": 9.090909090909092,
+      "Observed %": 9.090909090909092
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Uniform + Other",
+      "Band": "0.00-0.05",
+      "Player forecasts": 72,
+      "Predicted %": 0.06864418416001486,
+      "Observed %": 0.0
+    },
+    {
+      "cohort": "Unverified pre-tip lineups",
+      "model": "Uniform + Other",
+      "Band": "0.05-0.10",
+      "Player forecasts": 720,
+      "Predicted %": 9.993135581584,
+      "Observed %": 10.0
+    }
+  ],
+  "first_shot": [
+    {
+      "selector": "simple:30",
+      "all": {
+        "games": 65,
+        "top1": 0.15384615384615385,
+        "log_loss": 2.2758668266151734
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.15151515151515152,
+        "log_loss": 2.2610481374556812
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.15625,
+        "log_loss": 2.2911485998109002
+      }
+    },
+    {
+      "selector": "simple:90",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2648157274365985
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.2727272727272727,
+        "log_loss": 2.2327071567179053
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.297927690990251
+      }
+    },
+    {
+      "selector": "simple:180",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2620718521089422
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.2727272727272727,
+        "log_loss": 2.2239275611442366
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.3014081521662946
+      }
+    },
+    {
+      "selector": "role:30",
+      "all": {
+        "games": 65,
+        "top1": 0.18461538461538463,
+        "log_loss": 2.3084132359024006
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.18181818181818182,
+        "log_loss": 2.308744932078456
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.1875,
+        "log_loss": 2.308071174220843
+      }
+    },
+    {
+      "selector": "role:90",
+      "all": {
+        "games": 65,
+        "top1": 0.18461538461538463,
+        "log_loss": 2.300822055517448
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.286930295884147
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.3151479326392894
+      }
+    },
+    {
+      "selector": "role:180",
+      "all": {
+        "games": 65,
+        "top1": 0.18461538461538463,
+        "log_loss": 2.2992455287861024
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.281253830035937
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.317799468122211
+      }
+    },
+    {
+      "selector": "empirical:30",
+      "all": {
+        "games": 65,
+        "top1": 0.12307692307692308,
+        "log_loss": 2.2729479806938926
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.2369550608737088
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.03125,
+        "log_loss": 2.310065679258457
+      }
+    },
+    {
+      "selector": "empirical:90",
+      "all": {
+        "games": 65,
+        "top1": 0.12307692307692308,
+        "log_loss": 2.2628617391946233
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.1922072063907536
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0,
+        "log_loss": 2.3357242261486144
+      }
+    },
+    {
+      "selector": "empirical:180",
+      "all": {
+        "games": 65,
+        "top1": 0.13846153846153847,
+        "log_loss": 2.264146662782063
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.180972026356913
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.03125,
+        "log_loss": 2.349920506595498
+      }
+    },
+    {
+      "selector": "hybrid:30",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.289261567334041
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.18181818181818182,
+        "log_loss": 2.281328491287103
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.15625,
+        "log_loss": 2.2974425520074466
+      }
+    },
+    {
+      "selector": "hybrid:90",
+      "all": {
+        "games": 65,
+        "top1": 0.18461538461538463,
+        "log_loss": 2.2794528281187856
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.255844260363301
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.303799163616629
+      }
+    },
+    {
+      "selector": "hybrid:180",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2769664651337216
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.2483527245971877
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.09375,
+        "log_loss": 2.3064743850620224
+      }
+    },
+    {
+      "selector": "phase2:30",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2561844941900753
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.232381555429213
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.280731274787214
+      }
+    },
+    {
+      "selector": "phase2:90",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2561844941900753
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.232381555429213
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.280731274787214
+      }
+    },
+    {
+      "selector": "phase2:180",
+      "all": {
+        "games": 65,
+        "top1": 0.16923076923076924,
+        "log_loss": 2.2561844941900753
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.232381555429213
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.125,
+        "log_loss": 2.280731274787214
+      }
+    },
+    {
+      "selector": "neutral_tip:30",
+      "all": {
+        "games": 65,
+        "top1": 0.07692307692307693,
+        "log_loss": 2.288798822192013
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.09090909090909091,
+        "log_loss": 2.2663958375429814
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.3119019001113266
+      }
+    },
+    {
+      "selector": "neutral_tip:90",
+      "all": {
+        "games": 65,
+        "top1": 0.12307692307692308,
+        "log_loss": 2.2777477230134378
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.15151515151515152,
+        "log_loss": 2.238054856805206
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.09375,
+        "log_loss": 2.318680991290677
+      }
+    },
+    {
+      "selector": "neutral_tip:180",
+      "all": {
+        "games": 65,
+        "top1": 0.12307692307692308,
+        "log_loss": 2.2750038476857815
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.15151515151515152,
+        "log_loss": 2.2292752612315376
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.09375,
+        "log_loss": 2.3221614524667205
+      }
+    },
+    {
+      "selector": "opponent:30",
+      "all": {
+        "games": 65,
+        "top1": 0.15384615384615385,
+        "log_loss": 2.2742709196783295
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.15151515151515152,
+        "log_loss": 2.2577133718103544
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.15625,
+        "log_loss": 2.291345890917179
+      }
+    },
+    {
+      "selector": "opponent:90",
+      "all": {
+        "games": 65,
+        "top1": 0.15384615384615385,
+        "log_loss": 2.2611537638506793
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.223833543188375
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.2996402414086803
+      }
+    },
+    {
+      "selector": "opponent:180",
+      "all": {
+        "games": 65,
+        "top1": 0.15384615384615385,
+        "log_loss": 2.2577009084714454
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.24242424242424243,
+        "log_loss": 2.2128014827321394
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.304003441265105
+      }
+    },
+    {
+      "selector": "Phase 2 first shot",
+      "all": {
+        "games": 65,
+        "top1": 0.15384615384615385,
+        "log_loss": 2.2626984719490175
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.2332890979780546
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.09375,
+        "log_loss": 2.293026888856573
+      }
+    },
+    {
+      "selector": "First shot",
+      "all": {
+        "games": 65,
+        "top1": 0.13846153846153847,
+        "log_loss": 2.2683964898406828
+      },
+      "early": {
+        "games": 33,
+        "top1": 0.21212121212121213,
+        "log_loss": 2.23166262748097
+      },
+      "late": {
+        "games": 32,
+        "top1": 0.0625,
+        "log_loss": 2.306278285399136
+      }
+    }
+  ],
+  "games": 72,
+  "verified_pretip_games": 0,
+  "note": "No provider-verified pre-tip evidence in public sample; observed starters condition models. OTHER is an aggregate category; 11-way Uniform differs from Phase 2 ten-player Uniform.",
+  "protocol": {
+    "development_periods": [
+      [
+        "2023-10-24",
+        "2023-11-07"
+      ],
+      [
+        "2024-11-06",
+        "2024-11-20"
+      ],
+      [
+        "2025-12-22",
+        "2025-12-31"
+      ]
+    ],
+    "current_season_collection": [
+      "2026-10-21",
+      "2026-10-27"
+    ],
+    "final_test": [
+      "2026-02-01",
+      "2026-02-10"
+    ],
+    "known_diagnostic_period": [
+      "2026-01-01",
+      "2026-01-21"
+    ],
+    "selection": "No new fitting: retain Phase 3 simple/90-day, hybrid .5, temperature1.25; pure MC predeclared challenger",
+    "trials": 2000,
+    "seed": 3000,
+    "minimum_prior_games": 100,
+    "no_model_promotion": true,
+    "frozen_at": "2026-10-28T19:58:32.472598+00:00"
+  },
+  "selection_source": "Previously frozen Phase 3, no Phase 4 fitting",
+  "collection": {
+    "start": "2026-02-01",
+    "end": "2026-02-10",
+    "scheduled_completed": 73,
+    "attempted": 73,
+    "added": 73,
+    "remaining": 0,
+    "finished_at": "2026-10-28T20:17:42.345551+00:00"
+  },
+  "coverage": {
+    "games": 1102,
+    "outcomes": {
+      "starter": 1098,
+      "ambiguous": 4
+    },
+    "free_throw_first_scores": 100,
+    "without_ten_valid_starters": 4,
+    "warnings": [
+      {
+        "game": "espn_401704718",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401704777",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810032",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810126",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810144",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810150",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810169",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810184",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810200",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810216",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810344",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810358",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810372",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810401",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810458",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810469",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810559",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810560",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810577",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810591",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810607",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810617",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      }
+    ],
+    "usable_opening_sequences": 1098,
+    "explicit_tips": 1064,
+    "seasons": {
+      "2024": 103,
+      "2025": 225,
+      "2026": 721,
+      "2027": 53
+    },
+    "failures": [],
+    "last_collection": {
+      "added": 73,
+      "attempted": 73,
+      "end": "2026-02-10",
+      "finished_at": "2026-10-28T20:17:42.345551+00:00",
+      "remaining": 0,
+      "scheduled_completed": 73,
+      "start": "2026-02-01"
+    }
+  },
+  "exclusions": [
+    {
+      "game": "espn_401810559",
+      "reason": "Unresolved outcome or unavailable ten-player modeling lineup",
+      "warnings": [
+        "Opening event clock order conflict"
+      ]
+    }
+  ],
+  "dataset_fingerprint": "5d847d8b24730119092094ac52dcac16bbdc91fa76c9ea0ab1b7cd792933e390",
+  "training_audit": [
+    {
+      "Game": "espn_401810557",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810558",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810560",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810561",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810562",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810563",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810564",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810565",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810566",
+      "Date": "2026-02-01",
+      "Last training date": "2026-01-20",
+      "Training games": 647
+    },
+    {
+      "Game": "espn_401810567",
+      "Date": "2026-02-02",
+      "Last training date": "2026-02-01",
+      "Training games": 656
+    },
+    {
+      "Game": "espn_401810568",
+      "Date": "2026-02-02",
+      "Last training date": "2026-02-01",
+      "Training games": 656
+    },
+    {
+      "Game": "espn_401810569",
+      "Date": "2026-02-02",
+      "Last training date": "2026-02-01",
+      "Training games": 656
+    },
+    {
+      "Game": "espn_401810570",
+      "Date": "2026-02-02",
+      "Last training date": "2026-02-01",
+      "Training games": 656
+    },
+    {
+      "Game": "espn_401810571",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810572",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810573",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810574",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810575",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810576",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810577",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810578",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810579",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810580",
+      "Date": "2026-02-03",
+      "Last training date": "2026-02-02",
+      "Training games": 660
+    },
+    {
+      "Game": "espn_401810581",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810582",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810583",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810584",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810585",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810586",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810587",
+      "Date": "2026-02-04",
+      "Last training date": "2026-02-03",
+      "Training games": 670
+    },
+    {
+      "Game": "espn_401810588",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810589",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810590",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810591",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810592",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810593",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810594",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810595",
+      "Date": "2026-02-05",
+      "Last training date": "2026-02-04",
+      "Training games": 677
+    },
+    {
+      "Game": "espn_401810596",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810597",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810598",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810599",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810600",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810601",
+      "Date": "2026-02-06",
+      "Last training date": "2026-02-05",
+      "Training games": 685
+    },
+    {
+      "Game": "espn_401810602",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810603",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810604",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810605",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810606",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810607",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810608",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810609",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810610",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810611",
+      "Date": "2026-02-07",
+      "Last training date": "2026-02-06",
+      "Training games": 691
+    },
+    {
+      "Game": "espn_401810612",
+      "Date": "2026-02-08",
+      "Last training date": "2026-02-07",
+      "Training games": 701
+    },
+    {
+      "Game": "espn_401810613",
+      "Date": "2026-02-08",
+      "Last training date": "2026-02-07",
+      "Training games": 701
+    },
+    {
+      "Game": "espn_401810614",
+      "Date": "2026-02-08",
+      "Last training date": "2026-02-07",
+      "Training games": 701
+    },
+    {
+      "Game": "espn_401810615",
+      "Date": "2026-02-08",
+      "Last training date": "2026-02-07",
+      "Training games": 701
+    },
+    {
+      "Game": "espn_401810616",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810617",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810618",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810619",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810620",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810621",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810622",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810623",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810624",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810625",
+      "Date": "2026-02-09",
+      "Last training date": "2026-02-08",
+      "Training games": 705
+    },
+    {
+      "Game": "espn_401810626",
+      "Date": "2026-02-10",
+      "Last training date": "2026-02-09",
+      "Training games": 715
+    },
+    {
+      "Game": "espn_401810627",
+      "Date": "2026-02-10",
+      "Last training date": "2026-02-09",
+      "Training games": 715
+    },
+    {
+      "Game": "espn_401810628",
+      "Date": "2026-02-10",
+      "Last training date": "2026-02-09",
+      "Training games": 715
+    },
+    {
+      "Game": "espn_401810629",
+      "Date": "2026-02-10",
+      "Last training date": "2026-02-09",
+      "Training games": 715
+    }
+  ]
+}

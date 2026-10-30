@@ -1,0 +1,338 @@
+{
+  "schema": 1,
+  "reviewed_on": "2026-10-29",
+  "source_count": 13,
+  "purpose": "Existing APEX model; zero-new-cost automated NBA first-score research",
+  "end_to_end_source_verified": false,
+  "live_provider_requests": 0,
+  "credentials_available": false,
+  "classification_note": "Classification is for this pipeline, not a blanket legal opinion. A license label and operational entitlement are separate. No provider outreach or billing change performed.",
+  "sources": [
+    {
+      "source": "BALLDONTLIE Free",
+      "classification": "Suitable only under specific restrictions",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://www.balldontlie.io/terms.html",
+        "https://docs.balldontlie.io/",
+        "https://www.balldontlie.io/account/"
+      ],
+      "automated_api_access": "Official API permitted",
+      "model_training": "Permitted by section 6 for lawfully obtained Data",
+      "pregame_and_postgame_collection": "Permitted within endpoint entitlement",
+      "derived_publication": "Derived products permitted; substitute sports-data feeds excluded",
+      "first_basket_use": "Analytics permitted, coverage incomplete",
+      "betting_related_use": "Lawful analytics permitted; not sole wager-settlement evidence",
+      "game_roster_player_coverage": "Teams, players, games; player listing is not proof of active roster",
+      "starter_and_injury_coverage": "No free confirmed-lineup or injury endpoint",
+      "opening_play_coverage": "No free plays endpoint",
+      "historical_depth": "General database advertised 1946 onward; event depth differs",
+      "cost_and_limits": "$0; 5 requests/min; key required",
+      "account_requirement": "Existing key unavailable here; no signup performed",
+      "blockers": [
+        "No opening-play training replacement",
+        "No verified account snapshot",
+        "Cross-provider IDs require mapping"
+      ]
+    },
+    {
+      "source": "BALLDONTLIE existing All-Star",
+      "classification": "Insufficient data coverage",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://docs.balldontlie.io/",
+        "https://www.balldontlie.io/account/"
+      ],
+      "automated_api_access": "Same published permission; actual entitlement unverified",
+      "model_training": "See Free terms review",
+      "pregame_and_postgame_collection": "Available endpoints only",
+      "derived_publication": "See Free terms review",
+      "first_basket_use": "No plays endpoint",
+      "betting_related_use": "See Free terms review",
+      "game_roster_player_coverage": "Adds player game stats and active players",
+      "starter_and_injury_coverage": "Injury reports included, lineups excluded",
+      "opening_play_coverage": "Excluded",
+      "historical_depth": "Endpoint-specific, not all NBA history",
+      "cost_and_limits": "$9.99/month published; 60 requests/min; existing subscription only, no new charge authorized",
+      "account_requirement": "User reported All-Star; secure key and current account status unavailable",
+      "blockers": [
+        "Existing plan not verified",
+        "No first-event outcomes"
+      ]
+    },
+    {
+      "source": "BALLDONTLIE GOAT (future option only)",
+      "classification": "Suitable only under specific restrictions",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://docs.balldontlie.io/"
+      ],
+      "automated_api_access": "Official entitled API",
+      "model_training": "See Free terms review",
+      "pregame_and_postgame_collection": "Entitled access only",
+      "derived_publication": "See Free terms review",
+      "first_basket_use": "Potential coverage; not integration-validated",
+      "betting_related_use": "See Free terms review",
+      "game_roster_player_coverage": "Games and player data",
+      "starter_and_injury_coverage": "Lineups and injuries; pre-tip reliability not observed",
+      "opening_play_coverage": "Plays from 2025 season according to docs",
+      "historical_depth": "Play coverage starts 2025; not a 2023 replacement",
+      "cost_and_limits": "$39.99/month; 600 requests/min; trial requires payment method and can convert",
+      "account_requirement": "No upgrade/trial started",
+      "blockers": [
+        "New spending prohibited",
+        "No account entitlement",
+        "Scorer mapping and coverage require validation"
+      ]
+    },
+    {
+      "source": "NBA public statistics feeds",
+      "classification": "Requires provider permission",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://www.nba.com/termsofuse",
+        "https://developer.sportradar.com/basketball/reference/nba-overview"
+      ],
+      "automated_api_access": "Unverified for intended pipeline",
+      "model_training": "Unverified",
+      "pregame_and_postgame_collection": "Unverified",
+      "derived_publication": "Unverified",
+      "first_basket_use": "Separate permission needed",
+      "betting_related_use": "Restricted",
+      "game_roster_player_coverage": "NBA games and players",
+      "starter_and_injury_coverage": "Live confirmation reliability unverified",
+      "opening_play_coverage": "Public feeds exist; no data downloaded",
+      "historical_depth": "Not audited in this phase",
+      "cost_and_limits": "No verified free license for this pipeline",
+      "account_requirement": "No license supplied",
+      "blockers": [
+        "Use restrictions unresolved"
+      ]
+    },
+    {
+      "source": "ESPN / existing historical ledger",
+      "classification": "Requires provider permission",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://disneytermsofuse.com/english/"
+      ],
+      "automated_api_access": "No applicable automated-access grant established",
+      "model_training": "No applicable model-use grant established",
+      "pregame_and_postgame_collection": "Not authorized by accessibility alone",
+      "derived_publication": "No applicable redistribution grant established",
+      "first_basket_use": "Existing derived data is not a new license",
+      "betting_related_use": "Unresolved for this use",
+      "game_roster_player_coverage": "Existing ledger, not newly fetched",
+      "starter_and_injury_coverage": "Existing adapter preserved but not exercised live",
+      "opening_play_coverage": "Existing historical sequences remain local",
+      "historical_depth": "1,110 existing games, 1,106 validated outcomes",
+      "cost_and_limits": "Public endpoint availability does not establish rights",
+      "account_requirement": "Provider grant absent",
+      "blockers": [
+        "Existing candidate remains unapproved",
+        "No relabeling of ESPN data as another source"
+      ]
+    },
+    {
+      "source": "Basketball-Reference / Stathead",
+      "classification": "Not permitted",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://www.sports-reference.com/data_use.html",
+        "https://www.sports-reference.com/termsofuse.html",
+        "https://www.sports-reference.com/bot-traffic.html"
+      ],
+      "automated_api_access": "No permission established for this pipeline",
+      "model_training": "Published model-use restrictions; needs separate permission",
+      "pregame_and_postgame_collection": "Not used",
+      "derived_publication": "No forecast-use clearance established",
+      "first_basket_use": "Current standard terms do not authorize this model workflow",
+      "betting_related_use": "Separate use review needed",
+      "game_roster_player_coverage": "Historical statistics",
+      "starter_and_injury_coverage": "Not verified for timely starters",
+      "opening_play_coverage": "Not evaluated through scraping",
+      "historical_depth": "Broad history, no download performed",
+      "cost_and_limits": "Custom data request minimum $5,000; optional only",
+      "account_requirement": "No account or paid service activated",
+      "blockers": [
+        "Not a zero-cost licensed replacement"
+      ]
+    },
+    {
+      "source": "SportsDataverse hoopR-nba-data",
+      "classification": "Unverified",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://github.com/sportsdataverse/hoopR-nba-data/blob/main/LICENSE.md",
+        "https://github.com/sportsdataverse/hoopR-nba-data/blob/main/README.md"
+      ],
+      "automated_api_access": "Repository data claims CC BY 4.0",
+      "model_training": "Package license allows adaptation; upstream clearance unresolved",
+      "pregame_and_postgame_collection": "Batch historical releases, not verified pre-tip evidence",
+      "derived_publication": "Attribution required under package license; upstream review incomplete",
+      "first_basket_use": "PBP fields potentially useful; no migration authorized",
+      "betting_related_use": "Upstream restrictions not cleared",
+      "game_roster_player_coverage": "Schedules, rosters, game boxes and PBP",
+      "starter_and_injury_coverage": "Game rosters are not pre-tip confirmation",
+      "opening_play_coverage": "ESPN-derived historical PBP",
+      "historical_depth": "README describes 2002-present; current freshness unverified",
+      "cost_and_limits": "No paid download required; no data downloaded",
+      "account_requirement": "Metadata read without registration",
+      "blockers": [
+        "README identifies ESPN origin",
+        "No independent grant for upstream material established",
+        "Do not use as workaround"
+      ]
+    },
+    {
+      "source": "Kaggle Wyatt Walsh NBA Database",
+      "classification": "Unverified",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://www.kaggle.com/wyattowalsh/basketball"
+      ],
+      "automated_api_access": "Dataset advertises CC BY-SA 4.0; API account rules also apply",
+      "model_training": "License label alone does not settle provenance",
+      "pregame_and_postgame_collection": "Historical archive, not a live source",
+      "derived_publication": "Share-alike and attribution implications require review",
+      "first_basket_use": "Potential historical PBP, no import performed",
+      "betting_related_use": "Not independently cleared",
+      "game_roster_player_coverage": "Teams, players, box scores",
+      "starter_and_injury_coverage": "Historical boxes do not verify pre-tip starters",
+      "opening_play_coverage": "Advertised PBP coverage",
+      "historical_depth": "Advertised historical coverage from 1946, uneven game completeness",
+      "cost_and_limits": "No paid dataset purchased",
+      "account_requirement": "No account login/download performed",
+      "blockers": [
+        "Underlying data authorization unresolved",
+        "Current opening-sequence completeness unverified"
+      ]
+    },
+    {
+      "source": "Zenodo Play by Play research dataset",
+      "classification": "Insufficient data coverage",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://zenodo.org/records/12698090"
+      ],
+      "automated_api_access": "Open research metadata",
+      "model_training": "Not applicable to current NBA player model",
+      "pregame_and_postgame_collection": "No NBA live feed",
+      "derived_publication": "Not evaluated for APEX publication",
+      "first_basket_use": "No NBA first-score identities",
+      "betting_related_use": "Not relevant",
+      "game_roster_player_coverage": "Synthetic spatial clips from Spanish matches",
+      "starter_and_injury_coverage": "No current NBA roster or starters",
+      "opening_play_coverage": "Not NBA event-ledger data",
+      "historical_depth": "2024 publication; spatial clips",
+      "cost_and_limits": "Open dataset, no purchase",
+      "account_requirement": "No account used",
+      "blockers": [
+        "Wrong sport/competition representation for this model"
+      ]
+    },
+    {
+      "source": "SportsDataIO Discovery Lab / trial",
+      "classification": "Suitable only under specific restrictions",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://sportsdata.io/help/data-rights-and-licensing-questions",
+        "https://sportsdata.io/developers",
+        "https://sportsdata.io/help/scrambled-data",
+        "https://discoverylab.sportsdata.io/personal-use-apis/nba"
+      ],
+      "automated_api_access": "Official API within plan",
+      "model_training": "Personal modeling option; exact feeds and rights need review",
+      "pregame_and_postgame_collection": "Not a verified live pre-tip source",
+      "derived_publication": "Discovery Lab excludes public-facing products under published FAQ",
+      "first_basket_use": "Free opening-event coverage not established",
+      "betting_related_use": "Commercial use requires scoped agreement",
+      "game_roster_player_coverage": "Free last-season schedules/rosters/results",
+      "starter_and_injury_coverage": "Live confirmed starters not established",
+      "opening_play_coverage": "Free PBP not verified; trial values can be scrambled",
+      "historical_depth": "Free prior season only",
+      "cost_and_limits": "Discovery free with no credit card; paid Fantasy $99/month; not activated",
+      "account_requirement": "Registration needed, not performed",
+      "blockers": [
+        "Not an end-to-end free public cloud source",
+        "Never grade real games using scrambled trial values"
+      ]
+    },
+    {
+      "source": "Sportradar official NBA API",
+      "classification": "Requires provider permission",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://developer.sportradar.com/basketball/reference/nba-overview",
+        "https://developer.sportradar.com/getting-started/docs/your-account",
+        "https://sportradar.com/media-tech/data-content/sports-data-api/",
+        "https://developer.sportradar.com/sportradar-updates/page/official-media-data-addendum"
+      ],
+      "automated_api_access": "Licensed official API",
+      "model_training": "Contract-specific",
+      "pregame_and_postgame_collection": "Contract-specific",
+      "derived_publication": "Media grant is not general model/betting clearance",
+      "first_basket_use": "Potential detailed coverage; grant required",
+      "betting_related_use": "Use-specific agreement needed",
+      "game_roster_player_coverage": "Official schedules, team/player data and events",
+      "starter_and_injury_coverage": "Injuries and detailed game feeds; pre-tip SLA not evaluated",
+      "opening_play_coverage": "Detailed events supported",
+      "historical_depth": "Endpoint/contract specific",
+      "cost_and_limits": "30-day trial is temporary; production quote, no verified perpetual free arrangement",
+      "account_requirement": "No account/trial created",
+      "blockers": [
+        "No applicable license",
+        "No verified zero-cost ongoing entitlement"
+      ]
+    },
+    {
+      "source": "The Odds API (the-odds-api.com)",
+      "classification": "Insufficient data coverage",
+      "reviewed_on": "2026-10-29",
+      "documentation": [
+        "https://the-odds-api.com/",
+        "https://the-odds-api.com/terms-and-conditions.html",
+        "https://the-odds-api.com/manage/faqs.html"
+      ],
+      "automated_api_access": "Official API under key entitlement",
+      "model_training": "Market research optional",
+      "pregame_and_postgame_collection": "Odds only, not a first-score result source",
+      "derived_publication": "App use subject to terms; no feed resale",
+      "first_basket_use": "No required historical event data",
+      "betting_related_use": "Intended market data use, not wagers placed by APEX",
+      "game_roster_player_coverage": "Events and bookmaker prices, not model rosters",
+      "starter_and_injury_coverage": "No lineup solution",
+      "opening_play_coverage": "No opening sequence replacement",
+      "historical_depth": "Historical odds depend on plan",
+      "cost_and_limits": "Published free 500 credits; account quota and renewal unverified",
+      "account_requirement": "User has key elsewhere; absent here",
+      "blockers": [
+        "No account calls made",
+        "Do not confuse with similarly named theoddsapi.com"
+      ]
+    },
+    {
+      "source": "User-owned independent observations",
+      "classification": "Suitable only under specific restrictions",
+      "reviewed_on": "2026-10-29",
+      "documentation": [],
+      "automated_api_access": "Requires a documented permitted collection method",
+      "model_training": "Possible with documented ownership and provenance",
+      "pregame_and_postgame_collection": "Manual workflow possible, not unattended",
+      "derived_publication": "Rights must cover intended storage/publication",
+      "first_basket_use": "Could record first points, FGA and actual starters separately",
+      "betting_related_use": "Collection/presentation rights must be checked",
+      "game_roster_player_coverage": "Only what is actually observed and identified",
+      "starter_and_injury_coverage": "Manual confirmation must remain manual",
+      "opening_play_coverage": "Cannot infer missing events or historical starters",
+      "historical_depth": "No qualifying dataset supplied",
+      "cost_and_limits": "No new service cost inherent",
+      "account_requirement": "Owner provenance statement and source evidence needed",
+      "blockers": [
+        "No supplied independent training records",
+        "Broadcast viewing alone does not establish redistribution rights"
+      ]
+    }
+  ],
+  "recommended_next_step": "Read-only inspection of the existing BDL entitlement through a secure local key; establish permitted opening-event training data before any live forecast."
+}

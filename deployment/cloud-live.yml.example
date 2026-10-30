@@ -1,0 +1,56 @@
+# DISABLED TEMPLATE. Do not place under .github/workflows without owner activation decision.
+name: APEX authorized live research
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [manual, scheduled, validation]
+        default: manual
+  # Proposed initial UTC wakeups cover both Eastern offsets; Python gates local slots.
+  # Add ONLY after activation approval and default-branch routing review:
+  # schedule:
+  #   - cron: '0 14,15 * * *'       # 10am EDT/EST scan; off-hour invocation no forecast
+  #   - cron: '30 21,22,23 * * *'   # 5:30/6:30pm EDT/EST; Python selects proper label
+  #   - cron: '0 13 * * *'          # next-morning validation (mode routing required)
+permissions:
+  contents: read
+concurrency:
+  group: apex-research-data-writer
+  cancel-in-progress: false
+jobs:
+  research:
+    if: github.repository == 'kaishawn01/apex-first-basket' && github.event.repository.private == false && vars.APEX_LIVE_COLLECTION_APPROVED == 'true' && vars.APEX_AUTOMATION_DISABLED != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    env:
+      APEX_LIVE_COLLECTION_APPROVED: 'true'
+      APEX_AUTOMATION_DISABLED: ${{ vars.APEX_AUTOMATION_DISABLED }}
+      MODE: ${{ inputs.mode || 'scheduled' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3/hybrid-monte-carlo
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/checkout@v4
+        with:
+          ref: apex-research-data
+          path: cloud-data
+          fetch-depth: 0
+      - name: Run same model headlessly (requires separately reviewed training bundle)
+        id: collect
+        continue-on-error: true
+        run: python phase6_cli.py "$MODE" --journal cloud-data/live/journal.json --training-file cloud-data/bootstrap/training.json --data-root cloud-data
+      - name: Preserve successful records and diagnostics even on partial failure
+        if: always() && steps.collect.outcome != 'skipped'
+        run: python phase6_git.py publish --root cloud-data --file live/journal.json
+      - name: Fail visibly if collection failed
+        if: steps.collect.outcome == 'failure'
+        run: exit 1
+# No API secrets; no paid integrations. Schedule remains a proposal, not operational.

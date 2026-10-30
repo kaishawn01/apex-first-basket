@@ -1,0 +1,125 @@
+{
+  "games": 1029,
+  "outcomes": {
+    "starter": 1026,
+    "ambiguous": 3
+  },
+  "free_throw_first_scores": 93,
+  "without_ten_valid_starters": 3,
+  "warnings": [
+    {
+      "game": "espn_401704718",
+      "reasons": [
+        "Opening event clock order conflict"
+      ]
+    },
+    {
+      "game": "espn_401704777",
+      "reasons": [
+        "Opening event clock order conflict"
+      ]
+    },
+    {
+      "game": "espn_401810032",
+      "reasons": [
+        "Opening event clock order conflict"
+      ]
+    },
+    {
+      "game": "espn_401810126",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810144",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810150",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810169",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810184",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810200",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810216",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810344",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810358",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810372",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810401",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810458",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    },
+    {
+      "game": "espn_401810469",
+      "reasons": [
+        "Boxscore player identity missing"
+      ]
+    }
+  ],
+  "usable_opening_sequences": 1026,
+  "explicit_tips": 993,
+  "seasons": {
+    "2024": 103,
+    "2025": 225,
+    "2026": 648,
+    "2027": 53
+  },
+  "failures": [],
+  "last_collection": {
+    "added": 53,
+    "attempted": 53,
+    "end": "2026-10-27",
+    "finished_at": "2026-10-28T20:12:15.923521+00:00",
+    "remaining": 0,
+    "scheduled_completed": 53,
+    "start": "2026-10-21"
+  }
+}
