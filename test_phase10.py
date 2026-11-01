@@ -488,3 +488,87 @@ class WrapperReplayTests(unittest.TestCase):
             self.assertEqual(store.rows(),before)
             self.assertEqual(transport.call_count,1)
             self.assertEqual(len(store.rows('dunk_response')),1)
+
+class OneRequestTests(unittest.TestCase):
+    def setUp(self):
+        from types import SimpleNamespace
+        import base64,hashlib
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name);self.manifest=d.local_manifest(d.MANIFEST_SHA256)
+        (self.root/'identity.json').write_text(json.dumps({'pilot':'phase10-five-games','manifest_sha256':d.MANIFEST_SHA256}))
+        self.store=Store(self.root/'pilot.sqlite3')
+        ids=[g['game_id'] for g in self.manifest['games']]
+        self.store.append('dunk_pilot','phase10-five-games',{'game_ids':ids,'ceiling':100,'test_only':False,'costs':d.COSTS,'funding_source':'existing_wallet'})
+        expected=self.manifest['games'][0];box,_=fixture(ids[0])
+        box['game'].update(date=expected['date'],starts_at=expected['date']+'T23:00:00Z')
+        box['game']['home']['abbrev']=expected['home'];box['game']['away']['abbrev']=expected['away']
+        raw=json.dumps({'data':box}).encode();params={'game_id':ids[0]}
+        key=digest({'endpoint':'get_game','params':params})
+        self.store.append('dunk_attempt',key,{'cost':5,'endpoint':'get_game','params':params,'test_only':False})
+        self.store.append('dunk_response',key,{'provider':'DunkAPI','test_only':False,'endpoint':'get_game','request':params,'retrieved_at':datetime.now(timezone.utc).isoformat(),'raw_base64':base64.b64encode(raw).decode(),'sha256':hashlib.sha256(raw).hexdigest()})
+        self.original=self.store.rows()
+        self.args=SimpleNamespace(execute=True,confirm_wallet=495,confirm_no_replenishment=True,confirm_exclusive_use=True,confirm_manifest=d.MANIFEST_SHA256)
+        self.session=Mock();self.response=Mock(status_code=200)
+        self.response.iter_content.return_value=[b'{"data":{"plays":[],"count":0,"next_offset":1000}}']
+        self.session.post.return_value=self.response
+        for patcher in [patch.object(d,'secure_acl'),patch.object(d.requests,'Session',return_value=self.session),patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'SYNTHETIC-ONLY'}),patch('builtins.print')]:
+            patcher.start();self.addCleanup(patcher.stop)
+    def run_one(self):return d.execute_one(self.args,self.root)
+    def assert_stopped_once(self):
+        self.assertEqual(self.session.post.call_count,1)
+        self.assertEqual(self.store.rows()[:len(self.original)],self.original)
+        self.assertEqual(sum(r['payload']['cost'] for r in self.store.rows('dunk_attempt')),15)
+        with self.assertRaises(ValueError):self.run_one()
+        self.assertEqual(self.session.post.call_count,1)
+    def test_one_call_even_with_next_page_and_rerun_blocked(self):
+        self.assertEqual(self.run_one(),0);self.assert_stopped_once()
+        call=self.session.post.call_args
+        self.assertEqual(call.args[0],d.HOST+'get_plays')
+        self.assertEqual(call.kwargs['json'],{'game_id':'401809243','limit':1000,'offset':0})
+    def test_timeout_reservation_survives_no_retry(self):
+        self.session.post.side_effect=requests.Timeout('SYNTHETIC-SECRET')
+        with self.assertRaises(ProviderError):self.run_one()
+        self.assert_stopped_once()
+    def test_http_failure_preserved_no_retry(self):
+        self.response.status_code=429
+        with self.assertRaises(ProviderError):self.run_one()
+        self.assert_stopped_once()
+        self.assertEqual(len(self.store.rows('dunk_response')),2)
+    def test_invalid_json_preserved_no_retry(self):
+        self.response.iter_content.return_value=[b'not-json-fixture']
+        with self.assertRaises(ProviderError):self.run_one()
+        self.assert_stopped_once()
+        self.assertEqual(len(self.store.rows('dunk_response')),2)
+        self.assertFalse(d.plays_structure(self.root)['json_valid'])
+    def test_no_execute_no_wallet_no_funding_no_requests(self):
+        for field,value in [('execute',False),('confirm_wallet',500),('confirm_no_replenishment',False),('confirm_exclusive_use',False),('confirm_manifest','changed')]:
+            args=copy.copy(self.args);setattr(args,field,value)
+            with self.assertRaises(ValueError):d.execute_one(args,self.root)
+        self.session.post.assert_not_called();self.assertEqual(self.store.rows(),self.original)
+    def test_missing_original_cache_blocks_without_fetch(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(Exception):d.execute_one(self.args,Path(folder))
+            self.assertFalse((Path(folder)/'pilot.sqlite3').exists())
+        self.session.post.assert_not_called()
+    def test_diagnostic_read_only_safe_and_pagination_not_accepted(self):
+        self.run_one();before=(self.root/'pilot.sqlite3').read_bytes()
+        report=d.plays_structure(self.root)
+        self.assertEqual((self.root/'pilot.sqlite3').read_bytes(),before)
+        self.assertEqual(self.session.post.call_count,1)
+        self.assertEqual(report['reserved_credits'],15)
+        self.assertTrue(report['locations'][1]['additional_page_indicated'])
+        self.assertFalse(report['interpretation_validated'])
+        self.assertNotIn('raw_base64',json.dumps(report))
+    def test_transport_rejects_second_call_other_game_and_pagination(self):
+        t=d.WalletTransport(self.manifest,wallet_balance=495,enabled=True,funding_confirmed=True,session=self.session,one_request=True)
+        for endpoint,body in [('get_game',{'game_id':'401809243'}),('get_plays',{'game_id':'401809236','limit':1000,'offset':0}),('get_plays',{'game_id':'401809243','limit':1000,'offset':1000})]:
+            with self.assertRaises(ProviderError):t(d.HOST+endpoint,json=body)
+        self.session.post.assert_not_called()
+        params={'game_id':'401809243','limit':1000,'offset':0}
+        t(d.HOST+'get_plays',json=params)
+        with self.assertRaises(ProviderError):t(d.HOST+'get_plays',json=params)
+        self.assertEqual(self.session.post.call_count,1)
+    def test_missing_key_blocks_without_new_reservation(self):
+        with patch.dict(d.os.environ,{},clear=True):
+            with self.assertRaises(ProviderError):self.run_one()
+        self.assertEqual(self.store.rows(),self.original);self.session.post.assert_not_called()

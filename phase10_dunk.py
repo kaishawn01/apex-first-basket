@@ -57,7 +57,7 @@ class WalletTransport:
     No credentials are stored in the journal, repr, URL or exceptions.
     """
     def __init__(self, manifest, *, wallet_balance, funding_confirmed=False,
-                 enabled=False, session=None):
+                 enabled=False, session=None, one_request=False):
         if manifest.get('live_authorized') is not True or manifest.get('funding_source') != 'existing_wallet':
             raise ValueError('Existing-wallet authorization required')
         if type(wallet_balance) is not int or wallet_balance < 75:
@@ -71,6 +71,7 @@ class WalletTransport:
                 {'method':'POST','endpoint':'get_plays','body':{'game_id':gid,'limit':1000,'offset':0},'credits_reserved_before_request':10}])
         if manifest['requests'] != expected or manifest.get('lifetime_cap') != 100:
             raise ValueError('Approved requests or ceiling changed')
+        self.one_request=one_request; self.request_used=False
         self.ids=ids; self.allowed={(HOST+q['endpoint'],canonical(q['body'])) for q in expected}
         self.balance=wallet_balance; self.enabled=enabled; self.funding_confirmed=funding_confirmed
         self.session=session or requests.Session()
@@ -86,6 +87,10 @@ class WalletTransport:
         self.preflight()
         if (url,canonical(kwargs.get('json'))) not in self.allowed:
             raise ProviderError('Request outside owner-authorized manifest')
+        if self.one_request:
+            if self.request_used or url!=HOST+'get_plays' or kwargs.get('json')!={'game_id':'401809243','limit':1000,'offset':0}:
+                raise ProviderError('One-request transport stopped')
+            self.request_used=True  # Consumed before HTTP, including failures.
         kwargs['headers']={'x-api-key':os.environ['DUNKAPI_API_KEY'],
                            'x-idempotency-key':digest({'pilot':'phase10-five-games','url':url,'body':kwargs['json']})}
         kwargs.update(timeout=15,allow_redirects=False,stream=True)
@@ -143,7 +148,14 @@ class Pilot:
                 raw = base64.b64decode(cached['payload']['raw_base64'], validate=True)
                 if hashlib.sha256(raw).hexdigest() != cached['payload']['sha256']:
                     raise ValueError('Raw source checksum mismatch')
+                if cached['payload'].get('http_status',200)!=200:
+                    raise ProviderError('Cached provider failure; no repeat')
                 return response_payload(endpoint, json.loads(raw))
+            if self.wallet_transport and self.wallet_transport.one_request:
+                if endpoint!='get_plays' or gid!='401809243' or offset!=0:
+                    raise ProviderError('Outside one-request continuation')
+                if self.wallet_transport.request_used:
+                    raise ProviderError('One-request transport already consumed')
             if self.store.get('dunk_attempt', key):
                 raise ProviderError('Prior attempt unresolved; no automatic repeat or refund')
             now = self.store.clock().timestamp()
@@ -163,25 +175,24 @@ class Pilot:
             except requests.RequestException:
                 raise ProviderError('Provider transport failure; reservation retained') from None
             try:
+                keep_error=bool(self.wallet_transport and self.wallet_transport.one_request)
                 if response.status_code == 429:
                     # Deliberately requires operator review; never auto-retry a charged query.
                     self.store.set_state('phase10:next_allowed', now + 3600)
-                    raise ProviderError('Provider rate limit; stop and review cooldown')
-                if response.status_code != 200:
+                    if not keep_error:raise ProviderError('Provider rate limit; stop and review cooldown')
+                if response.status_code != 200 and not keep_error:
                     raise ProviderError('Provider HTTP failure; body withheld; no retry')
                 raw = bytearray(); deadline = time.monotonic() + 30
                 for chunk in response.iter_content(65536):
                     raw.extend(chunk)
                     if len(raw) > MAX_BYTES or time.monotonic() > deadline:
                         raise ProviderError('Response size/time bound exceeded')
-                payload = json.loads(raw)
-                if not isinstance(payload, dict):
-                    raise ValueError('Object response required')
                 self.store.append('dunk_response', key, {'provider':'DunkAPI', 'test_only':self.test_only,
-                    'endpoint':endpoint, 'request':params, 'retrieved_at':self.store.clock().isoformat(),
+                    'endpoint':endpoint, 'request':params, 'http_status':response.status_code, 'retrieved_at':self.store.clock().isoformat(),
                     'sha256':hashlib.sha256(raw).hexdigest(),
                     'raw_base64':base64.b64encode(raw).decode()}, fence=lease)
-                return response_payload(endpoint, payload)
+                if response.status_code!=200:raise ProviderError('Provider HTTP failure retained privately; no retry')
+                return response_payload(endpoint, json.loads(raw))
             except (ValueError, TypeError, requests.RequestException):
                 raise ProviderError('Invalid provider response; reservation retained') from None
             finally:
@@ -455,7 +466,7 @@ def sanitized_report(report):
         'model_compatibility_established':False,'games':games}
 
 
-def replay_database(path, manifest, target_day):
+def read_private_rows(path):
     """Read-only SQLite replay: no Store construction, leases, writes or HTTP."""
     path=Path(path)
     if not path.is_file():raise ValueError('Original database missing')
@@ -468,6 +479,11 @@ def replay_database(path, manifest, target_day):
         rows=[Store.decode(r) for r in connection.execute('SELECT * FROM apex_events ORDER BY id')]
         Store.verify(rows)
     finally:connection.close()
+    return rows
+
+
+def replay_database(path, manifest, target_day):
+    rows=read_private_rows(path)
     attempts={r['key']:r['payload'] for r in rows if r['kind']=='dunk_attempt'}
     allowed={digest({'endpoint':q['endpoint'],'params':q['body']}):q for q in manifest['requests']}
     for key,a in attempts.items():
@@ -510,6 +526,95 @@ def replay_local(root):
     return 0
 
 
+def plays_structure(root):
+    """Read-only shape inventory; no raw keys, values, players or events printed."""
+    manifest=local_manifest(MANIFEST_SHA256)
+    secure_acl(root)
+    if json.loads((root/'identity.json').read_text())!={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:
+        raise ValueError('Private identity mismatch')
+    rows=read_private_rows(root/'pilot.sqlite3')
+    params={'game_id':'401809243','limit':1000,'offset':0}
+    key=digest({'endpoint':'get_plays','params':params})
+    attempts=[r for r in rows if r['kind']=='dunk_attempt']
+    saved=next((r['payload'] for r in rows if r['kind']=='dunk_response' and r['key']==key),None)
+    report={'offline_only':True,'game_id':'401809243','new_requests':0,'database_modified':False,
+            'reserved_credits':sum(r['payload']['cost'] for r in attempts),
+            'response_present':saved is not None,'interpretation_validated':False}
+    if saved:
+        if saved['endpoint']!='get_plays' or saved['request']!=params:raise ValueError('Cache provenance mismatch')
+        raw=base64.b64decode(saved['raw_base64'],validate=True)
+        if hashlib.sha256(raw).hexdigest()!=saved['sha256']:raise ValueError('Raw checksum mismatch')
+        attempt=next((r['payload'] for r in attempts if r['key']==key),None)
+        if not attempt or attempt.get('cost')!=10 or attempt.get('params')!=params or attempt.get('endpoint')!='get_plays':
+            raise ValueError('Response reservation mismatch')
+        report['raw_integrity']='PASS'
+        report['http_status']=saved.get('http_status',200)
+        box_key=digest({'endpoint':'get_game','params':{'game_id':'401809243'}})
+        box_saved=next((r['payload'] for r in rows if r['kind']=='dunk_response' and r['key']==box_key),None)
+        reported=None
+        if box_saved:
+            box_raw=base64.b64decode(box_saved['raw_base64'],validate=True)
+            if hashlib.sha256(box_raw).hexdigest()!=box_saved['sha256']:raise ValueError('Box checksum mismatch')
+            reported=response_payload('get_game',json.loads(box_raw))['plays']
+        report['get_game_reported_plays']=reported
+        try:payload=json.loads(raw)
+        except (ValueError,UnicodeError):report['json_valid']=False;return report
+        report['json_valid']=True
+        report['top_level_type']=type(payload).__name__
+        # Fixed known fields only. Inspecting data is not acceptance of its semantics.
+        report['locations']=[]
+        for label,node in [('top_level',payload),('data',payload.get('data') if isinstance(payload,dict) else None)]:
+            if not isinstance(node,dict):continue
+            fields={k:type(node[k]).__name__ for k in ('plays','count','next_offset','limit','offset','total','has_more') if k in node}
+            item={'location':label,'recognized_field_types':fields}
+            if isinstance(node.get('plays'),list):
+                item['event_count']=len(node['plays'])
+                item['matches_get_game_count']=reported is not None and len(node['plays'])==reported
+                item['all_events_objects']=all(isinstance(x,dict) for x in node['plays'])
+                item['count_matches']=type(node.get('count')) is int and node['count']==len(node['plays'])
+            item['terminal_null_observed']='next_offset' in node and node['next_offset'] is None
+            item['additional_page_indicated']=('next_offset' in node and node['next_offset'] is not None) or node.get('has_more') is True
+            report['locations'].append(item)
+    return report
+
+
+def execute_one(args,root):
+    """Only the approved first get_plays call; never invokes run() or plays()."""
+    if not args.execute or args.confirm_wallet!=495 or not args.confirm_no_replenishment or not args.confirm_exclusive_use:
+        raise ValueError('Explicit execution and current 495-credit wallet attestation required')
+    manifest=local_manifest(args.confirm_manifest)
+    secure_acl(root)
+    if json.loads((root/'identity.json').read_text())!={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:
+        raise ValueError('Private identity mismatch')
+    path=root/'pilot.sqlite3'
+    day=datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+    # No writable Store (which can initialize) until the original DB is verified.
+    replay_database(path,manifest,day)
+    store=Store(path)
+    lease=store.acquire('phase10:local-run',900)
+    if not lease:raise ValueError('Another or interrupted local run exists')
+    transport=None
+    try:
+        report=replay_database(path,manifest,day)
+        if (report['reservations']!=1 or report['reserved_credits']!=5 or report['saved_responses']!=1
+                or len(report['games'])!=1 or report['games'][0]['game_id']!='401809243'):
+            raise ValueError('Expected original five-credit cache only; no repeat continuation')
+        rows=store.rows()
+        if any(r['payload'].get('test_only') is not False for r in rows if r['kind'] in ('dunk_attempt','dunk_response')):
+            raise ValueError('Synthetic cache cannot authorize live continuation')
+        transport=WalletTransport(manifest,wallet_balance=495,funding_confirmed=True,enabled=True,one_request=True)
+        transport.preflight()
+        pilot=Pilot(store,transport.ids,wallet_transport=transport)
+        pilot.fetch('get_game','401809243')  # Cache only; transport rejects get_game.
+        pilot._pace()
+        pilot.fetch('get_plays','401809243',0)  # Exactly one call; no parsing loop.
+        print('ONE-REQUEST STOP: response saved. No further requests. Run plays-report-local offline.')
+        return 0
+    finally:
+        store.release(lease)
+        if transport:transport.session.close()
+
+
 def execute_local(args,root):
     if not args.execute or args.confirm_wallet != 500 or not args.confirm_no_replenishment or not args.confirm_exclusive_use:
         raise ValueError('Explicit wallet, replenishment, exclusive-use and execution preflight required')
@@ -543,7 +648,7 @@ def execute_local(args,root):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Phase 10: no network by default; opt-in local Windows pilot')
-    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local'])
+    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local','continue-one-local','plays-report-local'])
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--confirm-wallet',type=int)
     parser.add_argument('--confirm-no-replenishment',action='store_true')
@@ -557,6 +662,8 @@ def main(argv=None):
                               'manifest_sha256':MANIFEST_SHA256,'maximum_credits':100}));return 0
         root=private_directory()
         if args.command=='init-local':initialize_local(root,args.confirm_no_prior_pilot);print('Private pilot storage initialized.');return 0
+        if args.command=='continue-one-local':return execute_one(args,root)
+        if args.command=='plays-report-local':print(json.dumps(plays_structure(root),indent=2));return 0
         if args.command=='run-local':return execute_local(args,root)
         if args.command=='replay-local':return replay_local(root)
         secure_acl(root)

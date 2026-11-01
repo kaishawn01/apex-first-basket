@@ -1,3 +1,96 @@
+## Controlled one-request continuation — 2026-11-01
+
+Owner confirms Windows replay and prior 84 tests passed; original cache remains
+one get_game response/reservation (5 credits), wallet balance 495. No private
+response was transferred to Work. No provider requests are executed by this patch.
+
+New `continue-one-local` is opt-in with --execute, exact manifest hash, current
+495-credit wallet attestation, no replenishment and exclusive account use. It
+requires the existing private marker/database/ACL, valid original box and exactly
+one real response/reservation totaling five credits. It holds the existing local
+run lease, reuses the get_game cache, reserves ten and calls ONLY
+get_plays(401809243, limit=1000, offset=0). It never calls the orchestration or
+pagination loops. Transport independently restricts endpoint/body and permits
+one HTTP invocation, consumed before dispatch. There are no automatic retries.
+Subsequent execution fails closed when the original inventory has changed,
+including an unresolved ten-credit attempt. Original evidence and configuration
+remain unchanged. Lifetime cap is still 100; expected cumulative reservation is
+15 and provider wallet should be 485 if billed exactly ten (verify locally).
+
+Complete bounded response bytes are stored before JSON interpretation. The
+one-request path also retains complete bounded non-200 response bodies privately;
+no body is printed. A timeout, stream failure or response-size limit may prevent
+saving a complete response, but the reservation persists and prevents a retry.
+Cached HTTP errors cannot be reused as successful responses. No API key or headers
+are archived. No shape inference activates a get_plays adapter.
+
+New `plays-report-local` is offline, read-only and key-free. It verifies the event
+chain, raw SHA-256 and request/reservation linkage and reports recognized field
+types at top-level/data locations, list length, count agreement, null-next-offset
+and additional-page indicators. It compares list length to cached get_game's
+reported count without declaring completeness. Unrecognized schemas remain
+unvalidated. No raw keys/records/player identities/source values are printed.
+Never upload the database or raw provider responses. Share only this report.
+
+Windows procedure (existing APEX_V3_Pilot checkout):
+
+1. Clear process key; confirm branch and a clean checkout. Stop on local edits or
+   pull errors. Never initialize or delete private storage again.
+
+```powershell
+Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue
+git branch --show-current
+git status --short
+git pull --ff-only origin v3/hybrid-monte-carlo
+& .\.venv\Scripts\python.exe -m unittest test_phase10 test_updater -q
+& .\.venv\Scripts\python.exe phase10_dunk.py replay-local
+```
+
+Branch must be v3/hybrid-monte-carlo. Expect 93 tests passing and unchanged replay:
+one response, one reservation, five credits, integrity PASS. Confirm no automatic
+wallet replenishment and no other account users/jobs. No new authorization of the
+original request manifest is needed. Local execution below is the explicit opt-in.
+Do NOT use the older run-local command for this stage.
+
+2. Enter the key hidden. This block executes only the controlled command and clears
+   its process-local environment variable in finally. No setx, key file or command
+   history containing the key. Closing PowerShell also destroys this environment.
+
+```powershell
+$secret = Read-Host "DunkAPI key (hidden; local only)" -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+try {
+    $env:DUNKAPI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    & .\.venv\Scripts\python.exe phase10_dunk.py continue-one-local --execute --confirm-wallet 495 --confirm-no-replenishment --confirm-exclusive-use --confirm-manifest c4309436dcae82adc9ee435f33a81acefa94385d32f9541b17a458428c72e905
+} finally {
+    Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+    $secret.Dispose()
+    Remove-Variable secret,ptr -ErrorAction SilentlyContinue
+}
+```
+
+3. Whether saved or stopped, do NOT retry the live command. Run only:
+
+```powershell
+& .\.venv\Scripts\python.exe phase10_dunk.py plays-report-local
+```
+
+Expected after dispatch: cumulative reservation 15. A completed successful HTTP
+response normally gives response_present true and raw_integrity PASS; a timeout
+can give false. A next page or unfamiliar wrapper requires review; never fetch
+another page automatically. Check wallet in the provider dashboard without making
+API balance requests. Share sanitized report and balance only.
+
+Validation: 82 Phase 10 + 11 updater tests passed locally (93). Nine new regressions
+cover exact one-call stop, repeat block, timeout/429/invalid JSON retention, opt-in
+and funding gates, missing DB/key, read-only diagnostics, transport rejection of
+other games/pages and second calls. Existing GitHub CI runs full regression,
+Streamlit smoke and checksum verification on Python 3.11/3.14; final run status is
+reported with the patch. Native Windows key-entry/ACL execution is owner-local;
+no new live-provider observations are claimed. V2.44, model parameters, pinned
+manifest, draft PR, scheduling and deployment remain unchanged.
+
 ## Verified get_game wrapper correction — 2026-11-01
 
 Owner-reported first real response for 401809243 has a `data` envelope containing
