@@ -572,3 +572,92 @@ class OneRequestTests(unittest.TestCase):
         with patch.dict(d.os.environ,{},clear=True):
             with self.assertRaises(ProviderError):self.run_one()
         self.assertEqual(self.store.rows(),self.original);self.session.post.assert_not_called()
+
+class EventAuditTests(unittest.TestCase):
+    def audit(self,box=None,page=None):
+        b,p=fixture();return d.audit_event_payload(box or b,{'data':page or p[0]},'2026-10-29')
+    def test_observed_envelope_and_synthetic_free_throw_first(self):
+        r=self.audit();self.assertEqual(r['envelope'],'PASS')
+        self.assertTrue(r['pagination']['single_response_complete_indicated'])
+        self.assertEqual(r['conditional_synthetic_interpretation']['first_score_kind'],'free_throw')
+        self.assertEqual(r['conditional_synthetic_interpretation']['first_scorer_status'],'starter')
+        self.assertFalse(r['interpretation_validated'])
+        self.assertTrue(all(v.startswith('UNRESOLVED') for v in r['findings'].values()))
+    def test_nested_realistic_shape_is_discovered_not_assumed(self):
+        # Fabricated schema-discovery fixture, NOT an observed DunkAPI event.
+        box,_=fixture();box['plays']=2
+        events=[{'id':'private-event','sequenceNumber':i,'period':{'number':1},
+            'clock':{'displayValue':'12:00'},'type':{'id':'private-code','text':'private-description'},
+            'participants':[{'athlete':{'id':'private-player'}}],'homeScore':0,'awayScore':0,
+            'scoringPlay':False,'wallclock':'2026-10-21T23:00:00Z'} for i in (1,2)]
+        r=self.audit(box,{'plays':events,'count':2,'next_offset':None})
+        paths={v['path'] for v in r['inventory']['fields']}
+        self.assertIn('participants[].athlete.id',paths)
+        self.assertIn('period.number',paths)
+        self.assertNotIn('conditional_synthetic_interpretation',r)
+        self.assertNotIn('private-',json.dumps(r))
+        self.assertFalse(r['model_compatible'])
+    def test_bad_wrappers_and_counts(self):
+        _,pages=fixture();p=pages[0]
+        for bad in [p,{'data':None},{'data':p,'plays':[]},{'data':dict(p,count=True)},
+                    {'data':dict(p,count=595)},{'data':dict(p,plays=[None],count=1)},
+                    {'data':{k:v for k,v in p.items() if k!='next_offset'}},
+                    {'data':dict(p,next_offset=False)}]:
+            with self.assertRaises(ValueError):d.observed_plays_envelope(bad)
+    def test_incomplete_page_not_interpreted(self):
+        box,pages=fixture();pages[0]['next_offset']=6
+        r=self.audit(box,pages[0]);self.assertIn('incomplete_or_count_mismatch',r['blockers'])
+        self.assertNotIn('conditional_synthetic_interpretation',r)
+    def test_missing_fields_and_null_coverage(self):
+        box,pages=fixture();del pages[0]['plays'][0]['home_score']
+        r=self.audit(box,pages[0]);self.assertEqual(r['candidate_contract']['missing_by_field']['home_score'],1)
+        self.assertIn('score_mapping_unresolved',r['blockers'])
+    def test_source_order_not_sorted_or_repaired(self):
+        box,pages=fixture();pages[0]['plays'][1],pages[0]['plays'][2]=pages[0]['plays'][2],pages[0]['plays'][1]
+        before=copy.deepcopy(pages);r=self.audit(box,pages[0])
+        self.assertEqual(pages,before)
+        self.assertIn('candidate_sequence_not_increasing',r['blockers'])
+        self.assertIn('clock_order_conflict',r['blockers'])
+    def test_score_correction_rejected(self):
+        box,pages=fixture();pages[0]['plays'][3]['home_score']=2
+        r=self.audit(box,pages[0]);self.assertEqual(r['conditional_checks']['score_transitions']['decreases'],1)
+        self.assertIn('candidate_contract_rejected',r['blockers'])
+    def test_unknown_actor_and_game_identity(self):
+        box,pages=fixture();pages[0]['plays'][1].update(player_id='99999',game_id='999')
+        r=self.audit(box,pages[0]);self.assertIn('player_id_identity_mismatch',r['blockers'])
+        self.assertIn('game_id_identity_mismatch',r['blockers'])
+    def test_unparseable_timestamp_and_sensitive_keys_not_printed(self):
+        box,pages=fixture();pages[0]['plays'][0].update(timestamp='PRIVATE-VALUE',api_key='SECRET')
+        r=self.audit(box,pages[0]);self.assertEqual(r['conditional_checks']['timestamps']['timestamp']['timezone_aware_parseable'],0)
+        self.assertNotIn('SECRET',json.dumps(r));self.assertNotIn('api_key',json.dumps(r))
+    def test_final_score_mismatch_blocks_candidate(self):
+        box,pages=fixture();box['game']['home']['score']=100
+        r=self.audit(box,pages[0]);self.assertFalse(r['conditional_checks']['score_transitions']['final_matches_box'])
+        self.assertIn('candidate_event_audit_issues',r['blockers'])
+    def test_inventory_limits_reported(self):
+        r=d.event_inventory([{'nested':[{'id':'hidden'}]*51}])
+        self.assertTrue(r['inventory_truncated']);self.assertNotIn('hidden',json.dumps(r))
+
+class LocalEventAuditTests(unittest.TestCase):
+    setUp=OneRequestTests.setUp
+    def test_readonly_local_audit_preserves_database_and_no_transport(self):
+        import hashlib,base64
+        params={'game_id':'401809243','limit':1000,'offset':0};key=digest({'endpoint':'get_plays','params':params})
+        raw=b'{"data":{"plays":[{"period":{"number":1},"text":"PRIVATE-TEXT"}],"count":1,"next_offset":null}}'
+        self.store.append('dunk_attempt',key,{'cost':10,'endpoint':'get_plays','params':params,'test_only':False})
+        self.store.append('dunk_response',key,{'endpoint':'get_plays','request':params,'http_status':200,'test_only':False,'raw_base64':base64.b64encode(raw).decode(),'sha256':hashlib.sha256(raw).hexdigest()})
+        before=(self.root/'pilot.sqlite3').read_bytes()
+        with patch.object(d,'WalletTransport',side_effect=AssertionError('No transport')),patch('builtins.print') as output:
+            self.assertEqual(d.events_audit_local(self.root),0)
+        self.assertEqual((self.root/'pilot.sqlite3').read_bytes(),before)
+        self.session.post.assert_not_called()
+        report=json.loads(output.call_args.args[0]);self.assertEqual(report['reserved_credits'],15)
+        self.assertIn('incomplete_or_count_mismatch',report['blockers'])
+        self.assertNotIn('PRIVATE-TEXT',json.dumps(report))
+
+class ExtraEnvelopeTests(unittest.TestCase):
+    def test_unknown_or_contradictory_pagination_metadata_blocks_completeness(self):
+        box,pages=fixture();pages[0]['has_more']=True
+        r=d.audit_event_payload(box,{'data':pages[0]},'2026-10-29')
+        self.assertFalse(r['pagination']['single_response_complete_indicated'])
+        self.assertIn('additional_envelope_metadata_requires_review',r['blockers'])

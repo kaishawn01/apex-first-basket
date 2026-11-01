@@ -578,6 +578,190 @@ def plays_structure(root):
     return report
 
 
+def observed_plays_envelope(payload):
+    """Only owner-observed wrapper; never coerce types or infer pagination."""
+    if not isinstance(payload,dict) or set(payload)!={'data'} or not isinstance(payload['data'],dict):
+        raise ValueError('Invalid observed plays envelope')
+    data=payload['data']
+    if ('data' in data or not isinstance(data.get('plays'),list)
+            or any(not isinstance(e,dict) for e in data['plays'])
+            or type(data.get('count')) is not int or data['count']!=len(data['plays'])
+            or 'next_offset' not in data
+            or (data['next_offset'] is not None and (type(data['next_offset']) is not int or data['next_offset']<=0))):
+        raise ValueError('Invalid observed plays contents')
+    return data
+
+
+def event_inventory(events):
+    """Aggregate field paths/types only. No values or example records escape."""
+    import re
+    from collections import Counter
+    counts={};redacted=0;truncated=False
+    def visit(value,path,seen,depth):
+        nonlocal redacted,truncated
+        if depth>5:truncated=True;return
+        if isinstance(value,dict):
+            for key,child in value.items():
+                if (not isinstance(key,str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,47}',key)
+                        or any(w in key.lower() for w in ('secret','password','token','authorization','api_key','email'))):
+                    redacted+=1;continue
+                label=path+'.'+key if path else key
+                if label not in counts and len(counts)>=250:truncated=True;continue
+                row=counts.setdefault(label,{'events_present':0,'null_occurrences':0,'types':Counter()})
+                if label not in seen:row['events_present']+=1;seen.add(label)
+                row['types'][type(child).__name__]+=1
+                if child is None:row['null_occurrences']+=1
+                visit(child,label,seen,depth+1)
+        elif isinstance(value,list):
+            for child in value[:50]:visit(child,path+'[]',seen,depth+1)
+            if len(value)>50:truncated=True
+    for event in events:visit(event,'',set(),0)
+    return {'fields':[{'path':k,**v,'types':dict(v['types']),
+                      'events_missing':len(events)-v['events_present']} for k,v in sorted(counts.items())],
+            'redacted_field_occurrences':redacted,'inventory_truncated':truncated}
+
+
+def audit_event_payload(box,payload,target_day):
+    """Discover real schema; all event interpretations remain unverified.
+
+    Structural checks below are conditional on explicitly named fields. They do
+    not prove those field names have the same semantics as synthetic fixtures.
+    No text parsing, event-code guessing, reordering or silent identity repair.
+    """
+    game,gid,teams,owners,starters=inspect_box(box,target_day)
+    report={'schema':1,'offline_only':True,'game_id':gid,'new_requests':0,'new_reserved_credits':0,
+            'database_modified':False,'interpretation_validated':False,'model_compatible':False,
+            'findings':{},'blockers':[]}
+    outcomes=['opening_tip','first_possession','first_field_goal_attempt','first_made_field_goal',
+              'first_score_including_free_throws','first_scorer_identity','first_scorer_starter_status']
+    report['findings']={k:'UNRESOLVED: provider event semantics not verified' for k in outcomes}
+    try:page=observed_plays_envelope(payload)
+    except ValueError:
+        report['envelope']='FAIL';report['blockers']=['invalid_observed_envelope_or_pagination'];return report
+    events=page['plays'];report['envelope']='PASS';report['events_received']=len(events)
+    report['inventory']=event_inventory(events)
+    extra=set(page)-{'plays','count','next_offset'}
+    # Additional pagination fields have not been established by the observed schema.
+    complete=page['next_offset'] is None and len(events)==box['plays'] and len(events)>0 and not extra
+    if extra:report['blockers'].append('additional_envelope_metadata_requires_review')
+    report['pagination']={'terminal_null':page['next_offset'] is None,'count_matches_list':True,
+                          'matches_get_game_count':len(events)==box['plays'],
+                          'single_response_complete_indicated':complete,
+                          'semantic_completeness_verified':False,'unreviewed_metadata_fields':len(extra)}
+    if not complete:report['blockers'].append('incomplete_or_count_mismatch')
+    checks={};report['conditional_checks']=checks
+    # No alias silently selected: discover alternatives through inventory first.
+    required=('game_id','seq','period','clock_seconds','home_score','away_score','points','player_id','team','shot')
+    report['candidate_contract']={'status':'synthetic-contract-only; NOT verified provider mapping',
+        'missing_by_field':{k:sum(k not in e for e in events) for k in required}}
+    for field,valid in [('game_id',lambda v:str(v)==gid and type(v) in (str,int)),
+                        ('player_id',lambda v:v is None or (type(v) in (str,int) and str(v) in owners)),
+                        ('team_id',lambda v:v is None or (type(v) in (str,int) and str(v) in teams))]:
+        present=[e[field] for e in events if field in e]
+        checks[field]={'present':len(present),'invalid_or_unresolved':sum(not valid(v) for v in present)}
+        if checks[field]['invalid_or_unresolved']:report['blockers'].append(field+'_identity_mismatch')
+    joint=[e for e in events if e.get('player_id') is not None and e.get('team_id') is not None]
+    mismatches=sum(owners.get(str(e['player_id']))!=str(e['team_id']) for e in joint)
+    checks['actor_team_links']={'comparable':len(joint),'mismatches':mismatches}
+    if mismatches:report['blockers'].append('actor_team_mismatch')
+    for field in ('seq','sequence','sequenceNumber'):
+        vals=[e.get(field) for e in events]
+        if not any(field in e for e in events):continue
+        valid=all(type(v) is int for v in vals)
+        checks[field]={'all_integer':valid,'strictly_increasing':valid and all(a<b for a,b in zip(vals,vals[1:])),
+                       'unique':valid and len(set(vals))==len(vals)}
+        if not checks[field]['strictly_increasing']:report['blockers'].append('candidate_sequence_not_increasing')
+    # Clock check never sorts or repairs source order.
+    clock_pairs=[(e.get('period'),e.get('clock_seconds')) for e in events]
+    clock_valid=bool(events) and all(type(p) is int and p>=1 and type(c) in (int,float) and 0<=c<=(720 if p<=4 else 300) for p,c in clock_pairs)
+    checks['period_clock']={'supported_scalar_shape':clock_valid,'chronology_consistent':False}
+    if clock_valid:
+        ordered=all(p2>=p1 and (p2!=p1 or c2<=c1) for (p1,c1),(p2,c2) in zip(clock_pairs,clock_pairs[1:]))
+        checks['period_clock']['chronology_consistent']=ordered
+        checks['period_clock']['opening_boundary_present']=clock_pairs[0]==(1,720)
+        if not ordered:report['blockers'].append('clock_order_conflict')
+    else:report['blockers'].append('period_clock_mapping_unresolved')
+    # Literal score fields only. Their meaning still requires provider mapping.
+    scores=[(e.get('home_score'),e.get('away_score')) for e in events]
+    valid=bool(events) and all(type(x) is int and x>=0 for pair in scores for x in pair)
+    checks['score_transitions']={'supported_scalar_shape':valid}
+    if valid:
+        prev=(0,0);negative=both=large=point_mismatch=0;positive=0
+        for e,pair in zip(events,scores):
+            dh,da=pair[0]-prev[0],pair[1]-prev[1]
+            negative+=int(dh<0 or da<0);both+=int(dh>0 and da>0);large+=int(dh+da>3)
+            positive+=int(dh+da>0)
+            if type(e.get('points')) is not int or e['points']!=dh+da:point_mismatch+=1
+            prev=pair
+        final=tuple(scores[-1])==(game['home']['score'],game['away']['score'])
+        checks['score_transitions'].update(decreases=negative,both_teams_increase=both,
+            increases_over_three=large,points_mismatches=point_mismatch,positive_transitions=positive,final_matches_box=final)
+        if negative or both or large or point_mismatch or not final:report['blockers'].append('score_consistency_unresolved')
+    else:report['blockers'].append('score_mapping_unresolved')
+    timestamps={}
+    for field in ('timestamp','wallclock','wall_clock','created_at','updated_at'):
+        vals=[e[field] for e in events if field in e];parsed=[]
+        for v in vals:
+            try:parsed.append(stamp(v))
+            except (ValueError,TypeError,AttributeError):pass
+        if vals:timestamps[field]={'present':len(vals),'timezone_aware_parseable':len(parsed),
+            'nondecreasing_when_all_parseable':len(parsed)==len(vals) and all(a<=b for a,b in zip(parsed,parsed[1:])),
+            'meaning':'unverified; not assumed event occurrence or pre-tip evidence'}
+    checks['timestamps']=timestamps
+    # Existing strict evaluator can detect contradictions only when ALL its
+    # synthetic fields exist; results are explicitly conditional, never verified.
+    if complete and all(v==0 for v in report['candidate_contract']['missing_by_field'].values()):
+        try:
+            audit=inspect_game(box,[page],target_day)
+            report['conditional_synthetic_interpretation']={
+                'status':'UNVERIFIED candidate only','issues':audit['issues'],
+                'first_score_kind':(audit['first_score'] or {}).get('kind'),
+                'first_scorer_status':audit['first_scorer_status'],
+                'first_fg_attempt_present':audit['first_fg_attempt'] is not None,
+                'first_made_fg_present':audit['first_made_fg'] is not None}
+            if audit['issues']:report['blockers'].append('candidate_event_audit_issues')
+        except (ValueError,KeyError,TypeError,AttributeError,OverflowError):
+            report['blockers'].append('candidate_contract_rejected')
+    report['blockers'].append('provider_event_semantics_and_identity_roles_require_review')
+    report['blockers']=sorted(set(report['blockers']))
+    return report
+
+
+def events_audit_local(root):
+    manifest=local_manifest(MANIFEST_SHA256);secure_acl(root)
+    if json.loads((root/'identity.json').read_text())!={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:
+        raise ValueError('Private identity mismatch')
+    # One read transaction, immutable in-memory snapshot; no writable Store.
+    rows=read_private_rows(root/'pilot.sqlite3')
+    attempts={r['key']:r['payload'] for r in rows if r['kind']=='dunk_attempt'}
+    allowed={digest({'endpoint':q['endpoint'],'params':q['body']}):q for q in manifest['requests']}
+    for key,a in attempts.items():
+        q=allowed.get(key)
+        if not q or a.get('cost')!=COSTS[q['endpoint']] or a.get('params')!=q['body'] or a.get('endpoint')!=q['endpoint']:
+            raise ValueError('Reservation provenance mismatch')
+    reserved=sum(a['cost'] for a in attempts.values())
+    if reserved>LIMIT:raise ValueError('Lifetime cap mismatch')
+    payloads={}
+    for endpoint in ('get_game','get_plays'):
+        params={'game_id':'401809243'}
+        if endpoint=='get_plays':params.update(limit=1000,offset=0)
+        key=digest({'endpoint':endpoint,'params':params})
+        saved=next((r['payload'] for r in rows if r['kind']=='dunk_response' and r['key']==key),None)
+        if not saved or key not in attempts or saved['request']!=params or saved['endpoint']!=endpoint or saved.get('http_status',200)!=200:
+            raise ValueError('Successful original cache and reservation required')
+        raw=base64.b64decode(saved['raw_base64'],validate=True)
+        if hashlib.sha256(raw).hexdigest()!=saved['sha256']:raise ValueError('Source checksum mismatch')
+        payloads[endpoint]=json.loads(raw)
+    box=response_payload('get_game',payloads['get_game'])
+    expected=manifest['games'][0];g=box['game']
+    if str(g['game_id'])!=expected['game_id'] or g['date']!=expected['date'] or g['home']['abbrev']!=expected['home'] or g['away']['abbrev']!=expected['away']:
+        raise ValueError('Manifest identity mismatch')
+    report=audit_event_payload(box,payloads['get_plays'],datetime.now(ZoneInfo('America/New_York')).date().isoformat())
+    report.update(raw_integrity='PASS',reserved_credits=reserved,reservations=len(attempts))
+    print(json.dumps(report,indent=2))
+    return 0 if report['envelope']=='PASS' else 2
+
+
 def execute_one(args,root):
     """Only the approved first get_plays call; never invokes run() or plays()."""
     if not args.execute or args.confirm_wallet!=495 or not args.confirm_no_replenishment or not args.confirm_exclusive_use:
@@ -648,7 +832,7 @@ def execute_local(args,root):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Phase 10: no network by default; opt-in local Windows pilot')
-    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local','continue-one-local','plays-report-local'])
+    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local','continue-one-local','plays-report-local','events-audit-local'])
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--confirm-wallet',type=int)
     parser.add_argument('--confirm-no-replenishment',action='store_true')
@@ -662,6 +846,7 @@ def main(argv=None):
                               'manifest_sha256':MANIFEST_SHA256,'maximum_credits':100}));return 0
         root=private_directory()
         if args.command=='init-local':initialize_local(root,args.confirm_no_prior_pilot);print('Private pilot storage initialized.');return 0
+        if args.command=='events-audit-local':return events_audit_local(root)
         if args.command=='continue-one-local':return execute_one(args,root)
         if args.command=='plays-report-local':print(json.dumps(plays_structure(root),indent=2));return 0
         if args.command=='run-local':return execute_local(args,root)

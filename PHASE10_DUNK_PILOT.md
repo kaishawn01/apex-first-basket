@@ -1,3 +1,83 @@
+## Offline real-event schema discovery — 2026-11-01
+
+Owner reports the controlled first get_plays succeeded: game 401809243, HTTP 200,
+595 event objects in data.plays, integer data.count, null data.next_offset, raw
+SHA-256 PASS, count matching get_game. Two calls/reservations total 15 credits;
+wallet 485. These are OWNER-REPORTED findings. Work has not accessed or inspected
+the private event contents. No further provider requests are made or authorized
+by this patch. Original manifest and all frozen model settings remain unchanged.
+
+Added `events-audit-local`: no key, transport, writable Store, initialization,
+reservation or report-file write. Reads one consistent read-only SQLite snapshot;
+checks hash chain, original raw hashes, HTTP status, request/reservation linkage,
+manifest matchup/date/game, historical identities and five starters per side.
+Strict offline get_plays envelope recognition is separate from live transport:
+only data object with plays list of objects, matching integer count (not bool),
+and explicit next_offset of null or positive integer. Missing/mixed/nested
+wrappers fail closed. Extra envelope metadata blocks a completeness conclusion
+until reviewed; null cursor and count agreement are evidence of completeness,
+not proof that every source event is present.
+
+Output contains aggregate field paths, types, event coverage/missing counts,
+null occurrences, conditional sequence/clock/score/identity consistency checks,
+timezone-aware timestamp parsing counts and explicit blockers. Nested arrays are
+inventoried without copying values; caps (250 paths, depth 5, first 50 array
+members) report truncation. Sensitive or non-identifier keys are withheld. Values,
+raw events, descriptions, player names/IDs, credentials and response hashes are
+not printed. Schema paths are shown so the operator can review actual field names.
+
+Checks on literal game_id/player_id/team_id, sequence fields, period/clock_seconds,
+home_score/away_score/points are CONDITIONAL on their names, not an approved
+provider mapping. Unknown nested clocks, alternative score names or event codes
+remain unresolved; source order is never sorted or repaired. No numeric event-code
+mapping, free-text scorer extraction or inference of first possession from the
+first shot is performed. Existing synthetic-contract interpretation runs only
+if every required field exists and pagination agrees; even then its outputs are
+explicitly UNVERIFIED candidates and cannot activate training or predictions.
+Provider event semantics and identity roles still require review. Opening tip,
+first possession, first attempt, first made field goal, first score (including
+FT), scorer identity and starter classification remain listed as unresolved
+verified findings until supported by source-specific evidence. A successful
+command exit means the envelope audit ran, not that model compatibility passed.
+
+Windows offline instructions, in existing APEX_V3_Pilot:
+
+```powershell
+Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue
+git branch --show-current
+git status --short
+```
+
+Require branch v3/hybrid-monte-carlo and no local changes. Stop if edits are listed.
+Then pull, stopping on any pull failure:
+
+```powershell
+git pull --ff-only origin v3/hybrid-monte-carlo
+```
+
+```powershell
+& .\.venv\Scripts\python.exe -m unittest test_phase10 test_updater -q
+& .\.venv\Scripts\python.exe phase10_dunk.py events-audit-local
+```
+
+Expect 106 tests passing. The actual report should retain reserved_credits 15 and
+reservations 2, raw_integrity PASS, events_received 595, and new_requests and
+new_reserved_credits 0. Fields/blockers depend on the actual unseen event schema.
+Share ONLY the printed aggregate report. Do not upload SQLite, raw records or keys.
+Do not run init-local, continue-one-local, run-local or any authenticated request.
+No additional collection or retry is needed to inspect these cached events.
+
+Validation: 95 Phase 10 plus 11 updater tests pass locally (106 total). Thirteen
+new tests cover strict wrappers, fabricated nested event shapes, privacy,
+free-throw-first candidate outcomes, missing/null fields, ordering, score
+corrections, final-score mismatch, actor/game mismatch, timestamps, incomplete
+and contradictory pagination, inventory caps and unchanged SQLite bytes with
+network transport blocked. These are synthetic regressions, not observations of
+real play semantics. Existing full regression/Streamlit/checksum CI is run on
+Python 3.11/3.14 after publication; final status is reported with the patch.
+Native Windows audit execution and source interpretation require the owner's
+local report. V2.44, draft PR #1, frozen model, deployment and scheduling unchanged.
+
 ## Controlled one-request continuation — 2026-11-01
 
 Owner confirms Windows replay and prior 84 tests passed; original cache remains
