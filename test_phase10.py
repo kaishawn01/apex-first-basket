@@ -661,3 +661,85 @@ class ExtraEnvelopeTests(unittest.TestCase):
         r=d.audit_event_payload(box,{'data':pages[0]},'2026-10-29')
         self.assertFalse(r['pagination']['single_response_complete_indicated'])
         self.assertIn('additional_envelope_metadata_requires_review',r['blockers'])
+
+class SemanticsTests(unittest.TestCase):
+    def setup_data(self):
+        b,p=fixture()
+        for e in p[0]['plays']:
+            e['type']='Start Period' if e['seq']==1 else 'End Period'
+            if e['shot']:
+                ft=e['shot']['points_attempted']==1
+                e['type']='Free Throw' if ft else 'Jump Shot'
+                e['shot']['zone']='free_throw' if ft else 'paint'
+        return b,{'data':p[0]}
+    def run_audit(self,b,p):return d.validate_event_semantics(b,p,'2026-10-29')
+    def test_free_throw_first_independent_outcomes_no_promotion(self):
+        b,p=self.setup_data();r=self.run_audit(b,p)
+        self.assertEqual(r['first_score']['kind'],'free_throw')
+        self.assertEqual(r['first_made_fg']['kind'],'field_goal')
+        self.assertFalse(r['first_score_is_first_made_fg'])
+        self.assertTrue(r['first_score']['candidate_actor_is_historical_starter'])
+        self.assertFalse(r['interpretation_validated']);self.assertFalse(r['training_enabled'])
+    def test_miss_before_make_first_attempt_independent(self):
+        b,p=self.setup_data();e=p['data']['plays'][1]
+        e.update(type='Jump Shot',points=0,home_score=0)
+        e['shot'].update(points_attempted=2,zone='paint',made=False)
+        for e in p['data']['plays'][2:]:e['home_score']-=1
+        b['game']['home']['score']=2
+        r=self.run_audit(b,p);self.assertEqual(r['sequence_clock_score_checks'],'PASS')
+        self.assertTrue(r['first_score_is_first_made_fg'])
+        self.assertEqual(r['first_fg_attempt']['status'],'CANDIDATE_ONLY')
+    def test_team_abbreviation_mismatch(self):
+        b,p=self.setup_data();p['data']['plays'][1]['team']='NYK'
+        r=self.run_audit(b,p);self.assertIn('primary_team_mismatch',r['blockers'])
+    def test_missing_shooter(self):
+        b,p=self.setup_data();p['data']['plays'][1]['player_id']=None
+        r=self.run_audit(b,p);self.assertIn('shot_actor_or_team_missing',r['blockers'])
+    def test_zone_type_and_points_conflicts(self):
+        for change in ['zone','type','made']:
+            b,p=self.setup_data();e=p['data']['plays'][1]
+            if change=='zone':e['shot']['zone']='paint'
+            elif change=='type':e['type']='Turnover'
+            else:e['shot']['made']=False
+            r=self.run_audit(b,p)
+            self.assertTrue(set(r['blockers']) & {'zone_attempt_conflict','type_shot_conflict','shot_points_conflict'})
+    def test_jump_turnover_violation_roles_not_inferred(self):
+        for label in ['Jump Ball','Turnover','Violation']:
+            b,p=self.setup_data();p['data']['plays'][0].update(type=label,player_id='1',player2_id='6')
+            r=self.run_audit(b,p)
+            self.assertEqual(r['opening_tip']['status'],'UNRESOLVED')
+            self.assertEqual(r['first_possession']['status'],'UNRESOLVED')
+            self.assertIn('nonshot_actor_role_unresolved',r['blockers'])
+    def test_clock_tie_allowed_only_with_strict_sequence(self):
+        b,p=self.setup_data();p['data']['plays'][1]['clock_seconds']=720
+        r=self.run_audit(b,p);self.assertEqual(r['aggregate']['clock_ties'],1)
+        self.assertEqual(r['sequence_clock_score_checks'],'PASS')
+        p['data']['plays'][1]['seq']=1
+        self.assertEqual(self.run_audit(b,p)['sequence_clock_score_checks'],'FAIL')
+    def test_score_correction_rejected(self):
+        b,p=self.setup_data();p['data']['plays'][3]['home_score']=2
+        self.assertEqual(self.run_audit(b,p)['sequence_clock_score_checks'],'FAIL')
+    def test_unknown_types_and_secondary_identity_private(self):
+        b,p=self.setup_data();p['data']['plays'][0].update(type='PRIVATE-DESCRIPTION',player2_id='PRIVATE-ID')
+        r=self.run_audit(b,p);self.assertIn('unknown_secondary_identity',r['blockers'])
+        self.assertNotIn('PRIVATE-',json.dumps(r))
+    def test_invalid_event_type_fails_closed(self):
+        b,p=self.setup_data();p['data']['plays'][0]['type']={}
+        self.assertIn('missing_event_type',self.run_audit(b,p)['blockers'])
+    def test_partial_game_not_interpreted(self):
+        b,p=self.setup_data();p['data']['next_offset']=6
+        r=self.run_audit(b,p);self.assertEqual(r['first_score']['status'],'UNRESOLVED')
+    def test_nonstarter_is_not_reassigned(self):
+        b,p=self.setup_data();b['players'].append({'player_id':'11','team_id':'1','starter':False})
+        p['data']['plays'][1]['player_id']='11'
+        r=self.run_audit(b,p);self.assertFalse(r['first_score']['candidate_actor_is_historical_starter'])
+
+class LocalSemanticsTests(unittest.TestCase):
+    setUp=OneRequestTests.setUp
+    def test_semantic_cli_readonly_no_key_or_transport(self):
+        d.execute_one(self.args,self.root)  # Injected synthetic Session only.
+        before=(self.root/'pilot.sqlite3').read_bytes()
+        with patch.dict(d.os.environ,{},clear=True),patch.object(d,'WalletTransport',side_effect=AssertionError('No transport')):
+            self.assertEqual(d.events_audit_local(self.root,semantics=True),2)
+        self.assertEqual((self.root/'pilot.sqlite3').read_bytes(),before)
+        self.assertEqual(self.session.post.call_count,1)

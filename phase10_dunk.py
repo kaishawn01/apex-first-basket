@@ -727,7 +727,103 @@ def audit_event_payload(box,payload,target_day):
     return report
 
 
-def events_audit_local(root):
+def validate_event_semantics(box,payload,target_day):
+    """Offline consistency verification, never a substitute for actor-role evidence.
+
+    Evidence reviewed 2026-11-01: official get-plays page and OpenAPI. Examples
+    support shooter-as-player_id, but no universal role or event-type contract is
+    published. Thus credited identity remains a candidate, training stays closed.
+    """
+    from collections import Counter
+    report={'offline_only':True,'new_requests':0,'new_reserved_credits':0,'database_modified':False,
+        'interpretation_validated':False,'model_compatible':False,'training_enabled':False,
+        'source_contract':'DunkAPI get-plays/OpenAPI reviewed 2026-11-01',
+        'opening_tip':{'status':'UNRESOLVED','reason':'No documented winner/participant role contract'},
+        'first_possession':{'status':'UNRESOLVED','reason':'No documented possession contract; never inferred from first shot'},
+        'first_score':{'status':'UNRESOLVED'},'first_fg_attempt':{'status':'UNRESOLVED'},
+        'first_made_fg':{'status':'UNRESOLVED'},'blockers':[]}
+    blockers=report['blockers']
+    try:
+        game,gid,teams,owners,starters=inspect_box(box,target_day)
+        page=observed_plays_envelope(payload)
+    except (ValueError,KeyError,TypeError):
+        blockers.append('box_or_envelope_invalid');return report
+    events=page['plays'];report['events_received']=len(events)
+    if set(page)!={'plays','count','next_offset'} or page['next_offset'] is not None or len(events)!=box['plays'] or not events:
+        blockers.append('complete_original_game_not_established');return report
+    # Strict existing audit checks score continuity, shot result, event IDs, clock,
+    # first-score actor and final scoreboard without sorting or altering records.
+    try:
+        audit=inspect_game(box,[page],target_day)
+        if audit['issues']:blockers.extend(audit['issues'])
+        report['sequence_clock_score_checks']='PASS' if not audit['issues'] else 'FAIL'
+    except (ValueError,KeyError,TypeError,AttributeError,OverflowError):
+        audit=None;report['sequence_clock_score_checks']='FAIL';blockers.append('sequence_clock_identity_or_score_contradiction')
+    literal_types={'Pullup Jump Shot','Driving Hook Shot','Jump Shot','Free Throw',
+        'Jump Ball','Turnover','Violation','Substitution','Rebound','Foul','Start Period','End Period'}
+    example_fg_types={'Pullup Jump Shot','Driving Hook Shot','Jump Shot'}
+    nonshot_types={'Jump Ball','Turnover','Violation','Substitution','Rebound','Foul','Start Period','End Period'}
+    zones={'restricted_area':2,'paint':2,'midrange':2,'corner_3':3,'above_break_3':3,'free_throw':1}
+    type_counts=Counter();zone_counts=Counter();categories=Counter();problems=Counter()
+    ties=0;prev_clock=None
+    for e in events:
+        kind=e.get('type');type_counts[kind if isinstance(kind,str) and kind in literal_types else 'unreviewed_or_missing']+=1
+        if not isinstance(kind,str) or not kind:problems['missing_event_type']+=1
+        elif kind not in literal_types:problems['unreviewed_event_type']+=1
+        if not isinstance(kind,str):kind=None
+        pair=(e.get('period'),e.get('clock_seconds'))
+        ties+=int(pair==prev_clock);prev_clock=pair
+        team=e.get('team');pid=e.get('player_id');secondary=e.get('player2_id')
+        known=type(pid) in (str,int) and str(pid) in owners
+        if pid is not None and not known:problems['unknown_primary_identity']+=1
+        if team is not None and (not isinstance(team,str) or team not in teams.values()):problems['unknown_team_abbreviation']+=1
+        if known and team is not None and teams[owners[str(pid)]]!=team:problems['primary_team_mismatch']+=1
+        if secondary is not None and (type(secondary) not in (str,int) or str(secondary) not in owners):problems['unknown_secondary_identity']+=1
+        # A secondary participant may belong to the opponent; never call it an assist or winner.
+        shot=e.get('shot')
+        if shot is None:
+            categories['nonshot']+=1
+            if kind in example_fg_types or kind=='Free Throw':problems['shot_type_without_shot']+=1
+            if type(e.get('points')) is not int or e.get('points')!=0:problems['nonshot_scoring_or_missing_points']+=1
+            if pid is not None:problems['nonshot_actor_role_unresolved']+=1
+            continue
+        if not isinstance(shot,dict):problems['invalid_shot_object']+=1;continue
+        value=shot.get('points_attempted');zone=shot.get('zone');made=shot.get('made')
+        category='free_throw' if type(value) is int and value==1 else 'field_goal' if type(value) is int and value in (2,3) else 'unknown'
+        categories[category]+=1
+        zone_counts[zone if isinstance(zone,str) and zone in zones else 'unreviewed_or_missing']+=1
+        if category=='unknown' or type(made) is not bool:problems['invalid_shot_semantics']+=1
+        if not isinstance(zone,str) or zone not in zones:problems['unknown_zone']+=1
+        elif type(value) is not int or zones[zone]!=value:problems['zone_attempt_conflict']+=1
+        if type(value) is int and value in (1,2,3) and type(made) is bool:
+            if type(e.get('points')) is not int or e['points']!=(value if made else 0):problems['shot_points_conflict']+=1
+        if not known or team not in teams.values():problems['shot_actor_or_team_missing']+=1
+        if kind in nonshot_types or (kind=='Free Throw' and category!='free_throw') or (kind in example_fg_types and category!='field_goal'):
+            problems['type_shot_conflict']+=1
+        if category=='free_throw' and kind!='Free Throw':problems['free_throw_type_unreviewed']+=1
+    report['aggregate']={'event_type_literal_counts':dict(type_counts),'shot_categories':dict(categories),
+        'shot_zones':dict(zone_counts),'clock_ties':ties,'problems':dict(problems),
+        'type_dictionary_complete':False,'secondary_roles_verified':False}
+    blockers.extend(k for k,v in problems.items() if v)
+    # Independent selections; do not equate first score with first made FG.
+    if audit is not None:
+        selections={'first_score':audit['first_score'],'first_fg_attempt':audit['first_fg_attempt'],'first_made_fg':audit['first_made_fg']}
+        for label,event in selections.items():
+            if event is None:report[label]={'status':'UNRESOLVED','reason':'Event not found'};continue
+            identity=event['player_id']
+            report[label]={'status':'CANDIDATE_ONLY','kind':event['kind'],
+                'consistent_under_checked_fields':not blockers,
+                'actor_matches_cached_roster':identity in owners,
+                'candidate_actor_is_historical_starter':identity in sum(starters.values(),[]) if identity in owners else None,
+                'credited_shooter_role':'UNVERIFIED: examples support role; universal guarantee absent'}
+        report['first_score_is_first_made_fg']=bool(audit['first_score'] and audit['first_made_fg'] and audit['first_score']['seq']==audit['first_made_fg']['seq'])
+    blockers.extend(['scoring_player_role_requires_explicit_provider_evidence','complete_event_type_contract_unavailable',
+                     'jump_ball_winner_and_possession_roles_unresolved'])
+    report['blockers']=sorted(set(blockers))
+    return report
+
+
+def events_audit_local(root, semantics=False):
     manifest=local_manifest(MANIFEST_SHA256);secure_acl(root)
     if json.loads((root/'identity.json').read_text())!={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:
         raise ValueError('Private identity mismatch')
@@ -756,10 +852,11 @@ def events_audit_local(root):
     expected=manifest['games'][0];g=box['game']
     if str(g['game_id'])!=expected['game_id'] or g['date']!=expected['date'] or g['home']['abbrev']!=expected['home'] or g['away']['abbrev']!=expected['away']:
         raise ValueError('Manifest identity mismatch')
-    report=audit_event_payload(box,payloads['get_plays'],datetime.now(ZoneInfo('America/New_York')).date().isoformat())
+    validator=validate_event_semantics if semantics else audit_event_payload
+    report=validator(box,payloads['get_plays'],datetime.now(ZoneInfo('America/New_York')).date().isoformat())
     report.update(raw_integrity='PASS',reserved_credits=reserved,reservations=len(attempts))
     print(json.dumps(report,indent=2))
-    return 0 if report['envelope']=='PASS' else 2
+    return (0 if report.get('sequence_clock_score_checks')=='PASS' else 2) if semantics else (0 if report['envelope']=='PASS' else 2)
 
 
 def execute_one(args,root):
@@ -832,7 +929,7 @@ def execute_local(args,root):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Phase 10: no network by default; opt-in local Windows pilot')
-    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local','continue-one-local','plays-report-local','events-audit-local'])
+    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local','continue-one-local','plays-report-local','events-audit-local','semantics-audit-local'])
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--confirm-wallet',type=int)
     parser.add_argument('--confirm-no-replenishment',action='store_true')
@@ -846,6 +943,7 @@ def main(argv=None):
                               'manifest_sha256':MANIFEST_SHA256,'maximum_credits':100}));return 0
         root=private_directory()
         if args.command=='init-local':initialize_local(root,args.confirm_no_prior_pilot);print('Private pilot storage initialized.');return 0
+        if args.command=='semantics-audit-local':return events_audit_local(root,semantics=True)
         if args.command=='events-audit-local':return events_audit_local(root)
         if args.command=='continue-one-local':return execute_one(args,root)
         if args.command=='plays-report-local':print(json.dumps(plays_structure(root),indent=2));return 0

@@ -1,3 +1,90 @@
+## Offline first-event semantic checks — 2026-11-01
+
+Official-source review (public documentation GET only, no authenticated calls):
+- https://dunkapi.com/docs/get-plays
+- https://mcp.dunkapi.com/openapi.json
+- https://dunkapi.com/docs/get-shot-chart
+
+The get-plays page lists the observed sequence, period, clock, team, shot, points
+and actor fields. Its examples associate player_id with the shooter, including a
+miss, and player2_id with an assister in two examples. This is example evidence,
+not a universal actor-role guarantee. The OpenAPI specification confirms the data
+wrapper and describes post-play scores, but permits arbitrary event object fields.
+It supplies no exhaustive event-type/actor-role dictionary or jump-ball winner
+contract. Shot filters include field goals/free throws and six named zones.
+The documented shapes agree with the owner's aggregate audit. Real private events
+have not been inspected in Work. Universal scoring-player credit, nonshot actor
+roles and possession ownership remain evidence gaps.
+
+Added `semantics-audit-local`, using the existing single-snapshot read-only cache
+loader. Raw hashes, HTTP status, manifest matchup, request/reservation provenance,
+box identities/starters and frozen-window checks precede interpretation. No Store
+constructor, key, request, file write or new reservation is used. No live adapter,
+model settings, training or ingestion gate is changed.
+
+Checks: full terminal page/count; ordered event game/sequence/period/clock; score
+continuity and final box score; primary player membership against EVENT TEAM
+ABBREVIATION through cached box team IDs; known secondary identities without
+assuming their role/team; shot boolean made, integer attempted points, awarded
+points, zone consistency and literal event-type conflicts. Zone-value consistency
+and the finite literal-type vocabulary are conservative APEX validation rules,
+not a complete provider contract. Unknown types are counted in an unreviewed
+bucket, never guessed. Secondary actors on opposing teams can be legitimate;
+no assist/winner role is assigned. Score corrections, null/missing shot actors,
+unknown teams/roles, nonshot scoring, conflicting zones/types and incomplete
+pages produce blockers. Same-clock events retain sequence order; duplicate or
+reversed sequences fail. No source text parsing or sorting occurs.
+
+First score (including FT), first FG attempt and first made FG are selected
+independently when the strict existing event checks can run. Output is privacy-safe:
+aggregate literal-type/zone/category counts, contradiction counts, and candidate
+kind/roster/starter flags only. No event descriptions, names, player IDs or raw
+records. Candidate starter membership is a cached historical box fact conditional
+on the actor role; it is not pre-tip lineup evidence. interpretation_validated,
+model_compatible and training_enabled remain false even if numerical checks pass.
+Opening tip and possession remain unresolved absent a documented participant,
+winner and possession contract. Report blockers state exactly which facts are
+unverified. Command exit zero denotes structural checks passing, not source or
+model promotion. The user must review the local report before any next stage.
+
+Owner reports before this patch: 595 events, 258 shot objects, 136 positive scoring
+transitions, no score discrepancies, final box agreement and increasing sequences;
+candidate first score is a field goal by a starter. These are owner-reported audit
+findings, not independently inspected outcomes. Two original requests remain 15
+reserved/spent credits and wallet 485 per owner. No additional requests authorized.
+
+Windows (existing APEX_V3_Pilot checkout):
+```powershell
+Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue
+git branch --show-current
+git status --short
+```
+Require v3/hybrid-monte-carlo and no local edits. If edits exist, stop and preserve
+them. Otherwise pull; stop on failure:
+```powershell
+git pull --ff-only origin v3/hybrid-monte-carlo
+```
+Then run offline:
+```powershell
+& .\.venv\Scripts\python.exe -m unittest test_phase10 test_updater -q
+& .\.venv\Scripts\python.exe phase10_dunk.py semantics-audit-local
+```
+Expect 119 tests, unchanged 15 reserved credits/two reservations, raw integrity
+PASS, zero requests/reservations and no database changes. Actual semantic checks
+and blockers depend on the unseen cached data. Share only aggregate output. No
+key entry, database upload, init-local, run-local or continue-one-local is needed.
+Do not treat a candidate or a zero exit code as a verified first-basket result.
+
+Validation: 108 Phase 10 + 11 updater tests pass locally. Thirteen new synthetic
+regressions exercise FT-first versus first made FG, missed first attempts,
+nonstarter preservation, missing/wrong actors/teams, zone/type/result conflicts,
+unknown secondary identities/types, jump balls/turnovers/violations, clock ties,
+score corrections, incomplete games and read-only/no-key local execution. These
+fixtures are fabricated; no provider raw data is published. Existing GitHub CI
+runs full regression/Streamlit/checksum tests on Python 3.11/3.14; final status is
+reported with the patch. Native Windows/real-source execution remains owner-local.
+PR #1 stays draft, V2.44 and frozen settings unchanged; no deployment or scheduling.
+
 ## Offline real-event schema discovery — 2026-11-01
 
 Owner reports the controlled first get_plays succeeded: game 401809243, HTTP 200,
