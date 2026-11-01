@@ -1,3 +1,7 @@
+## Phase 10 local Windows execution preparation
+
+Opt-in run-local CLI added; no Work authenticated requests. Private current-user ACL, fixed external storage, immutable manifest pin, original database requirement, 500-wallet/no-replenishment/exclusive-use preflight, cloud rejection and sanitized report. 65 Phase 10 + 11 updater tests passed locally, including mocked end-to-end execution. Windows ACL enforcement is runtime-checked but not natively tested in Linux. Full instructions in PHASE10_DUNK_PILOT.md. Existing CI follows branch push. Frozen settings and V2.44 unchanged; PR remains draft.
+
 ## Phase 10 wallet authorization — 2026-11-01
 
 Owner authorized existing wallet, expected 75 credits, lifetime ceiling 100; exact manifest only. Monthly-free-only requirement superseded. Private original-email evidence available (no email/headers published). Disabled wallet transport and nine new mock tests added; 54 Phase 10 + 11 updater tests passed locally. Blocked before execution: credential absent, transport not activated, funding-control attestation remains required. Zero live requests/credits; real-data compatibility unmeasured. See PHASE10_DUNK_PILOT.md for boundaries and CI status on this commit. V2.44 and frozen settings unchanged.

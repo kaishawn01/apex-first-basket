@@ -1,3 +1,88 @@
+# Phase 10 — opt-in Windows local CLI
+
+Default status remains offline. Existing ten-request wallet authorization persists. No authenticated requests executed from Work. The new run-local command can activate only on Windows outside CI after local preflight. No scheduling, model changes or PR merge.
+
+Local tests: 65 Phase 10 tests plus 11 updater tests passed. Includes synthetic end-to-end ten requests/75 credits, missing database refusal, manifest pin, default disable, funding flags, Windows/cloud gate, ACL failure before transport and report sanitization. Windows ACL calls were mocked in Linux, not natively executed here. Runtime verifies them and fails closed. Existing GitHub CI covers regression/smoke/checksums on Python 3.11/3.14.
+
+## Local storage and limits
+
+Fixed private location: %LOCALAPPDATA%\APEX\DunkPilotPhase10. This is independent of the source checkout. Initialization sets a protected current-user-only Windows ACL; every run rechecks ownership, allowed principals, links and Git overlap. Identity marker and original pilot.sqlite3 are required. Never delete, move, replace or reinitialize that directory to retry a run; interrupted reservations count for life. Protect this directory with your normal encrypted Windows backups. It contains original provider records and must never be uploaded to GitHub or shared. It is access-controlled, not application-encrypted.
+
+run-local requires --execute, --confirm-wallet 500, --confirm-no-replenishment, --confirm-exclusive-use and the pinned manifest hash. These confirm execution conditions, not new authorization. Enter them only after observing the approved existing wallet/account and verifying no automatic replenishment/overage mechanism or other account consumer. Provider funding is server-selected; there is no API-side wallet-selector guarantee. If uncertain, stop. The runner has no purchase or subscription routes.
+
+The complete manifest bytes are pinned to c4309436dcae82adc9ee435f33a81acefa94385d32f9541b17a458428c72e905. Changing the manifest blocks execution. All five dates must still fall within 400 earlier calendar days at execution. No pagination beyond offset=0 is approved. A missing terminal signal, required extra page, contradictory data or audit issue stops further games. No automatic retry. A changed wire schema may stop after one charged call; preserve its response for private analysis. The pilot does not claim full model compatibility or possession-role interpretation solely from source labels.
+
+## Windows PowerShell: isolated checkout
+
+Keep your existing V2.44 folder untouched. Git for Windows and Python must be installed. This command stops if Git/Python are missing or the target folder has local changes.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+Get-Command git, py | Out-Null
+$pilotCode = Join-Path $env:USERPROFILE 'Desktop\APEX_V3_Pilot'
+if (!(Test-Path $pilotCode)) {
+    git clone --single-branch --branch v3/hybrid-monte-carlo https://github.com/kaishawn01/apex-first-basket.git $pilotCode
+    if ($LASTEXITCODE -ne 0) { throw 'Clone failed' }
+} else {
+    if (!(Test-Path (Join-Path $pilotCode '.git'))) { throw 'Folder exists but is not the pilot Git checkout' }
+    $dirty = git -C $pilotCode status --porcelain
+    if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Stop: checkout has local changes; do not overwrite them' }
+    git -C $pilotCode switch v3/hybrid-monte-carlo
+    if ($LASTEXITCODE -ne 0) { throw 'Branch switch failed' }
+    git -C $pilotCode pull --ff-only origin v3/hybrid-monte-carlo
+    if ($LASTEXITCODE -ne 0) { throw 'Update failed' }
+}
+Set-Location $pilotCode
+py -3 -m venv .venv
+if ($LASTEXITCODE -ne 0) { throw 'Python environment creation failed' }
+& .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+& .\.venv\Scripts\python.exe -m unittest test_phase10 test_updater -q
+if ($LASTEXITCODE -ne 0) { throw 'Tests failed: do not execute pilot' }
+& .\.venv\Scripts\python.exe phase10_dunk.py status
+```
+
+## Initialize once, no API requests
+
+Only if no previous local Phase 10 execution/storage exists. If the command says the directory exists, STOP and inspect it; never delete it to get past this safeguard.
+
+```powershell
+& .\.venv\Scripts\python.exe phase10_dunk.py init-local --confirm-no-prior-pilot
+if ($LASTEXITCODE -ne 0) { throw 'Initialization stopped; preserve existing storage' }
+```
+
+## Run once with a hidden process-local key
+
+Check your dashboard manually first: approved existing wallet 500; no automatic replenishment/overage; exclusive account use for this run. No account changes are authorized. If any condition is unknown, stop here. The following flags explicitly attest those conditions. Do not run from a transcript-recording session, put the key in chat, use setx or commit a credential file.
+
+```powershell
+$secureDunkKey = Read-Host 'DunkAPI key (hidden; stays in this PowerShell session)' -AsSecureString
+try {
+    $env:DUNKAPI_API_KEY = [System.Net.NetworkCredential]::new('', $secureDunkKey).Password
+    & .\.venv\Scripts\python.exe phase10_dunk.py run-local --execute --confirm-wallet 500 --confirm-no-replenishment --confirm-exclusive-use --confirm-manifest c4309436dcae82adc9ee435f33a81acefa94385d32f9541b17a458428c72e905
+    $pilotExit = $LASTEXITCODE
+} finally {
+    Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue
+    if ($secureDunkKey) { $secureDunkKey.Dispose() }
+    Remove-Variable secureDunkKey -ErrorAction SilentlyContinue
+}
+if ($pilotExit -ne 0) { Write-Warning 'Pilot stopped. Do not automatically rerun or delete its database.' }
+```
+
+The environment variable is process-local plaintext memory inherited only by child processes; hidden entry prevents screen/history exposure, not all administrator-level access. Closing PowerShell also removes it. Do not rerun after a failure without reviewing reserved attempts. Keys are not passed to the Windows ACL subprocess.
+
+## Inspect/share only the sanitized output
+
+```powershell
+& .\.venv\Scripts\python.exe phase10_dunk.py report-local
+$pilotReport = Join-Path $env:LOCALAPPDATA 'APEX\DunkPilotPhase10\sanitized_results.json'
+if (Test-Path $pilotReport) { notepad $pilotReport }
+```
+
+Upload only sanitized_results.json to this chat. It contains game IDs, status, starter counts, event counts, first-score category, first-attempt make/miss and whitelisted integrity flags. It excludes names, player IDs, raw text/events, credentials and original headers. Never upload pilot.sqlite3, identity.json, the entire private folder or raw responses. If no report exists, share only the generic STOPPED message. Existing reports can predate a failed new attempt; preserve storage and report that context. reserved_credits is a conservative reservation total, not independently verified provider debit. Manually compare wallet before/after and tell us the observed debit; no refund is presumed. Native filesystem failure and first live provider schema remain unverified until local execution.
+
+---
+
 # Phase 10 — existing-wallet authorization update
 
 2026-11-01: The owner explicitly authorizes the existing wallet for the five-game manifest: ten initial requests, expected 75 credits, absolute lifetime maximum 100 including failures and separately approved pagination. Monthly-free-only restrictions below are historical and superseded. No purchases, subscriptions, new games, lookups or automatic retries are authorized. Pagination is not currently authorized. No need to obtain the same request authorization again.

@@ -1,4 +1,4 @@
-"""Quarantined DunkAPI pilot preparation. Live ingestion remains unavailable.
+"""Quarantined DunkAPI pilot with deliberately opt-in Windows local execution.
 
 No source adapter is connected to the frozen model. Only injected synthetic
 transport can execute by default. Wallet authorization does not enable transport.
@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 import time
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -73,7 +75,7 @@ class Pilot:
     """Fixed five-game manifest; durable reservations survive timeout/interruption.
 
     test_transport is solely for synthetic fixtures. There is intentionally no
-    --enable-live switch or default HTTP transport in this preparation release.
+    default live transport; the Windows CLI has separate preflight gates.
     """
     def __init__(self, store, game_ids, *, free_balance=None, test_transport=None, wallet_transport=None):
         self.store = store
@@ -204,8 +206,9 @@ class Pilot:
                         raise ValueError('Manifest game identity mismatch')
                     self._pace()
                 pages = self.plays(gid)
-                reports.append({'game_id':gid,'status':'audited',
-                                'audit':inspect_game(box,pages,target_day)})
+                audit=inspect_game(box,pages,target_day)
+                reports.append({'game_id':gid,'status':'audited','audit':audit})
+                if self.wallet_transport and audit['issues']:break
             except ProviderError as error:
                 reports.append({'game_id':gid,'status':'blocked','diagnostic':str(error)})
                 break  # Respect provider/storage budget failure, no further automatic calls.
@@ -342,13 +345,142 @@ def inspect_game(box, pages, target_day, mapping=None):
                      'Owner reports provider research permission; NBA rights not independently cleared; no genuine sample validated']}
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Phase 10 preparation; no live requests enabled')
-    parser.add_argument('command',choices=['status'])
-    parser.parse_args()
-    print(json.dumps({'live_ingestion_enabled':False,'maximum_credits':LIMIT,
-                     'credential_present':bool(os.environ.get('DUNKAPI_API_KEY')),
-                     'reason':BLOCKER}))
+MANIFEST_SHA256 = "c4309436dcae82adc9ee435f33a81acefa94385d32f9541b17a458428c72e905"
+
+
+def local_manifest(expected):
+    raw=(Path(__file__).parent/'validation/PHASE10_REQUEST_MANIFEST.json').read_bytes()
+    if expected != MANIFEST_SHA256 or hashlib.sha256(raw).hexdigest()!=MANIFEST_SHA256:
+        raise ValueError('Manifest changed; stop for review')
+    return json.loads(raw)
+
+
+def private_directory():
+    if os.name != 'nt' or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI'):
+        raise ValueError('Live CLI is Windows-local only; cloud/CI prohibited')
+    base=os.environ.get('LOCALAPPDATA')
+    if not base or not Path(base).is_absolute():raise ValueError('LOCALAPPDATA unavailable')
+    root=Path(base)/'APEX'/'DunkPilotPhase10'
+    for parent in [root,*root.parents]:
+        if parent.is_symlink() or (hasattr(parent,'is_junction') and parent.is_junction()):
+            raise ValueError('Linked private directory prohibited')
+        if (parent/'.git').exists():raise ValueError('Private storage must be outside Git')
+    if root.resolve().is_relative_to(Path(__file__).parent.resolve()):
+        raise ValueError('Private storage overlaps application')
+    return root
+
+
+def secure_acl(root,create=False):
+    # No provider access. Fixed PowerShell script; path passed as environment data.
+    env=os.environ.copy();env.pop('DUNKAPI_API_KEY',None);env['APEX_PRIVATE_DIR']=str(root)
+    script=r"""$ErrorActionPreference='Stop'
+$p=$env:APEX_PRIVATE_DIR
+$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
+"""
+    if create:
+        script+=r"""$acl=New-Object System.Security.AccessControl.DirectorySecurity
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true,$false)
+$rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+$acl.AddAccessRule($rule)
+Set-Acl -LiteralPath $p -AclObject $acl
+"""
+    script+=r"""$items=@(Get-Item -LiteralPath $p)+@(Get-ChildItem -LiteralPath $p -Force -Recurse)
+foreach($item in $items){
+ if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'Linked storage'}
+ $a=Get-Acl -LiteralPath $item.FullName
+ if($item.FullName -eq $p -and !$a.AreAccessRulesProtected){throw 'Inherited directory permissions'}
+ if($a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value){throw 'Different owner'}
+ foreach($rule in $a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])){
+  if($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Value -ne $sid.Value){throw 'Other principal has access'}
+ }
+}
+"""
+    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],env=env,capture_output=True,timeout=30)
+    if result.returncode:raise ValueError('Private Windows permissions could not be verified; no requests made')
+
+
+def initialize_local(root,confirmed):
+    if not confirmed:raise ValueError('Confirm no prior pilot; never initialize over previous reservations')
+    if root.exists():raise ValueError('Private directory already exists; do not delete or reinitialize')
+    root.mkdir(parents=True,exist_ok=False)
+    secure_acl(root,create=True)
+    marker={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}
+    with (root/'identity.json').open('x') as f:json.dump(marker,f)
+    Store(root/'pilot.sqlite3')
+    secure_acl(root)
+
+
+def sanitized_report(report):
+    games=[]
+    allowed={'sequence_gap','opening_boundary_unverified','unknown_or_mismatched_actor',
+             'final_score_mismatch','first_scorer_unresolved','first_score_type_unresolved','first_fg_attempt_missing'}
+    for row in report.get('games',[]):
+        a=row.get('audit',{});first=a.get('first_score') or {};shot=a.get('first_fg_attempt') or {}
+        games.append({'game_id':row['game_id'],'status':row['status'],
+            'starter_counts':sorted(len(v) for v in a.get('historical_starters',{}).values()),
+            'events_received':a.get('events_received'),'single_response_complete':a.get('single_response_complete'),
+            'first_score_kind':first.get('kind'),'first_scorer_status':a.get('first_scorer_status'),
+            'first_attempt_made':shot.get('made'),'issues':sorted(allowed & set(a.get('issues',[])))})
+    return {'schema':1,'pilot':'phase10-five-games','test_only':report.get('test_only'),
+        'reserved_credits':report.get('reserved_credits'),'actual_provider_debit':'not independently verified; compare dashboard',
+        'model_compatibility_established':False,'games':games}
+
+
+def execute_local(args,root):
+    if not args.execute or args.confirm_wallet != 500 or not args.confirm_no_replenishment or not args.confirm_exclusive_use:
+        raise ValueError('Explicit wallet, replenishment, exclusive-use and execution preflight required')
+    manifest=local_manifest(args.confirm_manifest)
+    if not root.is_dir():raise ValueError('Initialize private storage first')
+    secure_acl(root)
+    if not (root/'pilot.sqlite3').is_file():raise ValueError('Original reservation database missing; restore it, never reset')
+    marker=json.loads((root/'identity.json').read_text())
+    if marker != {'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:raise ValueError('Private identity mismatch')
+    day=datetime.now(ZoneInfo('America/New_York')).date()
+    if any(not 0<(day-datetime.fromisoformat(g['date']).date()).days<=400 for g in manifest['games']):
+        raise ValueError('Approved games outside current frozen window')
+    transport=WalletTransport(manifest,wallet_balance=500,funding_confirmed=True,enabled=True)
+    transport.preflight()
+    store=Store(root/'pilot.sqlite3');store.rows()
+    lease=store.acquire('phase10:local-run',900)
+    if not lease:raise ValueError('Another run or interrupted run lease exists; wait, never delete database')
+    try:
+        pilot=Pilot(store,transport.ids,wallet_transport=transport)
+        report=pilot.run(day.isoformat())
+        store.append('dunk_local_report',digest(report),report)
+        safe=sanitized_report(report)
+        target=root/'sanitized_results.json';tmp=root/'sanitized_results.tmp'
+        tmp.write_text(json.dumps(safe,indent=2));tmp.replace(target)
+        secure_acl(root)
+        print(json.dumps(safe,indent=2))
+        return 0 if all(x['status']=='audited' and not x.get('audit',{}).get('issues') for x in report['games']) else 2
+    finally:
+        store.release(lease);transport.session.close()
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description='Phase 10: no network by default; opt-in local Windows pilot')
+    parser.add_argument('command',choices=['status','init-local','run-local','report-local'])
+    parser.add_argument('--execute',action='store_true')
+    parser.add_argument('--confirm-wallet',type=int)
+    parser.add_argument('--confirm-no-replenishment',action='store_true')
+    parser.add_argument('--confirm-exclusive-use',action='store_true')
+    parser.add_argument('--confirm-no-prior-pilot',action='store_true')
+    parser.add_argument('--confirm-manifest')
+    args=parser.parse_args(argv)
+    try:
+        if args.command=='status':
+            print(json.dumps({'live_enabled_by_default':False,'credential_present':bool(os.environ.get('DUNKAPI_API_KEY')),
+                              'manifest_sha256':MANIFEST_SHA256,'maximum_credits':100}));return 0
+        root=private_directory()
+        if args.command=='init-local':initialize_local(root,args.confirm_no_prior_pilot);print('Private pilot storage initialized.');return 0
+        if args.command=='run-local':return execute_local(args,root)
+        secure_acl(root)
+        # Report command never constructs transport or requires a key.
+        print((root/'sanitized_results.json').read_text());return 0
+    except (Exception,KeyboardInterrupt):
+        print('STOPPED: preflight, storage or execution check failed. No automatic retry. Preserve the private directory; inspect sanitized_results.json if present. Do not delete the reservation database.',file=sys.stderr)
+        return 2
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

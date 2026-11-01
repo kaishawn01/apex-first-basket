@@ -316,3 +316,84 @@ class WalletAuthorizationTests(unittest.TestCase):
             self.now+=timedelta(seconds=8)
             with self.assertRaisesRegex(ProviderError,'unresolved'):p.fetch('get_game',p.ids[0])
         self.assertEqual(self.session.post.call_count,1)
+
+class LocalCliTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name)/'private'
+    def args(self):
+        from argparse import Namespace
+        return Namespace(execute=True,confirm_wallet=500,confirm_no_replenishment=True,
+                         confirm_exclusive_use=True,confirm_manifest=d.MANIFEST_SHA256)
+    def init(self):
+        with patch.object(d,'secure_acl'):d.initialize_local(self.root,True)
+    def test_status_no_network(self):
+        with patch('requests.Session') as session,patch('builtins.print'):
+            self.assertEqual(d.main(['status']),0)
+        session.assert_not_called()
+    def test_live_rejected_on_nonwindows(self):
+        with patch.object(d.os,'name','posix'),patch('requests.Session') as session:
+            with self.assertRaises(ValueError):d.private_directory()
+        session.assert_not_called()
+    def test_funding_flags_before_network(self):
+        for field in ['execute','confirm_no_replenishment','confirm_exclusive_use']:
+            a=self.args();setattr(a,field,False)
+            with patch('requests.Session') as session:
+                with self.assertRaises(ValueError):d.execute_local(a,self.root)
+            session.assert_not_called()
+    def test_wrong_wallet_before_network(self):
+        a=self.args();a.confirm_wallet=400
+        with patch('requests.Session') as session:
+            with self.assertRaises(ValueError):d.execute_local(a,self.root)
+        session.assert_not_called()
+    def test_manifest_hash_rejected(self):
+        with self.assertRaises(ValueError):d.local_manifest('changed')
+    def test_init_cannot_reset(self):
+        self.init()
+        with self.assertRaises(ValueError):d.initialize_local(self.root,True)
+    def test_missing_database_cannot_reset(self):
+        self.init();(self.root/'pilot.sqlite3').unlink()
+        with patch.object(d,'secure_acl'),patch('requests.Session') as session:
+            with self.assertRaises(ValueError):d.execute_local(self.args(),self.root)
+        session.assert_not_called()
+    def test_acl_failure_before_transport(self):
+        self.init()
+        with patch.object(d,'secure_acl',side_effect=ValueError('ACL')),patch('requests.Session') as session:
+            with self.assertRaises(ValueError):d.execute_local(self.args(),self.root)
+        session.assert_not_called()
+    def test_acl_subprocess_never_gets_key(self):
+        with patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'PRIVATE'}),patch.object(d.subprocess,'run',return_value=Mock(returncode=0)) as run:
+            d.secure_acl(self.root,True)
+        self.assertNotIn('DUNKAPI_API_KEY',run.call_args.kwargs['env'])
+        self.assertTrue(run.call_args.kwargs['capture_output'])
+    def test_sanitizer_excludes_source_text_and_secrets(self):
+        report={'test_only':True,'reserved_credits':5,'games':[{'game_id':'1','status':'invalid',
+            'diagnostic':'PRIVATE','audit':{'events':['RAW'],'raw_base64':'PRIVATE',
+            'first_score':{'kind':'free_throw','text':'RAW','player_id':'PRIVATE'},'issues':['PRIVATE']}}]}
+        out=json.dumps(d.sanitized_report(report))
+        self.assertNotIn('PRIVATE',out);self.assertNotIn('RAW',out)
+    def test_end_to_end_cli_with_synthetic_session(self):
+        self.init();m=d.local_manifest(d.MANIFEST_SHA256);session=Mock()
+        def respond(url,**kwargs):
+            gid=kwargs['json']['game_id'];g=next(x for x in m['games'] if x['game_id']==gid)
+            b,p=fixture(gid);b['game'].update(date=g['date'],starts_at=g['date']+'T23:00:00Z')
+            b['game']['home']['abbrev']=g['home'];b['game']['away']['abbrev']=g['away']
+            for row in p[0]['plays']:row['team']=g['home']
+            data=b if url.endswith('get_game') else p[0]
+            return Mock(status_code=200,iter_content=Mock(return_value=[json.dumps(data).encode()]))
+        session.post.side_effect=respond
+        now=datetime(2026,11,1,20,tzinfo=timezone.utc)
+        with patch.object(d,'secure_acl'),patch.object(d,'datetime',wraps=datetime) as dt,patch('requests.Session',return_value=session),patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'fixture-only'}),patch('builtins.print'):
+            dt.now.return_value=now
+            # Advance the store clock instead of sleeping; no real network/time waits.
+            original=Store
+            tick=[now]
+            def make_store(path):
+                def clock():tick[0]+=timedelta(seconds=8);return tick[0]
+                return original(path,clock=clock)
+            with patch.object(d,'Store',side_effect=make_store):
+                self.assertEqual(d.execute_local(self.args(),self.root),0)
+        result=json.loads((self.root/'sanitized_results.json').read_text())
+        self.assertEqual(session.post.call_count,10);self.assertEqual(result['reserved_credits'],75)
+        self.assertEqual([g['starter_counts'] for g in result['games']],[[5,5]]*5)
+        self.assertFalse(result['model_compatibility_established'])
