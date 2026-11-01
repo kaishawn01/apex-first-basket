@@ -1,3 +1,25 @@
+# Phase 10 — existing-wallet authorization update
+
+2026-11-01: The owner explicitly authorizes the existing wallet for the five-game manifest: ten initial requests, expected 75 credits, absolute lifetime maximum 100 including failures and separately approved pagination. Monthly-free-only restrictions below are historical and superseded. No purchases, subscriptions, new games, lookups or automatic retries are authorized. Pagination is not currently authorized. No need to obtain the same request authorization again.
+
+The original provider email and verification note have been inspected and retained privately; neither original nor headers are published here. Saved email authentication results were observed, not independently cryptographically verified. Provider permission covers private research/retention and derived probabilities; independent NBA rights clearance is not established.
+
+**Execution status: BLOCKED before requests.** DUNKAPI_API_KEY is absent from the execution environment. Owner wallet authorization is accepted; it is not an API-authentication credential. The wallet transport is implemented but defaults disabled, with no automatic CLI activation. No live calls/reservations occurred and actual pilot consumption is zero. Starters, first shot, first score, opening-possession integrity and model compatibility remain unmeasured on real responses.
+
+## Transport and funding boundary
+
+WalletTransport permits only the exact ten manifest URL/body pairs, fixes TLS verification through requests defaults, disallows redirects, disables environment proxy/netrc inheritance and HTTP retries, supplies deterministic idempotency keys, and redacts transport errors. Pilot reserves credits transactionally before transport and retains reservations on failure/interruption. A shared lease, cache and immutable configuration protect restarts and duplicate calls. Extra pages stop before any call; they need separate approval. The same original lifetime journal must be used, never replaced to reset spending.
+
+Funding is selected by DunkAPI, not a documented request parameter. Published terms say plan credits are consumed first, then wallet credits (https://dunkapi.com/terms). The owner's current billing observation establishes the intended existing-wallet source. Local tests prove the runner cannot call purchase/top-up/subscription routes or exceed its reserved-cost limit; they cannot prove server billing correctness, guarantee current server balance or prevent another client spending the account. The future operator preflight must confirm the account/key matches the authorized wallet, no concurrent spending or automatic top-up/overage behavior, applicable per-call prices and sufficient existing balance. If these cannot be established, leave funding_confirmed false and stop. Do not make additional balance/account calls without authorization. Never infer a provider refund or erase a reservation.
+
+The credential should be supplied only through a private process environment/approved secret channel, not chat or GitHub. Existing PowerShell hidden-input instructions below remain applicable. Credentials stored in a laptop Streamlit session are not automatically available to this execution environment. No key was printed or accessed.
+
+## Tests
+
+54 Phase 10 local fixture tests and 11 updater tests passed (65 total). Nine new wallet tests cover default disable, absent credential, unconfirmed funding, rejected monthly-only source/manifest mutation, forbidden purchases/lookups/pagination, 75-credit ten-call caching, prior-budget exhaustion and timeout redaction/no retry. The live transport was exercised only with a mocked session and synthetic key in disposable temporary stores. No fixture was published as a real observation. Existing GitHub regression CI runs on the branch push. Frozen model, production V2.44 and scheduling unchanged.
+
+---
+
 # Phase 10 clarification update — 2026-11-01
 
 **NOT READY for authenticated requests.** Preparation only; no DunkAPI requests made. V2.44, frozen model, scheduling and draft PR status remain unchanged.

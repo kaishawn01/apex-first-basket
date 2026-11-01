@@ -4,10 +4,8 @@
   "prepared_on": "2026-11-01",
   "cutoff_exclusive": "2026-11-01",
   "window_days": 400,
-  "status": "NOT READY",
-  "live_authorized": false,
-  "free_balance_verified": false,
-  "free_balance": null,
+  "status": "AUTHORIZED; BLOCKED: credential unavailable, transport disabled",
+  "live_authorized": true,
   "expected_credits": 75,
   "lifetime_cap": 100,
   "lookups_authorized": false,
@@ -155,5 +153,7 @@
   "id_sources": [
     "https://dunkapi.com/guides/nba-points-prop-history-python",
     "https://dunkapi.com/guides/nba-steals-prop-history-python"
-  ]
+  ],
+  "funding_source": "existing_wallet",
+  "pagination_authorized": false
 }

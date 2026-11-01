@@ -1,7 +1,7 @@
 """Quarantined DunkAPI pilot preparation. Live ingestion remains unavailable.
 
 No source adapter is connected to the frozen model. Only injected synthetic
-transport can execute until owner authorization and free-balance evidence exist.
+transport can execute by default. Wallet authorization does not enable transport.
 """
 import argparse
 import base64
@@ -22,7 +22,51 @@ COSTS = {'get_game': 5, 'get_plays': 10}
 LIMIT = 100
 HOST = 'https://mcp.dunkapi.com/v1/'
 MAX_BYTES = 2_000_000
-BLOCKER = 'Live ingestion disabled: owner authorization/free balance unresolved; upstream rights not independently cleared'
+BLOCKER = 'Live ingestion disabled pending credentials and activation; upstream rights not independently cleared'
+
+
+class WalletTransport:
+    """Exact ten-call transport, disabled by default; never purchases credits.
+
+    Funding selection happens at the provider. Operator must attest existing
+    wallet-only funding, no top-ups/overages and exclusive pilot account use.
+    No credentials are stored in the journal, repr, URL or exceptions.
+    """
+    def __init__(self, manifest, *, wallet_balance, funding_confirmed=False,
+                 enabled=False, session=None):
+        if manifest.get('live_authorized') is not True or manifest.get('funding_source') != 'existing_wallet':
+            raise ValueError('Existing-wallet authorization required')
+        if type(wallet_balance) is not int or wallet_balance < 75:
+            raise ValueError('Existing wallet insufficient for initial manifest')
+        ids = [g['game_id'] for g in manifest['games']]
+        if ids != ['401809243','401809236','401809943','401809956','401809970']:
+            raise ValueError('Approved game IDs changed')
+        expected=[]
+        for gid in ids:
+            expected.extend([{'method':'POST','endpoint':'get_game','body':{'game_id':gid},'credits_reserved_before_request':5},
+                {'method':'POST','endpoint':'get_plays','body':{'game_id':gid,'limit':1000,'offset':0},'credits_reserved_before_request':10}])
+        if manifest['requests'] != expected or manifest.get('lifetime_cap') != 100:
+            raise ValueError('Approved requests or ceiling changed')
+        self.ids=ids; self.allowed={(HOST+q['endpoint'],canonical(q['body'])) for q in expected}
+        self.balance=wallet_balance; self.enabled=enabled; self.funding_confirmed=funding_confirmed
+        self.session=session or requests.Session()
+        self.session.trust_env=False
+        self.session.mount('https://',requests.adapters.HTTPAdapter(max_retries=0))
+
+    def preflight(self):
+        if not self.enabled:raise ProviderError('Live transport disabled')
+        if self.funding_confirmed is not True:raise ProviderError('Existing-wallet funding controls not confirmed')
+        if not os.environ.get('DUNKAPI_API_KEY'):raise ProviderError('DUNKAPI_API_KEY unavailable')
+
+    def __call__(self,url,**kwargs):
+        self.preflight()
+        if (url,canonical(kwargs.get('json'))) not in self.allowed:
+            raise ProviderError('Request outside owner-authorized manifest')
+        kwargs['headers']={'x-api-key':os.environ['DUNKAPI_API_KEY'],
+                           'x-idempotency-key':digest({'pilot':'phase10-five-games','url':url,'body':kwargs['json']})}
+        kwargs.update(timeout=15,allow_redirects=False,stream=True)
+        try:return self.session.post(url,**kwargs)
+        except requests.RequestException:raise ProviderError('Provider transport failed; reservation retained') from None
 
 
 class Pilot:
@@ -31,23 +75,29 @@ class Pilot:
     test_transport is solely for synthetic fixtures. There is intentionally no
     --enable-live switch or default HTTP transport in this preparation release.
     """
-    def __init__(self, store, game_ids, *, free_balance, test_transport=None):
+    def __init__(self, store, game_ids, *, free_balance=None, test_transport=None, wallet_transport=None):
         self.store = store
         ids = [positive_id(x) for x in game_ids]
         if len(ids) != 5 or len(set(ids)) != 5:
             raise ValueError('Exactly five unique source-native game IDs required')
+        if wallet_transport is not None and (type(wallet_transport) is not WalletTransport or test_transport is not None or ids != wallet_transport.ids):
+            raise ValueError('Invalid live wallet transport')
+        if wallet_transport is not None:free_balance=wallet_transport.balance
         if type(free_balance) is not int or free_balance < 0:
             raise ValueError('Explicit free-only balance required')
         self.cap = min(LIMIT, free_balance)
-        self.ids, self.transport = ids, test_transport
+        self.ids, self.transport = ids, wallet_transport or test_transport
+        self.wallet_transport = wallet_transport
         self.test_only = test_transport is not None
-        config = {'game_ids': ids, 'ceiling': self.cap, 'test_only': self.test_only, 'costs': COSTS}
+        config = {'game_ids': ids, 'ceiling': self.cap, 'test_only': self.test_only, 'costs': COSTS, 'funding_source':'existing_wallet' if wallet_transport else 'synthetic_or_disabled'}
         # Immutable registration rejects changing games/caps to reset the budget.
         store.append('dunk_pilot', 'phase10-five-games', config)
 
     def fetch(self, endpoint, gid, offset=0):
         if not self.test_only:
-            raise ProviderError(BLOCKER)
+            if self.wallet_transport is None:raise ProviderError(BLOCKER)
+            self.wallet_transport.preflight()
+            if offset != 0:raise ProviderError('Pagination requires separate approval')
         if os.environ.get('APEX_AUTOMATION_DISABLED') == 'true':
             raise ProviderError('Automation disabled')
         gid = positive_id(gid)
@@ -80,7 +130,7 @@ class Pilot:
                 raise ProviderError('Pilot credit ceiling reached; retain incomplete games')
             # Reservation commits before HTTP, even if the process subsequently dies.
             self.store.append('dunk_attempt', key, {'cost':COSTS[endpoint], 'endpoint':endpoint,
-                              'params':params, 'test_only':True}, fence=lease)
+                              'params':params, 'test_only':self.test_only}, fence=lease)
             self.store.set_state('phase10:next_allowed', now + 7)
             try:
                 response = self.transport(HOST + endpoint, json=params,
@@ -103,7 +153,7 @@ class Pilot:
                 payload = json.loads(raw)
                 if not isinstance(payload, dict):
                     raise ValueError('Object response required')
-                self.store.append('dunk_response', key, {'provider':'DunkAPI', 'test_only':True,
+                self.store.append('dunk_response', key, {'provider':'DunkAPI', 'test_only':self.test_only,
                     'endpoint':endpoint, 'request':params, 'retrieved_at':self.store.clock().isoformat(),
                     'sha256':hashlib.sha256(raw).hexdigest(),
                     'raw_base64':base64.b64encode(raw).decode()}, fence=lease)
@@ -135,12 +185,24 @@ class Pilot:
         raise ValueError('Pagination bound reached')
 
 
+    def _pace(self):
+        delay=self.store.state('phase10:next_allowed',0)-self.store.clock().timestamp()
+        if delay>7:raise ProviderError('Provider cooldown requires review')
+        if delay>0:time.sleep(delay)
+
     def run(self, target_day):
         """Bounded pilot orchestration. Source failures remain explicit, not dropped."""
         reports = []
         for gid in self.ids:
             try:
+                if self.wallet_transport:self._pace()
                 box = self.fetch('get_game', gid)
+                if self.wallet_transport:
+                    expected = next(g for g in json.loads((Path(__file__).parent/'validation/PHASE10_REQUEST_MANIFEST.json').read_text())['games'] if g['game_id']==gid)
+                    game=box['game']
+                    if (str(game['game_id']) != gid or game['date'] != expected['date'] or game['home']['abbrev'] != expected['home'] or game['away']['abbrev'] != expected['away'] or game['status'] != 'final' or game['season_type'] != 'regular'):
+                        raise ValueError('Manifest game identity mismatch')
+                    self._pace()
                 pages = self.plays(gid)
                 reports.append({'game_id':gid,'status':'audited',
                                 'audit':inspect_game(box,pages,target_day)})
@@ -149,6 +211,7 @@ class Pilot:
                 break  # Respect provider/storage budget failure, no further automatic calls.
             except (ValueError, KeyError, TypeError):
                 reports.append({'game_id':gid,'status':'invalid','diagnostic':'Source shape or integrity failed; raw response retained'})
+                if self.wallet_transport:break
         for gid in self.ids[len(reports):]:
             reports.append({'game_id':gid,'status':'not_attempted'})
         return {'test_only':self.test_only,'games':reports,

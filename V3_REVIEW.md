@@ -1,3 +1,7 @@
+## Phase 10 wallet authorization — 2026-11-01
+
+Owner authorized existing wallet, expected 75 credits, lifetime ceiling 100; exact manifest only. Monthly-free-only requirement superseded. Private original-email evidence available (no email/headers published). Disabled wallet transport and nine new mock tests added; 54 Phase 10 + 11 updater tests passed locally. Blocked before execution: credential absent, transport not activated, funding-control attestation remains required. Zero live requests/credits; real-data compatibility unmeasured. See PHASE10_DUNK_PILOT.md for boundaries and CI status on this commit. V2.44 and frozen settings unchanged.
+
 ## Phase 10 provider clarification — 2026-11-01
 
 Preparation update: owner-supplied Noah/DunkAPI permission summary recorded; original email not accessible, NBA rights not independently cleared. Exact five-game/ten-request manifest: `validation/PHASE10_REQUEST_MANIFEST.json`. Expected 75 free credits, lifetime ceiling 100, zero live requests. NOT READY: current free balance and explicit request authorization absent. 45 local Phase 10 fixture tests passed; CI status must be checked for this commit. Source-native ID/provenance design and limitations are in `PHASE10_DUNK_PILOT.md`. Frozen model/V2.44 unchanged. No new phase/version or production activation.

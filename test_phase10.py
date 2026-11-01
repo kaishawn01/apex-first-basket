@@ -210,7 +210,7 @@ class ClarificationPreparationTests(unittest.TestCase):
         self.assertEqual(len(m['requests']),10)
         self.assertEqual(sum(q['credits_reserved_before_request'] for q in m['requests']),75)
         self.assertEqual(m['lifetime_cap'],100)
-        self.assertFalse(m['live_authorized']);self.assertFalse(m['free_balance_verified'])
+        self.assertTrue(m['live_authorized']);self.assertEqual(m['funding_source'],'existing_wallet')
         for g in m['games']:
             self.assertTrue(0<(datetime.fromisoformat(m['cutoff_exclusive'])-datetime.fromisoformat(g['date'])).days<=400)
         for g,(box,plays) in zip(m['games'],zip(m['requests'][::2],m['requests'][1::2])):
@@ -247,3 +247,72 @@ class ClarificationPreparationTests(unittest.TestCase):
     def test_starter_dnp_contradiction_rejected(self):
         b,p=fixture();b['players'][0]['did_not_play']=True
         with self.assertRaises(ValueError):d.inspect_game(b,p,'2026-11-01')
+
+class WalletAuthorizationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.m=json.loads((Path(__file__).parent/'validation/PHASE10_REQUEST_MANIFEST.json').read_text())
+        self.session=Mock();self.now=datetime(2026,11,1,20,tzinfo=timezone.utc)
+        self.s=Store(Path(self.tmp.name)/'wallet.db',clock=lambda:self.now)
+    def transport(self,**kw):
+        return d.WalletTransport(self.m,wallet_balance=500,session=self.session,**kw)
+    def pilot(self,t):return d.Pilot(self.s,t.ids,wallet_transport=t)
+    def test_default_disabled_before_reservation(self):
+        p=self.pilot(self.transport())
+        with self.assertRaisesRegex(ProviderError,'disabled'):p.fetch('get_game',p.ids[0])
+        self.assertFalse(self.s.rows('dunk_attempt'));self.session.post.assert_not_called()
+    def test_missing_key_before_reservation(self):
+        p=self.pilot(self.transport(enabled=True,funding_confirmed=True))
+        with patch.dict(d.os.environ,{},clear=True):
+            with self.assertRaisesRegex(ProviderError,'unavailable'):p.fetch('get_game',p.ids[0])
+        self.assertFalse(self.s.rows('dunk_attempt'));self.session.post.assert_not_called()
+    def test_unconfirmed_funding_blocks(self):
+        p=self.pilot(self.transport(enabled=True))
+        with self.assertRaisesRegex(ProviderError,'funding'):p.fetch('get_game',p.ids[0])
+        self.session.post.assert_not_called()
+    def test_monthly_source_rejected(self):
+        self.m['funding_source']='monthly_free'
+        with self.assertRaises(ValueError):self.transport()
+    def test_manifest_change_rejected(self):
+        self.m['requests'][1]['body']['limit']=200
+        with self.assertRaises(ValueError):self.transport()
+    def test_no_purchase_lookup_or_pagination(self):
+        t=self.transport(enabled=True,funding_confirmed=True);p=self.pilot(t)
+        with patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'fixture-only'}):
+            for endpoint,gid,offset in [('get_plays',p.ids[0],1000),('list_games',p.ids[0],0),('get_game','999',0)]:
+                with self.assertRaises(ProviderError):p.fetch(endpoint,gid,offset)
+            with self.assertRaises(ProviderError):t('https://mcp.dunkapi.com/v1/billing',json={})
+        self.session.post.assert_not_called();self.assertFalse(self.s.rows('dunk_attempt'))
+    def test_wallet_ten_calls_75_and_resume_no_extra_calls(self):
+        t=self.transport(enabled=True,funding_confirmed=True);p=self.pilot(t)
+        def respond(url,**kw):
+            self.now+=timedelta(seconds=8)
+            b,pages=fixture(kw['json']['game_id']);a=b if url.endswith('get_game') else pages[0]
+            return Mock(status_code=200,iter_content=Mock(return_value=[json.dumps(a).encode()]))
+        self.session.post.side_effect=respond
+        with patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'fixture-only'}):
+            for repeat in range(2):
+                for gid in p.ids:p.fetch('get_game',gid);p.plays(gid)
+        self.assertEqual(self.session.post.call_count,10)
+        self.assertEqual(sum(x['payload']['cost'] for x in self.s.rows('dunk_attempt')),75)
+        self.assertTrue(all(x['payload']['test_only'] is False for x in self.s.rows('dunk_attempt')))
+        self.assertFalse(self.session.trust_env)
+        for call in self.session.post.call_args_list:
+            self.assertFalse(call.kwargs['allow_redirects'])
+            self.assertIn('x-idempotency-key',call.kwargs['headers'])
+        self.assertNotIn('fixture-only',json.dumps(self.s.rows()))
+    def test_wallet_budget_includes_previous_reservations(self):
+        t=self.transport(enabled=True,funding_confirmed=True);p=self.pilot(t)
+        self.s.append('dunk_attempt','prior',{'cost':100})
+        with patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'fixture-only'}):
+            with self.assertRaisesRegex(ProviderError,'ceiling'):p.fetch('get_game',p.ids[0])
+        self.session.post.assert_not_called()
+    def test_timeout_no_retry_or_secret_in_error(self):
+        t=self.transport(enabled=True,funding_confirmed=True);p=self.pilot(t)
+        self.session.post.side_effect=requests.Timeout('fixture-secret')
+        with patch.dict(d.os.environ,{'DUNKAPI_API_KEY':'fixture-only'}):
+            with self.assertRaisesRegex(ProviderError,'reservation retained') as e:p.fetch('get_game',p.ids[0])
+            self.assertNotIn('fixture-secret',str(e.exception))
+            self.now+=timedelta(seconds=8)
+            with self.assertRaisesRegex(ProviderError,'unresolved'):p.fetch('get_game',p.ids[0])
+        self.assertEqual(self.session.post.call_count,1)
