@@ -1,3 +1,49 @@
+# Phase 10 clarification update — 2026-11-01
+
+**NOT READY for authenticated requests.** Preparation only; no DunkAPI requests made. V2.44, frozen model, scheduling and draft PR status remain unchanged.
+
+## Permission evidence update
+
+The owner supplied a summary of written clarification from Noah at DunkAPI in this conversation. It reports permission for automated retrieval, private cloud storage, model training, publishing derived probabilities and retaining private historical/audit records; raw play-by-play dataset/feed republication is prohibited. It reports stable game/team/player IDs, historical starter flags, get_game costing 5 credits, and get_plays costing 10 credits with limit=1000 expected to cover an NBA game. These are **owner-supplied provider statements**, not independently authenticated correspondence or demonstrated API behavior. No accessible email connector/original message was available. Please supply the original .eml or full forwarded email for private archival verification; do not include credentials. Do not publish its headers, contact details or raw email in this public repository. Preserve original bytes, receipt date and SHA-256 in permitted private storage when received.
+
+This supersedes the earlier statement that no provider response exists. The original unsent inquiry below is retained as historical preparation, not the current status. DunkAPI is independent; neither this email summary nor this assessment establishes independent NBA rights clearance. The applicable terms/acceptance version and any additional upstream restrictions remain review items. No need to ask again for permissions already explicitly addressed in the owner's summary; archive the evidence and resolve remaining technical ambiguities.
+
+## Exact five-game manifest
+
+See `validation/PHASE10_REQUEST_MANIFEST.json`. IDs appear in DunkAPI's published points/steals guide examples (URLs in manifest), not inferred from ESPN numeric equality. Matchups/date/final status must be checked against the first get_game response before any get_plays request. Selection uses published completed-game examples, not a statistical evaluation sample. Dates are inside the 2026-11-01 earlier-date 400-day window; recheck at execution.
+
+| DunkAPI game ID | Date (Eastern) | Matchup | Selection purpose |
+|---|---|---|---|
+| 401809243 | 2025-10-21 | HOU at OKC | Long-game completeness / overtime |
+| 401809236 | 2025-10-23 | OKC at IND | Overtime and free-throw handling |
+| 401809943 | 2025-10-24 | ATL at ORL | Different matchup |
+| 401809956 | 2025-10-25 | OKC at ATL | Repeated identity checks |
+| 401809970 | 2025-10-27 | ATL at CHI | Repeated identities / different opponent |
+
+No claim that these particular opening sequences include every desired event. Rare opening FT/nonstarter outcomes may remain untested after five games; fixtures cover edge cases without substituting for live evidence. Public game-page metadata was checked for completion; no play-by-play was ingested. NBA game 0022500005 corroborates the OKC/IND completed matchup. Public references are metadata evidence, not a dataset license.
+
+Each game has exactly two proposed query-style POSTs to https://mcp.dunkapi.com/v1/: `get_game` with `{game_id}`, then `get_plays` with `{game_id, limit:1000, offset:0}`. No key appears in the manifest. Ten initial requests reserve **75 credits**. Lifetime ceiling **100**, including all failures, additional pages, retries and lookups; lookups and automatic retries are disabled. Two additional 10-credit pages could bring reservations to 95; the next would be refused. Additional calls require explicit approval within the same cap. Preserve the same journal across restarts; never reset reservations or assume provider refunds.
+
+**Balance not confirmed.** A nominal 500-credit allowance is not a current balance. Before any authenticated request, the owner must provide a fresh dashboard observation of remaining *free* credits and confirmation no wallet/paid funding will be used. Require at least 75 for initial requests; at least 100 to authorize the entire contingency envelope. Record observation time privately; recheck if another consumer uses the account. Do not call an account endpoint to obtain this without approval. The current code has no live transport and therefore cannot spend against an unverified balance.
+
+Stop on identity/date/type mismatch, expired window, unclear permission/balance, manifest change, missing starters, contradictory actor/score data, incomplete pagination, unexpected response envelope, unexpected credit cost, rate limit, transport failure or budget exhaustion. Never treat the reported typical 500-event length as proof of completeness. Require terminal-page semantics and reconcile count, opening boundary and final score. The reported limit=1000 does not yet verify the actual next_offset terminal representation or envelope.
+
+## Source-native adapter design (not activated)
+
+Use provider-qualified identities `(DunkAPI, entity_type, source_id)` and `dunk_<game_id>` game keys. Never reinterpret these as ESPN IDs. Keep source-to-internal numeric player IDs in an immutable bijective registry where existing numeric validation requires integers; reuse an internal ID only with reviewed identity evidence. Historical lineup membership comes from the game, not today's team. Store raw response hashes, manifest hash, retrieval time, source schema/version and original IDs alongside normalized records. Keep originals and mapping evidence private.
+
+A future provider registry in phase7_training must validate each provider's actual provenance, identity namespace and evidence scopes, while preserving checksums, window/date exclusion, ten unique starters, outcome/sequence agreement and the existing 100-prior-game primary eligibility rule. Permission grants remain owner-approved, bundle-hash-bound and expiring; owner-reported correspondence must not masquerade as authenticated original evidence. The current ESPN-only gate stays closed to DunkAPI until reviewed implementation/tests pass. Existing ESPN history remains separate; no overwrite or implicit merge.
+
+Normalize first FGA separately from first score, including FTs and nonstarters. Preserve unresolved mass. Current audit retains source event labels/secondary IDs but does **not** infer jump-ball winner, rebound possession, turnover owner or substitution direction from a label alone. Those semantics need permitted real samples. Final totals are audit checks, never pregame features. Preserve the opening-three-minute/first-substitution model rules and all frozen parameters. Adapter/protocol registration must be versioned because existing experiment hashes cover training/live source files.
+
+## Local verification and remaining gates
+
+45 isolated Phase 10 fixture tests passed: original 38 plus seven preparation/edge-case tests. Coverage includes lifetime budget/restart/cache behavior, historical starters, missed first attempt before FT first score, nonstarter/unknown outcomes, source jump-ball/rebound/turnover/substitution label preservation, ordering, final-score diagnostics, and exact manifest shape. Label preservation is not validated possession reconstruction. No synthetic result is a real NBA forecast. Existing GitHub CI is requested by the branch push; consult its run status rather than treating local success as remote success.
+
+Remaining: original email archival verification; fresh free-only balance; explicit approval of this manifest; real response/pagination and event semantics; provider-aware model adapter and sufficient eligible history. Ask for authorization only for the concrete manifest above; no purchase, trial, scheduling, model change or merge is included.
+
+---
+
 # Phase 10 — DunkAPI Free Pilot preparation (development V3.0.9)
 
 **Live ingestion is disabled.** This release prepares and fixture-tests a five-game audit. It does not claim five actual games were collected or mapped into the frozen Monte Carlo model. BALLDONTLIE authentication is already resolved; no account diagnostic is repeated.

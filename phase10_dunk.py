@@ -1,7 +1,7 @@
 """Quarantined DunkAPI pilot preparation. Live ingestion remains unavailable.
 
 No source adapter is connected to the frozen model. Only injected synthetic
-transport can execute until NBA upstream rights and free-balance evidence exist.
+transport can execute until owner authorization and free-balance evidence exist.
 """
 import argparse
 import base64
@@ -22,7 +22,7 @@ COSTS = {'get_game': 5, 'get_plays': 10}
 LIMIT = 100
 HOST = 'https://mcp.dunkapi.com/v1/'
 MAX_BYTES = 2_000_000
-BLOCKER = 'Live ingestion disabled: NBA upstream permission and free-only balance evidence unresolved'
+BLOCKER = 'Live ingestion disabled: owner authorization/free balance unresolved; upstream rights not independently cleared'
 
 
 class Pilot:
@@ -234,7 +234,9 @@ def inspect_game(box, pages, target_day, mapping=None):
             raise ValueError('Scoring team mismatch')
         e = {'seq':seq,'period':period,'clock_seconds':clock,'team':team,
              'player_id':pid if known else None,'points':points,'kind':shot_kind,
-             'made':shot['made'] if shot else None}
+             'made':shot['made'] if shot else None,
+             'source_type':r.get('type') if isinstance(r.get('type'),str) else None,
+             'secondary_player_id':str(r['player2_id']) if r.get('player2_id') is not None and str(r['player2_id']) in owners else None}
         clean.append(e); score = totals
         if shot_kind == 'field_goal' and first_attempt is None:
             first_attempt = e
@@ -274,7 +276,7 @@ def inspect_game(box, pages, target_day, mapping=None):
         'events':clean,'issues':sorted(set(issues)), 'player_crosswalk_reviewed':mapping_ok,
         'model_compatible':False,'live_ingestion_permitted':False,
         'remaining':['Game/team cross-provider reconciliation and model adapter not approved',
-                     'NBA upstream rights unresolved; no genuine source sample validated']}
+                     'Owner reports provider research permission; NBA rights not independently cleared; no genuine sample validated']}
 
 
 def main():

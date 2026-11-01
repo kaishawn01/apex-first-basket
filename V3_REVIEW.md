@@ -1,3 +1,7 @@
+## Phase 10 provider clarification — 2026-11-01
+
+Preparation update: owner-supplied Noah/DunkAPI permission summary recorded; original email not accessible, NBA rights not independently cleared. Exact five-game/ten-request manifest: `validation/PHASE10_REQUEST_MANIFEST.json`. Expected 75 free credits, lifetime ceiling 100, zero live requests. NOT READY: current free balance and explicit request authorization absent. 45 local Phase 10 fixture tests passed; CI status must be checked for this commit. Source-native ID/provenance design and limitations are in `PHASE10_DUNK_PILOT.md`. Frozen model/V2.44 unchanged. No new phase/version or production activation.
+
 # Phase 10 — V3.0.9: DunkAPI Free Pilot preparation
 
 **Five actual games have not been ingested. Source compatibility is not established.** The existing V3 branch and draft PR continue; V2.44, model sources and frozen settings remain unchanged. NBA-specific upstream permission remains unresolved after reviewing the current terms and timing/rights documentation. No account check, sports-data request, trial, subscription, credit purchase, scheduling or deployment occurred.

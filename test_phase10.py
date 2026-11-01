@@ -201,3 +201,49 @@ class Phase10Tests(unittest.TestCase):
             with self.s.transaction(True) as c:c.execute("UPDATE apex_events SET hash='tampered' WHERE kind='dunk_response'")
         self.p.fetch('get_game','100')
         self.assertEqual(self.transport.call_count,1)
+
+class ClarificationPreparationTests(unittest.TestCase):
+    def test_exact_manifest_budget_and_window(self):
+        m=json.loads((Path(__file__).parent/'validation/PHASE10_REQUEST_MANIFEST.json').read_text())
+        self.assertEqual(len(m['games']),5)
+        self.assertEqual(len({g['game_id'] for g in m['games']}),5)
+        self.assertEqual(len(m['requests']),10)
+        self.assertEqual(sum(q['credits_reserved_before_request'] for q in m['requests']),75)
+        self.assertEqual(m['lifetime_cap'],100)
+        self.assertFalse(m['live_authorized']);self.assertFalse(m['free_balance_verified'])
+        for g in m['games']:
+            self.assertTrue(0<(datetime.fromisoformat(m['cutoff_exclusive'])-datetime.fromisoformat(g['date'])).days<=400)
+        for g,(box,plays) in zip(m['games'],zip(m['requests'][::2],m['requests'][1::2])):
+            self.assertEqual(box,{'method':'POST','endpoint':'get_game','body':{'game_id':g['game_id']},'credits_reserved_before_request':5})
+            self.assertEqual(plays,{'method':'POST','endpoint':'get_plays','body':{'game_id':g['game_id'],'limit':1000,'offset':0},'credits_reserved_before_request':10})
+    def test_missed_attempt_precedes_free_throw_first_score(self):
+        b,p=fixture();rows=p[0]['plays']
+        missed=copy.deepcopy(rows[2]);missed.update(seq=2,clock_seconds=715,points=0,home_score=0)
+        missed['shot']={'made':False,'points_attempted':3}
+        for row in rows[1:]:row['seq']+=1
+        rows.insert(1,missed);b['plays']+=1;p[0]['count']+=1
+        a=d.inspect_game(b,p,'2026-11-01')
+        self.assertFalse(a['first_fg_attempt']['made'])
+        self.assertEqual(a['first_fg_attempt']['seq'],2)
+        self.assertEqual(a['first_score']['kind'],'free_throw')
+    def test_nonshot_event_labels_preserved_without_role_inference(self):
+        for label in ['jumpball','turnover','rebound','substitution']:
+            with self.subTest(label=label):
+                b,p=fixture();p[0]['plays'][0].update(type=label,player_id='1',player2_id='6')
+                a=d.inspect_game(b,p,'2026-11-01');e=a['events'][0]
+                self.assertEqual(e['source_type'],label)
+                self.assertEqual(e['secondary_player_id'],'6')
+                self.assertIsNone(e['kind'])
+                self.assertFalse(a['model_compatible'])
+    def test_unknown_secondary_identity_not_guessed(self):
+        b,p=fixture();p[0]['plays'][0]['player2_id']='9999'
+        self.assertIsNone(d.inspect_game(b,p,'2026-11-01')['events'][0]['secondary_player_id'])
+    def test_clock_regression_rejected(self):
+        b,p=fixture();p[0]['plays'][2]['clock_seconds']=719
+        with self.assertRaises(ValueError):d.inspect_game(b,p,'2026-11-01')
+    def test_final_score_mismatch_visible(self):
+        b,p=fixture();b['game']['home']['score']=99
+        self.assertIn('final_score_mismatch',d.inspect_game(b,p,'2026-11-01')['issues'])
+    def test_starter_dnp_contradiction_rejected(self):
+        b,p=fixture();b['players'][0]['did_not_play']=True
+        with self.assertRaises(ValueError):d.inspect_game(b,p,'2026-11-01')

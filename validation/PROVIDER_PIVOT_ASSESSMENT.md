@@ -1,3 +1,5 @@
+> 2026-11-01 clarification: the owner has now supplied Noah/DunkAPI's permission response summary. Earlier “unsent/unresolved response” statements below describe the prior assessment. See ../PHASE10_DUNK_PILOT.md for current evidence status, manifest and remaining balance/authorization gates. NBA rights are not independently cleared.
+
 # Historical provider pivot assessment
 
 Reviewed 2026-11-01. Documentation-only assessment against development commit `34ee5cee8af36671a0b112964d72139870e5c5f2`, V3.0.9, existing draft PR #1. No account diagnostics, provider API requests, credits, subscriptions, source downloads, model changes or scheduling activation. Phase 10 fixtures were not repeated. Public documentation establishes advertised capabilities, not actual account coverage or upstream clearance.
