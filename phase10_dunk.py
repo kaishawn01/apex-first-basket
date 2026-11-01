@@ -11,6 +11,7 @@ import os
 import time
 import subprocess
 import sys
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -25,6 +26,27 @@ LIMIT = 100
 HOST = 'https://mcp.dunkapi.com/v1/'
 MAX_BYTES = 2_000_000
 BLOCKER = 'Live ingestion disabled pending credentials and activation; upstream rights not independently cleared'
+
+
+def response_payload(endpoint, payload):
+    """Normalize get_game only, after preserving the exact source bytes.
+
+    Legacy top-level fixtures remain supported. A data envelope must be the
+    only top-level member; mixed/nested/partial wrappers fail closed.
+    get_plays deliberately receives no inferred envelope transformation.
+    """
+    if not isinstance(payload, dict):raise ValueError('Object response required')
+    if endpoint != 'get_game':return payload
+    if 'data' in payload:
+        if set(payload) != {'data'} or not isinstance(payload['data'], dict):
+            raise ValueError('Invalid get_game envelope')
+        payload=payload['data']
+    if ('data' in payload or not isinstance(payload.get('game'),dict)
+            or not isinstance(payload.get('players'),list)
+            or any(not isinstance(p,dict) for p in payload['players'])
+            or type(payload.get('plays')) is not int or payload['plays']<0):
+        raise ValueError('Invalid get_game contents')
+    return payload
 
 
 class WalletTransport:
@@ -121,7 +143,7 @@ class Pilot:
                 raw = base64.b64decode(cached['payload']['raw_base64'], validate=True)
                 if hashlib.sha256(raw).hexdigest() != cached['payload']['sha256']:
                     raise ValueError('Raw source checksum mismatch')
-                return json.loads(raw)
+                return response_payload(endpoint, json.loads(raw))
             if self.store.get('dunk_attempt', key):
                 raise ProviderError('Prior attempt unresolved; no automatic repeat or refund')
             now = self.store.clock().timestamp()
@@ -159,7 +181,7 @@ class Pilot:
                     'endpoint':endpoint, 'request':params, 'retrieved_at':self.store.clock().isoformat(),
                     'sha256':hashlib.sha256(raw).hexdigest(),
                     'raw_base64':base64.b64encode(raw).decode()}, fence=lease)
-                return payload
+                return response_payload(endpoint, payload)
             except (ValueError, TypeError, requests.RequestException):
                 raise ProviderError('Invalid provider response; reservation retained') from None
             finally:
@@ -222,8 +244,8 @@ class Pilot:
                 'model_compatibility_established':False}
 
 
-def inspect_game(box, pages, target_day, mapping=None):
-    """Source-native audit, NOT model training rows. Missing facts never invented."""
+def inspect_box(box, target_day):
+    """Validate historical identities and starters without inventing events."""
     game = box['game']; gid = positive_id(game['game_id'])
     start = stamp(game['starts_at'])
     day = start.astimezone(ZoneInfo('America/New_York')).date()
@@ -247,6 +269,12 @@ def inspect_game(box, pages, target_day, mapping=None):
             starters[tid].append(pid)
     if any(len(v) != 5 for v in starters.values()):
         raise ValueError('Historical starting five missing')
+    return game, gid, teams, owners, starters
+
+
+def inspect_game(box, pages, target_day, mapping=None):
+    """Source-native audit, NOT model training rows. Missing facts never invented."""
+    game, gid, teams, owners, starters = inspect_box(box, target_day)
     rows = []; offset = 0
     if not pages:
         raise ValueError('No event pages')
@@ -427,6 +455,61 @@ def sanitized_report(report):
         'model_compatibility_established':False,'games':games}
 
 
+def replay_database(path, manifest, target_day):
+    """Read-only SQLite replay: no Store construction, leases, writes or HTTP."""
+    path=Path(path)
+    if not path.is_file():raise ValueError('Original database missing')
+    connection=sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)
+    try:
+        connection.execute('PRAGMA query_only=ON')
+        connection.execute('BEGIN')
+        if connection.execute('PRAGMA quick_check').fetchall()!=[('ok',)]:
+            raise ValueError('Database integrity failure')
+        rows=[Store.decode(r) for r in connection.execute('SELECT * FROM apex_events ORDER BY id')]
+        Store.verify(rows)
+    finally:connection.close()
+    attempts={r['key']:r['payload'] for r in rows if r['kind']=='dunk_attempt'}
+    allowed={digest({'endpoint':q['endpoint'],'params':q['body']}):q for q in manifest['requests']}
+    for key,a in attempts.items():
+        q=allowed.get(key)
+        if not q or a['params']!=q['body'] or a['endpoint']!=q['endpoint'] or a['cost']!=COSTS[q['endpoint']]:
+            raise ValueError('Reservation outside unchanged manifest')
+    reserved=sum(a['cost'] for a in attempts.values())
+    if reserved>LIMIT:raise ValueError('Reservation ceiling violated')
+    games=[];cached=[r for r in rows if r['kind']=='dunk_response']
+    for r in cached:
+        p=r['payload'];q=allowed.get(r['key'])
+        if (not q or r['key'] not in attempts or p['request']!=q['body']
+                or p['endpoint']!=q['endpoint']):raise ValueError('Cache provenance mismatch')
+        raw=base64.b64decode(p['raw_base64'],validate=True)
+        if hashlib.sha256(raw).hexdigest()!=p['sha256']:raise ValueError('Raw checksum mismatch')
+        if p['endpoint']!='get_game':continue
+        box=response_payload('get_game',json.loads(raw))
+        game,gid,teams,owners,starters=inspect_box(box,target_day)
+        expected=next(g for g in manifest['games'] if g['game_id']==q['body']['game_id'])
+        if (gid!=expected['game_id'] or game['date']!=expected['date']
+                or game['home']['abbrev']!=expected['home'] or game['away']['abbrev']!=expected['away']):
+            raise ValueError('Manifest game identity mismatch')
+        games.append({'game_id':gid,'identity_checks':'PASS','starter_counts':sorted(map(len,starters.values())),
+                      'player_records':len(owners),'reported_plays':box['plays'],
+                      'opening_events_validated':False,'cached_get_game_reusable':True})
+    if not games:raise ValueError('No cached get_game response available')
+    return {'offline_only':True,'integrity':'PASS','saved_responses':len(cached),
+            'reservations':len(attempts),'reserved_credits':reserved,'new_requests':0,
+            'new_reserved_credits':0,'database_modified':False,'games':games,
+            'continuation_enabled':False,'model_compatibility_established':False}
+
+
+def replay_local(root):
+    manifest=local_manifest(MANIFEST_SHA256)
+    secure_acl(root)
+    if json.loads((root/'identity.json').read_text())!={'pilot':'phase10-five-games','manifest_sha256':MANIFEST_SHA256}:
+        raise ValueError('Private identity mismatch')
+    report=replay_database(root/'pilot.sqlite3',manifest,datetime.now(ZoneInfo('America/New_York')).date().isoformat())
+    print(json.dumps(report,indent=2))
+    return 0
+
+
 def execute_local(args,root):
     if not args.execute or args.confirm_wallet != 500 or not args.confirm_no_replenishment or not args.confirm_exclusive_use:
         raise ValueError('Explicit wallet, replenishment, exclusive-use and execution preflight required')
@@ -460,7 +543,7 @@ def execute_local(args,root):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Phase 10: no network by default; opt-in local Windows pilot')
-    parser.add_argument('command',choices=['status','init-local','run-local','report-local'])
+    parser.add_argument('command',choices=['status','init-local','run-local','report-local','replay-local'])
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--confirm-wallet',type=int)
     parser.add_argument('--confirm-no-replenishment',action='store_true')
@@ -475,6 +558,7 @@ def main(argv=None):
         root=private_directory()
         if args.command=='init-local':initialize_local(root,args.confirm_no_prior_pilot);print('Private pilot storage initialized.');return 0
         if args.command=='run-local':return execute_local(args,root)
+        if args.command=='replay-local':return replay_local(root)
         secure_acl(root)
         # Report command never constructs transport or requires a key.
         print((root/'sanitized_results.json').read_text());return 0

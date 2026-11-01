@@ -397,3 +397,94 @@ class LocalCliTests(unittest.TestCase):
         self.assertEqual(session.post.call_count,10);self.assertEqual(result['reserved_credits'],75)
         self.assertEqual([g['starter_counts'] for g in result['games']],[[5,5]]*5)
         self.assertFalse(result['model_compatibility_established'])
+
+class WrapperReplayTests(unittest.TestCase):
+    def test_observed_wrapper_shape(self):
+        box,_=fixture();box.update(odds=[],team_stats=[],win_probability=[])
+        self.assertEqual(d.response_payload('get_game',{'data':box}),box)
+        self.assertEqual(d.response_payload('get_game',box),box)
+    def test_malformed_wrappers(self):
+        box,_=fixture()
+        for bad in [None,[],{'data':None},{'data':[]},{'data':box,'game':{}},
+                    {'data':{'data':box}},{'data':{'game':{},'players':[]}},
+                    {'data':dict(box,plays=True)},{'data':dict(box,players=[None])}]:
+            with self.subTest(shape=type(bad).__name__):
+                with self.assertRaises(ValueError):d.response_payload('get_game',bad)
+    def test_plays_wrapper_not_assumed(self):
+        wrapped={'data':{'plays':[],'count':0,'next_offset':None}}
+        self.assertIs(d.response_payload('get_plays',wrapped),wrapped)
+    def test_cache_replay_preserves_bytes_reservation_and_never_calls_network(self):
+        import hashlib
+        import base64
+        manifest=d.local_manifest(d.MANIFEST_SHA256)
+        first=manifest['games'][0];box,_=fixture(first['game_id'])
+        box['game']['home']['abbrev']=first['home'];box['game']['away']['abbrev']=first['away']
+        box['game']['date']=first['date'];box['game']['starts_at']=first['date']+'T23:00:00Z'
+        box['plays']=595
+        raw=json.dumps({'data':box},indent=3).encode()
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'pilot.sqlite3';store=Store(path)
+            ids=[g['game_id'] for g in manifest['games']]
+            transport=Mock();response=Mock(status_code=200)
+            response.iter_content.return_value=[raw];transport.return_value=response
+            pilot=d.Pilot(store,ids,free_balance=500,test_transport=transport)
+            self.assertEqual(pilot.fetch('get_game',ids[0]),box)
+            saved=store.rows('dunk_response')[0]['payload']
+            self.assertEqual(base64.b64decode(saved['raw_base64']),raw)
+            self.assertEqual(saved['sha256'],hashlib.sha256(raw).hexdigest())
+            # Second fetch uses the original cache and does not reserve again.
+            self.assertEqual(pilot.fetch('get_game',ids[0]),box)
+            self.assertEqual(transport.call_count,1)
+            before=path.read_bytes()
+            with patch.object(d,'WalletTransport',side_effect=AssertionError('No transport')), patch.object(d.requests,'Session',side_effect=AssertionError('No network')):
+                report=d.replay_database(path,manifest,'2026-11-01')
+            self.assertEqual(path.read_bytes(),before)
+            self.assertEqual(report['reserved_credits'],5)
+            self.assertEqual(report['reservations'],1)
+            self.assertEqual(report['saved_responses'],1)
+            self.assertEqual(report['games'][0]['reported_plays'],595)
+            self.assertFalse(report['continuation_enabled'])
+            # No provider/player/raw data escapes the safe output.
+            self.assertNotIn('raw_base64',json.dumps(report))
+            self.assertNotIn('player_id',json.dumps(report))
+    def test_missing_database_not_created(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'missing.sqlite3'
+            with self.assertRaises(ValueError):d.replay_database(path,{},'2026-11-01')
+            self.assertFalse(path.exists())
+    def test_crlf_is_rejected_not_normalized(self):
+        raw=(Path(d.__file__).parent/'validation/PHASE10_REQUEST_MANIFEST.json').read_bytes()
+        self.assertNotIn(b'\r',raw)
+        with patch.object(Path,'read_bytes',return_value=raw.replace(b'\n',b'\r\n')):
+            with self.assertRaises(ValueError):d.local_manifest(d.MANIFEST_SHA256)
+
+    def test_live_cache_reuse_retains_original_five_credit_attempt(self):
+        import os
+        manifest=d.local_manifest(d.MANIFEST_SHA256)
+        box,_=fixture(manifest['games'][0]['game_id'])
+        raw=json.dumps({'data':box}).encode()
+        response=Mock(status_code=200);response.iter_content.return_value=[raw]
+        session=Mock();session.post.return_value=response
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ,{'DUNKAPI_API_KEY':'SYNTHETIC-ONLY'}):
+            store=Store(Path(folder)/'pilot.sqlite3')
+            transport=d.WalletTransport(manifest,wallet_balance=500,funding_confirmed=True,enabled=True,session=session)
+            pilot=d.Pilot(store,transport.ids,wallet_transport=transport)
+            pilot.fetch('get_game',transport.ids[0])
+            events=store.rows()
+            self.assertEqual(pilot.fetch('get_game',transport.ids[0]),box)
+            self.assertEqual(store.rows(),events)
+            self.assertEqual(session.post.call_count,1)
+            self.assertEqual(sum(r['payload']['cost'] for r in store.rows('dunk_attempt')),5)
+
+    def test_invalid_cached_wrapper_fails_without_replacement_or_new_charge(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store=Store(Path(folder)/'pilot.sqlite3')
+            response=Mock(status_code=200);response.iter_content.return_value=[b'{"data": null}']
+            transport=Mock(return_value=response)
+            pilot=d.Pilot(store,['100','101','102','103','104'],free_balance=500,test_transport=transport)
+            with self.assertRaises(ProviderError):pilot.fetch('get_game','100')
+            before=store.rows()
+            with self.assertRaises(ValueError):pilot.fetch('get_game','100')
+            self.assertEqual(store.rows(),before)
+            self.assertEqual(transport.call_count,1)
+            self.assertEqual(len(store.rows('dunk_response')),1)

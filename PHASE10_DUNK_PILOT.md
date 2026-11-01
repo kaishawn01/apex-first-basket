@@ -1,3 +1,69 @@
+## Verified get_game wrapper correction — 2026-11-01
+
+Owner-reported first real response for 401809243 has a `data` envelope containing
+`game`, `players`, integer `plays`, and optional odds/team statistics/win probability.
+The original private database is not accessible in Work. Owner reports one saved
+response, SHA-256 PASS, one 5-credit reservation, 27 players, five starters per team,
+and 595 reported plays. This is not evidence that 595 events were downloaded.
+
+Changes: endpoint-specific get_game normalization after exact raw-response storage;
+strict rejection of malformed, mixed and nested wrappers; legacy top-level synthetic
+fixtures retained. No generic get_plays unwrapping. The same normalization applies
+on cache hits, before any new reservation. Cache keys, raw bytes/hash, existing
+pilot registration, game manifest, budget and retry/pagination controls are unchanged.
+Shared historical box validation is reused by the event auditor and offline replay.
+
+`python phase10_dunk.py replay-local` reads the original fixed private database in
+SQLite URI mode=ro with query_only enabled. It checks database/hash-chain/raw checksums,
+reservation/request provenance, identity/matchup/date/final/regular-season status and
+historical starters. It prints only sanitized counts and checks. It creates no Store,
+transport, lease, report file or reservation; no API key is needed. PASS does not
+authorize or launch continuation. Native Windows ACL behavior and the owner's real
+cache require the local check; Linux fixtures cannot establish those results.
+
+Windows offline procedure (PowerShell, in the existing V3 Git checkout):
+
+1. Close any pilot process. Keep the original private directory intact. Never run
+   init-local again or delete/recreate pilot.sqlite3. Remove any process-local key:
+   `Remove-Item Env:DUNKAPI_API_KEY -ErrorAction SilentlyContinue`.
+2. Run `git branch --show-current` (must be v3/hybrid-monte-carlo) and
+   `git status --short`. If local edits are listed, stop and preserve them before
+   pulling. Otherwise `git pull --ff-only origin v3/hybrid-monte-carlo`.
+3. `.gitattributes` pins only the request JSON to LF on Windows. The manifest bytes
+   and hardcoded SHA-256 are unchanged; CRLF is rejected, never normalized by the
+   validator. If an existing clean checkout retains CRLF, force checkout of this
+   one tracked file: `git checkout-index --force -- validation/PHASE10_REQUEST_MANIFEST.json`.
+   Do this only after confirming no local/staged edits. Check:
+   `(Get-FileHash validation/PHASE10_REQUEST_MANIFEST.json -Algorithm SHA256).Hash.ToLower()`
+   must equal `c4309436dcae82adc9ee435f33a81acefa94385d32f9541b17a458428c72e905`.
+4. Using the Python environment that ran the pilot, run
+   `python -m unittest test_phase10 test_updater -q`, then
+   `python phase10_dunk.py replay-local`. No installation/key entry/live flags needed.
+5. Expect integrity PASS, one response, one reservation, reserved credits 5,
+   new requests/credits 0, game 401809243, starter counts [5,5], 27 player records,
+   reported plays 595. opening_events_validated and continuation_enabled remain false.
+   If anything differs or STOPPED appears, stop and share only the sanitized output.
+   Do not upload SQLite, raw responses, identity files, headers or credentials.
+
+Next stage is a separate reviewed local run, not part of these commands. It must use
+the same database and unchanged manifest. Cached get_game costs no additional five
+credits; the next approved uncached request is get_plays(401809243, limit=1000,
+offset=0), reserving ten. Remaining original requests total 70 credits (75 lifetime
+expected including the existing five); ceiling remains 100. Unknown get_plays shape
+or pagination stops execution with bytes/reservation retained, not automatically
+retried. No get_plays wrapper is inferred here. Existing wallet funding, no top-up,
+exclusive account use and secure local-key checks still apply. --confirm-wallet 500
+represents the originally authorized wallet baseline, not a claim that its current
+remaining balance is still 500. Provider debit is not independently measured.
+
+Validation: 73 Phase 10 tests + 11 updater tests pass locally (84 total), including
+wrapped and malformed payloads, read-only byte preservation, live-path synthetic
+cache reuse, failed wrapper retention and rejection of CRLF manifest bytes.
+Existing GitHub CI runs the full regression suite and Streamlit smoke on Python
+3.11/3.14 after branch publication; final run status is reported separately.
+No authenticated provider calls, raw-data publishing, model changes, deployment,
+scheduling or main-branch changes are part of this patch.
+
 # Phase 10 — opt-in Windows local CLI
 
 Default status remains offline. Existing ten-request wallet authorization persists. No authenticated requests executed from Work. The new run-local command can activate only on Windows outside CI after local preflight. No scheduling, model changes or PR merge.
