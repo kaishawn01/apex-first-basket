@@ -58,4 +58,36 @@ class LocalCandidateFixTests(unittest.TestCase):
         self.assertIn('observed_label_shape_conflict',result['blockers'])
         self.assertFalse(result['interpretation_validated'])
 
+
+    def test_second_batch_exact_labels_and_shapes(self):
+        self.assertEqual(
+            d._phase10_observed_label_class(
+                'Tip Shot', {'points_attempted': 2}),
+            'field_goal')
+        self.assertEqual(
+            d._phase10_observed_label_class(
+                'Offensive Foul Turnover', None),
+            'nonshot')
+        self.assertEqual(
+            d._phase10_observed_label_class(
+                'Tip Shot', None),
+            'conflict')
+        self.assertEqual(
+            d._phase10_observed_label_class(
+                'Shot Clock Turnover', {'points_attempted': 2}),
+            'conflict')
+        self.assertIsNone(
+            d._phase10_observed_label_class(
+                'UNKNOWN PROVIDER EVENT', None))
+
+    def test_second_batch_never_promotes_model(self):
+        self.payload['data']['plays'][0]['type'] = 'Offensive Foul Turnover'
+        self.payload['data']['plays'][2]['type'] = 'Putback Dunk Shot'
+        result = self.report()
+        self.assertNotIn('unreviewed_event_type', result['blockers'])
+        self.assertEqual(result['first_score']['status'], 'CANDIDATE_ONLY')
+        self.assertFalse(result['interpretation_validated'])
+        self.assertFalse(result['model_compatible'])
+        self.assertFalse(result['training_enabled'])
+
 if __name__ == '__main__': unittest.main()

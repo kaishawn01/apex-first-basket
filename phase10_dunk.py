@@ -755,6 +755,31 @@ def _phase10_observed_label_class(kind, shot):
                 and shot['points_attempted'] == 1):
             return 'free_throw'
         return 'conflict'
+    # Second observed batch: exact labels and shot shapes only.
+    # These do NOT verify actor roles or possession ownership.
+    extra_nonshot = {
+        'Offensive Foul Turnover', 'Shot Clock Turnover',
+        'Offensive Foul', 'Traveling',
+        'Back Court Turnover', 'End Game'
+    }
+    extra_field_goals = {
+        'Driving Finger Roll Layup', 'Running Jump Shot',
+        'Tip Shot', 'Floating Jump Shot', 'Running Layup Shot',
+        'Driving Dunk Shot', 'Running Dunk Shot',
+        'Turnaround Jump Shot', 'Layup Shot',
+        'Turnaround Hook Shot', 'Layup Shot Putback',
+        'Running Pullup Jump Shot', 'Hook Shot',
+        'Layup Driving Reverse', 'Jump Shot Bank',
+        'Finger Roll Layup', 'Pullup Bank Jump Shot',
+        'Dunk Shot', 'Putback Dunk Shot'
+    }
+    if kind in extra_nonshot:
+        return 'nonshot' if shot is None else 'conflict'
+    if kind in extra_field_goals:
+        return ('field_goal' if isinstance(shot, dict)
+                and type(shot.get('points_attempted')) is int
+                and shot['points_attempted'] in (2, 3)
+                else 'conflict')
     return None
 
 
