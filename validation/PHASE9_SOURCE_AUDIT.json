@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "reviewed_on": "2026-10-29",
+  "prior_audit": "validation/PHASE8_SOURCE_AUDIT.json",
+  "end_to_end_zero_new_cost_source_verified": false,
+  "datasets_downloaded": 0,
+  "historical_games_imported": 0,
+  "ranked_shortlist": [
+    {
+      "rank": 1,
+      "source": "Existing BALLDONTLIE entitlement",
+      "permission": "Published analytical use permission for lawfully obtained API data, subject to terms; not a grant for ESPN history",
+      "events": "Plays higher tier; 2025 onward",
+      "compatibility": "Conditional, native ID/event-role migration not implemented",
+      "reliability": "Best effort, not league-official",
+      "zero_new_cost": "Existing entitlement unverified; no upgrade",
+      "setup": "Read-only inspection first",
+      "cloud_retention_derived_use": "Published terms cover analytics/derived products; access and third-party restrictions remain",
+      "sources": [
+        "https://www.balldontlie.io/terms.html",
+        "https://www.balldontlie.io/account/",
+        "https://docs.balldontlie.io/"
+      ]
+    },
+    {
+      "rank": 2,
+      "source": "SportsDataIO permission/program inquiry",
+      "permission": "Free Discovery is personal/noncommercial; public-facing rights contract-specific",
+      "events": "NBA opening-event inclusion in no-cost access not established",
+      "compatibility": "Unverified; would require ID and event audit",
+      "history": "Prior-season offering; actual permitted event sample absent",
+      "reliability": "No live sample tested",
+      "zero_new_cost": "No qualifying grant verified",
+      "setup": "Unsent scoped inquiry, no signup/trial",
+      "cloud_retention_derived_use": "Written scope needed for intended cloud/public use",
+      "sources": [
+        "https://sportsdata.io/help/data-rights-and-licensing-questions",
+        "https://sportsdata.io/developers/api-documentation/nba"
+      ]
+    },
+    {
+      "rank": 3,
+      "source": "Independent owner-created observations",
+      "permission": "Must document independent provenance and applicable observation rights",
+      "events": "Possible future manually observed sequence, none supplied",
+      "compatibility": "Requires explicit identities/timestamps/event audit",
+      "history": "No existing qualifying dataset",
+      "reliability": "Independent review required",
+      "zero_new_cost": "Possible labor-only collection, not established dataset",
+      "setup": "High manual effort",
+      "cloud_retention_derived_use": "Must be documented per source; not inferred from ownership claim",
+      "sources": []
+    },
+    {
+      "rank": 4,
+      "source": "cdechoch/nba-data-archive",
+      "permission": "Apache-2.0 label; upstream authorization unresolved",
+      "events": "Publisher describes NBA play-by-play mirror",
+      "compatibility": "Unverified; no download or import",
+      "history": "Publisher describes 1996/97\u20132025/26",
+      "reliability": "No raw sample tested",
+      "zero_new_cost": "Public download is not rights clearance",
+      "setup": "Blocked pending provenance review",
+      "cloud_retention_derived_use": "Not established for underlying NBA/pbpstats sources",
+      "sources": [
+        "https://huggingface.co/datasets/cdechoch/nba-data-archive/blob/6bbd59b169c6d5ae9f3e48803145cd6b6ff39fa6/README.md"
+      ]
+    }
+  ],
+  "existing_data": {
+    "games": 1110,
+    "resolved_outcomes": 1106,
+    "training_candidate_games": 780,
+    "new_permission_established": false,
+    "uploaded": false,
+    "modified": false
+  },
+  "permission_inquiry_sent": false
+}

@@ -1,0 +1,74 @@
+{
+  "selector": "simple",
+  "half_life": 90,
+  "analytic_candidate": "simple:90",
+  "selector_promotion": false,
+  "validation_games": 342,
+  "candidates": [
+    {
+      "weight": 0,
+      "temperature": 0.8,
+      "log_loss": 2.374164287669894
+    },
+    {
+      "weight": 0,
+      "temperature": 1,
+      "log_loss": 2.3434291106386405
+    },
+    {
+      "weight": 0,
+      "temperature": 1.25,
+      "log_loss": 2.3259826105697936
+    },
+    {
+      "weight": 0.15,
+      "temperature": 0.8,
+      "log_loss": 2.36357761167249
+    },
+    {
+      "weight": 0.15,
+      "temperature": 1,
+      "log_loss": 2.336700285021733
+    },
+    {
+      "weight": 0.15,
+      "temperature": 1.25,
+      "log_loss": 2.3217955794169263
+    },
+    {
+      "weight": 0.35,
+      "temperature": 0.8,
+      "log_loss": 2.3532054058166763
+    },
+    {
+      "weight": 0.35,
+      "temperature": 1,
+      "log_loss": 2.3302949433437297
+    },
+    {
+      "weight": 0.35,
+      "temperature": 1.25,
+      "log_loss": 2.3179564570053994
+    },
+    {
+      "weight": 0.5,
+      "temperature": 0.8,
+      "log_loss": 2.347983465783836
+    },
+    {
+      "weight": 0.5,
+      "temperature": 1,
+      "log_loss": 2.3272186281971763
+    },
+    {
+      "weight": 0.5,
+      "temperature": 1.25,
+      "log_loss": 2.3162370250438635
+    }
+  ],
+  "weight": 0.5,
+  "temperature": 1.25,
+  "log_loss": 2.3162370250438635,
+  "baseline_temperature": 1.25,
+  "development_fingerprint": "afcce6d65c675c1b7c03d3263844c8cc545d6666935b63f96fc82a56df806879"
+}

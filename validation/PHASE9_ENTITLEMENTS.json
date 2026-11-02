@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "reviewed_on": "2026-10-29",
+  "actual_account": "unverified",
+  "credential_available": false,
+  "account_requests": 0,
+  "private_account_fields_included": false,
+  "previous_all_star_claim_verified": false,
+  "account_authentication": "Bearer key",
+  "nba_data_authentication": "raw key",
+  "documentation": [
+    "https://www.balldontlie.io/account/",
+    "https://docs.balldontlie.io/",
+    "https://www.balldontlie.io/terms.html"
+  ],
+  "coverage": [
+    {
+      "category": "games_schedule_status",
+      "endpoint": "/v1/games",
+      "documented_minimum": "Free",
+      "limitation": "Schedule/status; not event order",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "teams",
+      "endpoint": "/v1/teams",
+      "documented_minimum": "Free",
+      "limitation": "Identity only",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "player_identities",
+      "endpoint": "/v1/players",
+      "documented_minimum": "Free",
+      "limitation": "Listing is not current availability proof",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "active_players_current_membership",
+      "endpoint": "/v1/players/active",
+      "documented_minimum": "All-Star",
+      "limitation": "Cross-check current team; no starter claim",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "game_player_statistics",
+      "endpoint": "/v1/stats",
+      "documented_minimum": "All-Star",
+      "limitation": "Aggregates cannot reconstruct opening events",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "injuries",
+      "endpoint": "/v1/player_injuries",
+      "documented_minimum": "All-Star",
+      "limitation": "Absence of report does not prove healthy",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "historical_boxscores",
+      "endpoint": "/v1/box_scores",
+      "documented_minimum": "GOAT",
+      "limitation": "Observed players are not pregame evidence",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "advanced_statistics",
+      "endpoint": "/v1/stats/advanced",
+      "documented_minimum": "GOAT",
+      "limitation": "Not required for frozen model",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "starting_lineups",
+      "endpoint": "/v1/lineups",
+      "documented_minimum": "GOAT",
+      "limitation": "2025 season onward; only after game begins",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "play_by_play",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "2025 season onward; completeness untested",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "opening_jump_and_possession",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "Conditional on explicit participant/team roles",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "first_attempted_field_goal",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "Separate from first successful attempt",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "first_made_field_goal",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "Separate from first points",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "first_points_and_opening_free_throws",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "Preserve free throws and unknown identities",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "early_substitutions",
+      "endpoint": "/v1/plays",
+      "documented_minimum": "GOAT",
+      "limitation": "Only if explicitly represented",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    },
+    {
+      "category": "historical_depth",
+      "endpoint": "multiple",
+      "documented_minimum": "varies",
+      "limitation": "General game coverage is not event coverage",
+      "current_account_access": "unverified",
+      "paid_access_enabled": false
+    }
+  ],
+  "pretip_lineup_endpoint_supported": false,
+  "documented_rates_per_minute": {
+    "Free": 5,
+    "All-Star": 60,
+    "GOAT": 600
+  },
+  "billing_or_overage_settings_verified": false,
+  "new_spending_authorized": 0
+}

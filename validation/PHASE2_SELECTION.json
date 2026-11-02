@@ -1,0 +1,130 @@
+{
+  "weight": 0.5,
+  "temperature": 1.25,
+  "validation_games": 193,
+  "validation_dates": 26,
+  "calibration_sample_minimum_met": true,
+  "candidates": [
+    {
+      "Weight": 0,
+      "Temperature": 0.8,
+      "Evaluated games": 193,
+      "Top-1 hit %": 11.398963730569948,
+      "Top-3 hit %": 30.310880829015545,
+      "Log loss": 2.4369038023838603,
+      "Brier": 0.9264581722279885,
+      "Calibration ECE pp": 4.037466039290675
+    },
+    {
+      "Weight": 0,
+      "Temperature": 1,
+      "Evaluated games": 193,
+      "Top-1 hit %": 11.398963730569948,
+      "Top-3 hit %": 30.310880829015545,
+      "Log loss": 2.390218299159874,
+      "Brier": 0.9173066238806378,
+      "Calibration ECE pp": 3.2014690614550285
+    },
+    {
+      "Weight": 0,
+      "Temperature": 1.25,
+      "Evaluated games": 193,
+      "Top-1 hit %": 11.398963730569948,
+      "Top-3 hit %": 30.310880829015545,
+      "Log loss": 2.359628063472581,
+      "Brier": 0.9113124640949773,
+      "Calibration ECE pp": 2.6808322877773394
+    },
+    {
+      "Weight": 0.15,
+      "Temperature": 0.8,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.4322977476662313,
+      "Brier": 0.9259076476680346,
+      "Calibration ECE pp": 3.8390262691589836
+    },
+    {
+      "Weight": 0.15,
+      "Temperature": 1,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.3873674587375406,
+      "Brier": 0.9169597540254478,
+      "Calibration ECE pp": 3.1878075676488824
+    },
+    {
+      "Weight": 0.15,
+      "Temperature": 1.25,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.357935697134021,
+      "Brier": 0.9111052422294984,
+      "Calibration ECE pp": 2.7690089147455472
+    },
+    {
+      "Weight": 0.35,
+      "Temperature": 0.8,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.4283161347111655,
+      "Brier": 0.9255373135435416,
+      "Calibration ECE pp": 3.7145034295616983
+    },
+    {
+      "Weight": 0.35,
+      "Temperature": 1,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.384993046513202,
+      "Brier": 0.9167420108237776,
+      "Calibration ECE pp": 3.1520201197772364
+    },
+    {
+      "Weight": 0.35,
+      "Temperature": 1.25,
+      "Evaluated games": 193,
+      "Top-1 hit %": 10.362694300518134,
+      "Top-3 hit %": 29.533678756476682,
+      "Log loss": 2.3566080429238623,
+      "Brier": 0.9109916863786017,
+      "Calibration ECE pp": 2.688868368927659
+    },
+    {
+      "Weight": 0.5,
+      "Temperature": 0.8,
+      "Evaluated games": 193,
+      "Top-1 hit %": 8.808290155440414,
+      "Top-3 hit %": 29.015544041450777,
+      "Log loss": 2.4268494691817226,
+      "Brier": 0.9255373562983066,
+      "Calibration ECE pp": 3.7778206167195405
+    },
+    {
+      "Weight": 0.5,
+      "Temperature": 1,
+      "Evaluated games": 193,
+      "Top-1 hit %": 8.808290155440414,
+      "Top-3 hit %": 29.015544041450777,
+      "Log loss": 2.384204219141274,
+      "Brier": 0.9167622658764623,
+      "Calibration ECE pp": 3.165031087781106
+    },
+    {
+      "Weight": 0.5,
+      "Temperature": 1.25,
+      "Evaluated games": 193,
+      "Top-1 hit %": 8.808290155440414,
+      "Top-3 hit %": 29.015544041450777,
+      "Log loss": 2.3562513170993835,
+      "Brier": 0.911026535383154,
+      "Calibration ECE pp": 2.72400058811829
+    }
+  ],
+  "selection_metric": "validation log loss"
+}

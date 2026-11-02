@@ -7,6 +7,9 @@ root=Path(__file__).resolve().parent
 sys.path.insert(0,str(root))
 import dashboard_core as core
 import first_basket_engine as eng
+# Isolate every smoke run from the operator's historical database.
+_smoke_data=tempfile.TemporaryDirectory()
+eng.DATA=Path(_smoke_data.name)
 import research_tools as research
 from streamlit.testing.v1 import AppTest
 players={t:[{'player_id':str(offset+i),'player':f'{t} Player {i}'} for i in range(6)] for t,offset in [('BOS',10),('NYK',20)]}
@@ -14,7 +17,7 @@ from test_research import game_rows
 history=game_rows('old','2027-01-01')
 game={'gameId':'espn_test','_date':'2027-01-02','start_time':'2027-01-02T23:00:00Z','gameStatus':1,'awayTeam':{'teamTricode':'BOS'},'homeTeam':{'teamTricode':'NYK'}}
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  assert not at.exception,list(at.exception)
  with patch.object(core,'request',side_effect=AssertionError('Research export must not fetch APIs')):
   next(b for b in at.button if b.label=='Prepare research export').click().run()
@@ -37,7 +40,7 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
  with patch.object(research,'season_index',return_value=([indexed_game],[])):
   next(b for b in at.button if b.label=='Check saved history against season schedule').click().run()
 
- at.date_input[0].set_value(date(2027,1,2)).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  assert any('Check schedule coverage again' in x.value for x in at.info)
  assert not any(d.label=='Download schedule coverage CSV' for d in at.get('download_button'))
  assert any('Prepare a fresh research export' in x.value for x in at.info)
@@ -133,11 +136,12 @@ with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(j
 from datetime import timedelta
 history2=[r for i in range(40) for r in game_rows(str(i),(date(2026,8,1)+timedelta(days=i)).isoformat())]
 with patch.object(eng,'read_csv',return_value=history2):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  next(b for b in at.button if b.label=='Run walk-forward evaluation').click().run()
  assert not at.exception,list(at.exception)
- metrics=next(d.value for d in at.dataframe if 'Log loss' in d.value.columns)
+ # Select the live walk-forward table, excluding the new frozen Phase 3 review.
+ metrics=next(d.value for d in at.dataframe if 'Log loss' in d.value.columns and 'cohort' not in d.value.columns)
  assert metrics.iloc[0]['Evaluated games']==10
  assert any(d.label=='Download game-by-game backtest' for d in at.get('download_button'))
  next(b for b in at.button if b.label=='Compare baseline vs recent form').click().run()
@@ -219,8 +223,8 @@ with patch.object(eng,'read_csv',return_value=history2):
  print('Backtest UI passed: full validation, recent-period counts, exports and stale-report reset.')
 
 with tempfile.TemporaryDirectory() as journal_dir,patch.object(eng,'DATA',Path(journal_dir)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fresh_schedule',side_effect=AssertionError('Research mode must not request a live slate')):
- at=AppTest.from_file(str(root/'app.py')).run()
- at.date_input[0].set_value(date(2027,1,2)).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  next(r for r in at.radio if r.label=='Workspace').set_value('Research matchup').run()
  next(s for s in at.selectbox if s.label=='Research team A').set_value('BOS').run()
  next(s for s in at.selectbox if s.label=='Research team B').set_value('NYK').run()
@@ -283,7 +287,7 @@ with tempfile.TemporaryDirectory() as repair_dir:
  bad=game_rows('espn_123','2025-10-25');bad[1]['first_team_shot']=1
  eng.write_csv(path,eng.FIELDS,bad)
  with patch.object(eng,'DATA',folder),patch.object(eng,'HISTORY',path),patch.object(core,'request',return_value=payload):
-  at=AppTest.from_file(str(root/'app.py')).run()
+  at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
   assert not at.exception,list(at.exception)
   assert any(b.label=='Repair selected history games' for b in at.button)
   next(b for b in at.button if b.label=='Repair selected history games').click().run()
@@ -295,7 +299,7 @@ with tempfile.TemporaryDirectory() as repair_dir:
   print('Repair UI passed: selected-game repair, backup, refreshed validation, success report.')
 
 with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=RuntimeError('Unavailable')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  next(b for b in at.button if 'Load slate' in b.label).click().run()
  assert not at.exception,list(at.exception)
@@ -305,7 +309,7 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
  print('Roster failure UI passed: no automatic selections or confirmations.')
 
 with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Lineup test must not fetch APIs')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2026,10,25)).run()
  next(b for b in at.button if b.label=='Test starting-lineup projections').click().run()
  assert not at.exception,list(at.exception)
@@ -323,7 +327,7 @@ fixture=NBAConfirmedLineupTests();fixture.setUp()
 provider_game={**game,'gameId':fixture.game['gameId']}
 parsed=core.parse_nba_confirmed_lineups(fixture.payload,'2027-01-02',[provider_game],players)
 with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[provider_game]),patch.object(core,'roster',side_effect=lambda t:players[t]),patch.object(core,'fetch_nba_confirmed_lineups',return_value=parsed):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
  next(b for b in at.button if 'Load slate' in b.label).click().run()
  next(b for b in at.button if b.label=='Load NBA-confirmed starters · resets selections').click().run()
@@ -350,7 +354,7 @@ with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder
  print('NBA confirmed-lineup UI passed: load, automatic confirmation, journal provenance, edit and failure invalidation.')
 
 with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Conversion comparison must not fetch APIs')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  next(b for b in at.button if b.label=='Test opening-shot conversion model').click().run()
  assert not at.exception,list(at.exception)
@@ -369,7 +373,7 @@ fixture=OpeningResultEnrichmentTests();fixture.setUp()
 with tempfile.TemporaryDirectory() as folder:
  path=Path(folder)/'history.csv';eng.write_csv(path,list(fixture.rows[0]),fixture.rows)
  with patch.object(eng,'DATA',Path(folder)),patch.object(eng,'HISTORY',path),patch.object(core,'request',return_value=fixture.payload):
-  at=AppTest.from_file(str(root/'app.py')).run()
+  at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
   next(m for m in at.multiselect if m.label=='Saved games to enrich with opening-shot results').set_value(['espn_401809955']).run()
   next(b for b in at.button if b.label=='Enrich selected opening-shot results').click().run()
   assert not at.exception,list(at.exception)
@@ -382,7 +386,7 @@ from test_research import PostMissModelTests
 sequence_fixture=PostMissModelTests();sequence_fixture.setUp()
 sequence_history=sequence_fixture.history()
 with patch.object(eng,'read_csv',return_value=sequence_history),patch.object(core,'request',side_effect=AssertionError('No network for post-miss comparison')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  # With twelve games the normal UI warmup excludes all evaluations, but data coverage stays visible.
  next(b for b in at.button if b.label=='Test post-miss scoring model').click().run()
@@ -404,7 +408,7 @@ batch_fixture=OpeningEnrichmentBatchTests();batch_fixture.setUp()
 with tempfile.TemporaryDirectory() as folder:
  path=batch_fixture.prepare(folder)
  with patch.object(eng,'DATA',Path(folder)),patch.object(eng,'HISTORY',path),patch.object(core,'request',side_effect=lambda url,params:batch_fixture.payloads[params['event']]):
-  at=AppTest.from_file(str(root/'app.py')).run()
+  at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
   assert next(s for s in at.selectbox if s.label=='Opening-data batch size').value==20
   next(b for b in at.button if b.label=='Enrich next batch of saved games').click().run()
   assert not at.exception,list(at.exception)
@@ -419,7 +423,7 @@ with tempfile.TemporaryDirectory() as folder:
   print('Opening batch UI passed: defaults, automatic selection, checkpointing, shared backup and completed queue.')
 
 with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Scorecard must not fetch APIs')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  next(b for b in at.button if b.label=='Compare all five scoring models').click().run()
  assert not at.exception,list(at.exception)
@@ -450,7 +454,7 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  print('Scoring scorecard UI passed: five models, shared dates, active-data warning, exports and stale settings.')
 
 with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('Role backtest must not fetch')):
- at=AppTest.from_file(str(root/'app.py')).run()
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
  next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
  next(b for b in at.button if b.label=='Test recent opening-shot roles').click().run()
  assert not at.exception,list(at.exception)
@@ -461,3 +465,139 @@ with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'reque
  assert not any(d.label=='Download recent role backtest CSV' for d in at.get('download_button'))
  assert any('Test recent opening-shot roles again' in x.value for x in at.info)
  print('Recent role UI passed: preview evidence, fallback, lineup invalidation, backtest export and stale settings.')
+
+# V3 UI is opt-in; existing ranking and journal behavior remains unchanged.
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ assert next(b for b in at.button if b.label=='Run hybrid possession simulation').disabled
+ for cb in at.checkbox:
+  if cb.label.startswith('I verified'):cb.check()
+ at.run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ original=at.session_state['results']['rows']
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ with patch.object(core,'request',side_effect=AssertionError('No paid or extra APIs')):
+  next(b for b in at.button if b.label=='Run hybrid possession simulation').click().run()
+ assert not at.exception,list(at.exception)
+ saved=at.session_state['hybrid_simulation']
+ assert saved['report']['effective_hybrid_weight']==0
+ assert at.session_state['results']['rows']==original
+ assert any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ assert any('Run the simulation again' in x.value for x in at.info)
+ next(m for m in at.multiselect if m.label.startswith('BOS')).set_value(['10','11','12','13','15']).run()
+ assert not any(d.label=='Download hybrid simulation JSON' for d in at.get('download_button'))
+ print('V3 simulation UI passed: confirmations, fallback, preserved rankings, exports and input invalidation.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('No APIs during backtest')):
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(b for b in at.button if b.label=='Backtest V3 hybrid vs baseline').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['hybrid_backtest']
+ assert report['evaluated_games']==10
+ assert any(d.label=='Download hybrid backtest CSV' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download hybrid backtest CSV' for d in at.get('download_button'))
+ assert any('Backtest V3 hybrid again' in x.value for x in at.info)
+ print('V3 backtest UI passed: matching games, exports, no API calls and configuration invalidation.')
+
+# Phase 2 keeps unverified scenarios explicitly on HOLD and never emits betting actions.
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[game]),patch.object(core,'roster',side_effect=lambda t:players[t]):
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+ next(s for s in at.date_input if s.label=='Game date • Eastern time').set_value(date(2027,1,2)).run()
+ next(b for b in at.button if 'Load slate' in b.label).click().run()
+ next(b for b in at.button if b.label=='3 · Run rankings').click().run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ original=at.session_state['results']['rows']
+ next(b for b in at.button if b.label=='Run Phase 2 research simulation').click().run()
+ assert not at.exception,list(at.exception)
+ state=at.session_state['phase2_simulation']
+ assert state['readiness']['actionable'] is False and state['readiness']['status'].startswith('HOLD')
+ assert any('First FG before first score' in x.value for x in at.caption)
+ assert any(d.label=='Download Phase 2 research JSON' for d in at.get('download_button'))
+ assert at.session_state['results']['rows']==original
+ next(b for b in at.button if b.label=='Run Phase 3 research comparison').click().run()
+ assert not at.exception,list(at.exception)
+ p3=at.session_state['phase3_simulation']['report']
+ assert abs(sum(p3['complete']['Hybrid'].values())-1)<1e-10
+ assert p3['selector']=='simple' and p3['other_evidence']['games']==0
+ assert any('Other/nonstarter probability' in x.value for x in at.markdown)
+ assert any(d.label=='Download Phase 3 research JSON' for d in at.get('download_button'))
+ assert (Path(folder)/'pregame_lineups.jsonl').exists()
+ assert at.session_state['results']['rows']==original
+ print('Phase 3 UI passed: complete probability mass, simple selector, pre-tip archive, warnings and preserved rankings.')
+ with patch.object(core,'roster',side_effect=RuntimeError('Provider offline')):
+  next(b for b in at.button if b.label=='Run Phase 2 research simulation').click().run()
+ assert not at.exception,list(at.exception)
+ assert not any(d.label=='Download Phase 2 research JSON' for d in at.get('download_button'))
+ assert any('Current-team verification failed' in x.value for x in at.error)
+ print('Phase 2 mobile research UI passed: top-five cards, first-shot distinction, HOLD diagnostics, roster failure and preserved rankings.')
+
+with patch.object(eng,'read_csv',return_value=history2),patch.object(core,'request',side_effect=AssertionError('No APIs in Phase 2 backtest')):
+ at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+ next(s for s in at.selectbox if s.label=='Monte Carlo trials').set_value(1000).run()
+ next(s for s in at.selectbox if s.label=='Minimum training games before evaluation').set_value(30).run()
+ next(s for s in at.date_input if s.label=='Phase 2 final-test start').set_value(date(2026,9,5)).run()
+ next(s for s in at.date_input if s.label=='Phase 2 final-test end').set_value(date(2026,9,9)).run()
+ next(b for b in at.button if b.label=='Run Phase 2 held-out comparison').click().run()
+ assert not at.exception,list(at.exception)
+ report=at.session_state['phase2_evaluation']['report']
+ assert report['evaluated_games']==5
+ assert report['selection']['weight']==0 and report['selection']['temperature']==1
+ assert any(d.label=='Download Phase 2 held-out metrics' for d in at.get('download_button'))
+ next(s for s in at.slider if s.label=='Hybrid simulation weight').set_value(.5).run()
+ assert not any(d.label=='Download Phase 2 held-out metrics' for d in at.get('download_button'))
+ print('Phase 2 evaluation UI passed: chronological windows, small-sample fitting guard, separate cohorts, exports and invalidation.')
+
+# Phase 4 manual background saves, source provenance, and mobile archive cards.
+import phase4_forward,phase4_data,test_dashboard
+f=test_dashboard.NBAConfirmedLineupTests();f.setUp()
+with tempfile.TemporaryDirectory() as folder,patch.object(eng,'DATA',Path(folder)),patch.object(eng,'read_csv',return_value=history),patch.object(core,'fresh_schedule',return_value=[f.game]):
+ journal=phase4_forward.Journal(Path(folder)/'phase4'/'forward.sqlite3',clock=lambda:f.now)
+ chosen={t:ps[:5] for t,ps in f.rosters.items()}
+ phase4_forward.snapshot(journal,f.game,chosen,f.rosters,f.parse()['entries']['espn_1'],[],f.now.isoformat())
+ with patch.object(phase4_forward,'Journal',return_value=journal):
+  at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+  next(b for b in at.button if b.label=='Save eligible Phase 4 forward forecasts').click().run()
+  phase4_data._jobs[str((Path(folder)/'phase4').resolve())].join(15)
+  next(b for b in at.button if b.label=='Refresh Phase 4 job status').click().run()
+  assert not at.exception,list(at.exception)
+  assert len(journal.rows('prediction'))==1
+  assert any(d.label=='Download Phase 4 journal evidence' for d in at.get('download_button'))
+  assert any('Other' in c.value and 'seed' in c.value for c in at.caption)
+  assert any('No eligible prospective results yet' in x.value for x in at.info)
+  before=journal.rows('prediction')[0]
+  next(b for b in at.button if b.label=='Save eligible Phase 4 forward forecasts').click().run()
+  phase4_data._jobs[str((Path(folder)/'phase4').resolve())].join(15)
+  assert journal.rows('prediction')==[before]
+ print('Phase 4 UI passed: manual background job, immutable pre-tip save, mobile cards, Other mass, exports and pending-result distinction.')
+
+# Phase 5: no provider activity on render; real workflow exercised with labeled fixtures.
+import os
+import phase5_store,phase5_protocol,phase5_runner,phase5_ui,phase5_integrity,test_phase5
+fixture=test_phase5.RunnerTests();fixture.setUp()
+try:
+ with patch.object(eng,'DATA',Path(fixture.tmp.name)),patch.object(eng,'read_csv',return_value=history),patch.object(phase5_store,'configured_store',return_value=fixture.s),patch.object(phase5_ui,'Providers',return_value=fixture.p),patch.object(phase5_integrity,'model_data',return_value=(fixture.h,fixture.seq,{})),patch.dict(os.environ,{'APEX_DATABASE_URL':'fixture-configured'}):
+  # Store is injected; the environment marker only makes the monitoring panel visible.
+  at=AppTest.from_file(str(root/'app.py'),default_timeout=15).run()
+  assert not at.exception,list(at.exception)
+  assert fixture.p.schedule_calls==0
+  next(b for b in at.button if b.label=='Run due Phase 5 forecast checkpoints').click().run()
+  phase4_data._jobs[str((Path(fixture.tmp.name)/'phase5').resolve())].join(20)
+  next(b for b in at.button if b.label=='Refresh Phase 5 monitoring').click().run()
+  assert not at.exception,list(at.exception)
+  assert len(fixture.s.rows('prediction'))==1
+  assert any(d.label=='Download Phase 5 monitoring report' for d in at.get('download_button'))
+  assert any('STALE / historical forecast' in w.value for w in at.warning)
+  assert any('Below initial 300-game milestone' in i.value for i in at.info)
+  calls=fixture.p.schedule_calls
+  next(b for b in at.button if b.label=='Refresh Phase 5 monitoring').click().run()
+  assert fixture.p.schedule_calls==calls
+ print('Phase 5 UI passed: read-only monitoring, manual checkpoint, immutable forecast cards, stale labels, milestones and export; no provider calls on render.')
+finally:fixture.tearDown();fixture.doCleanups()

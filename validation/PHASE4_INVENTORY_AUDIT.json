@@ -1,0 +1,176 @@
+{
+  "reason": "Final inventory found eight prior cached games absent from the Phase 4 SQLite ledger despite the seed log reporting 690. Cause not established. Original caches intact. Restored by insert-only import; original frozen evaluation retained, not rerun or relabeled.",
+  "missing_before_reconciliation": [
+    "espn_401810474",
+    "espn_401810475",
+    "espn_401810476",
+    "espn_401810477",
+    "espn_401810478",
+    "espn_401810479",
+    "espn_401810480",
+    "espn_401810481"
+  ],
+  "frozen_evaluation_games_in_ledger": 1102,
+  "additional_games_vs_phase3": 420,
+  "reconciled_coverage": {
+    "games": 1110,
+    "outcomes": {
+      "starter": 1106,
+      "ambiguous": 4
+    },
+    "free_throw_first_scores": 100,
+    "without_ten_valid_starters": 4,
+    "warnings": [
+      {
+        "game": "espn_401704718",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401704777",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810032",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810126",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810144",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810150",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810169",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810184",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810200",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810216",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810344",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810358",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810372",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810401",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810458",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810469",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810559",
+        "reasons": [
+          "Opening event clock order conflict"
+        ]
+      },
+      {
+        "game": "espn_401810560",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810577",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810591",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810607",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      },
+      {
+        "game": "espn_401810617",
+        "reasons": [
+          "Boxscore player identity missing"
+        ]
+      }
+    ],
+    "usable_opening_sequences": 1106,
+    "explicit_tips": 1071,
+    "seasons": {
+      "2024": 103,
+      "2025": 225,
+      "2026": 729,
+      "2027": 53
+    },
+    "failures": [],
+    "last_collection": {
+      "added": 73,
+      "attempted": 73,
+      "end": "2026-02-10",
+      "finished_at": "2026-10-28T20:17:42.345551+00:00",
+      "remaining": 0,
+      "scheduled_completed": 73,
+      "start": "2026-02-01"
+    }
+  }
+}

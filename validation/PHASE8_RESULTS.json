@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "version": "3.0.7",
+  "reviewed_on": "2026-10-29",
+  "status": "Implementation and synthetic cloud validation passed; genuine forecast blocked",
+  "prior_head": "c68a5f4197382a81ad30e640ac96a097cf32a2bb",
+  "production_sha": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "production_version": "2.44.0",
+  "model_protocol": "apex-v3.0.6-live-01",
+  "model_weights_changed": false,
+  "frozen_model_hashes_match": true,
+  "existing_phase7_sources_changed": false,
+  "source_candidates_reviewed": 13,
+  "end_to_end_source_verified": false,
+  "new_historical_games": 0,
+  "genuine_forecasts": 0,
+  "genuine_outcomes": 0,
+  "live_sports_api_requests": 0,
+  "account_inspection_requests": 0,
+  "credentials_available": false,
+  "new_services_or_paid_trials": 0,
+  "scheduler_enabled": false,
+  "dispatcher_changed": false,
+  "local_tests": {
+    "total": 580,
+    "passed": 572,
+    "skipped_postgres": 8,
+    "new_phase8_tests": 26,
+    "seconds": 5.766,
+    "python": "3.12.14",
+    "streamlit_smoke": "passed"
+  },
+  "cloud_fixture": {
+    "status": "success",
+    "genuine": false,
+    "run": 40908949521,
+    "jobs": [
+      {
+        "id": 123571322203,
+        "name": "forecast",
+        "conclusion": "success",
+        "seconds": 26
+      },
+      {
+        "id": 123571617793,
+        "name": "reconcile",
+        "conclusion": "success",
+        "seconds": 30
+      },
+      {
+        "id": 123571948209,
+        "name": "verify",
+        "conclusion": "success",
+        "seconds": 32
+      }
+    ],
+    "runner_seconds": 88,
+    "forecasts": 1,
+    "outcomes": 1,
+    "archive_path": "fixtures/69aacf22d699b0436c026fc72885f8a76957c0d6/journal.json",
+    "journal_head": "28e3efa780c9c312ffbc3ade987c7a0f020dc4bf605e94b804f7747b8607bfa0",
+    "model_protocol_hash": "37d4144e8e5483c08c652be0032c8cae9a6036eb7238085f8e9b98a7b0e07134",
+    "prediction_hash": "032ca457240830d5201676c941edaf39f7fdc2b086015b655ff728ba37cde1fe",
+    "prediction_timestamp": "2027-01-02T21:00:00+00:00",
+    "same_prediction_hash_as_phase7_fixture": true,
+    "remote_receipts": {
+      "032ca457240830d5201676c941edaf39f7fdc2b086015b655ff728ba37cde1fe": {
+        "commit": "96ba78370529b093947b32a308fff6dd82e3ec16",
+        "committed_at": "2026-10-29T16:10:55Z",
+        "verified_remote_at": "2026-10-29T16:10:58.136185+00:00"
+      }
+    },
+    "independent_runner_read_and_dashboard_verified": true
+  },
+  "ci": {
+    "status": "success",
+    "python": [
+      "3.11",
+      "3.14"
+    ],
+    "postgres": "enabled in GitHub CI",
+    "runs": [
+      {
+        "id": 40908959780,
+        "name": "APEX regression tests",
+        "jobs": [
+          {
+            "id": 123571355892,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "seconds": 70
+          },
+          {
+            "id": 123571356269,
+            "name": "test (3.14)",
+            "conclusion": "success",
+            "seconds": 62
+          }
+        ]
+      },
+      {
+        "id": 40908949696,
+        "name": "APEX regression tests",
+        "jobs": [
+          {
+            "id": 123571322022,
+            "name": "test (3.14)",
+            "conclusion": "success",
+            "seconds": 77
+          },
+          {
+            "id": 123571323038,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "seconds": 72
+          }
+        ]
+      }
+    ]
+  },
+  "resolved": [
+    "Identified BDL published analytical-use permission",
+    "Added free-only read-only access diagnostics",
+    "Documented minimum model and genuine-archive inputs"
+  ],
+  "blockers": [
+    "No approved compatible historical event dataset",
+    "No secure credential/account entitlement inspection",
+    "No validated BDL-to-existing-model identity/event migration",
+    "No actual pre-tip game or remote live receipt",
+    "No approved dispatcher installation or public deployment"
+  ],
+  "limitations": [
+    "General player listing is not active roster confirmation",
+    "Synthetic workflow is not prospective performance",
+    "Earlier eight-game discrepancy cause remains unresolved",
+    "Source coverage and permission review must precede a live run"
+  ],
+  "preserved_phase7_training_audit": {
+    "cutoff_exclusive": "2026-10-28",
+    "window_records": 782,
+    "usable_training_games": 780,
+    "rows": 7800,
+    "usable_sequences": 780,
+    "ambiguous_retained": 2,
+    "published": false
+  },
+  "prospective_accuracy": null,
+  "next_recommendation": "Resolve permitted opening-event history and inspect existing BDL entitlement securely; no further model complexity or paid activation.",
+  "implementation_commit": "69aacf22d699b0436c026fc72885f8a76957c0d6",
+  "existing_ledger_read_only_check": {
+    "sqlite_integrity": "ok",
+    "games": 1110,
+    "resolved_first_scores": 1106
+  }
+}

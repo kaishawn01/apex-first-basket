@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "pilot_id": "phase10-five-games",
+  "prepared_on": "2026-11-01",
+  "cutoff_exclusive": "2026-11-01",
+  "window_days": 400,
+  "status": "AUTHORIZED; BLOCKED: credential unavailable, transport disabled",
+  "live_authorized": true,
+  "expected_credits": 75,
+  "lifetime_cap": 100,
+  "lookups_authorized": false,
+  "automatic_retries": false,
+  "host": "https://mcp.dunkapi.com/v1/",
+  "games": [
+    {
+      "game_id": "401809243",
+      "date": "2025-10-21",
+      "away": "HOU",
+      "home": "OKC",
+      "selection_reason": "double overtime; long-game completeness",
+      "identity_evidence": "DunkAPI published example; response identity must match before plays request",
+      "opening_event_coverage": "unverified"
+    },
+    {
+      "game_id": "401809236",
+      "date": "2025-10-23",
+      "away": "OKC",
+      "home": "IND",
+      "selection_reason": "double overtime; FT-heavy game; opening FT unverified",
+      "identity_evidence": "DunkAPI published example; response identity must match before plays request",
+      "opening_event_coverage": "unverified"
+    },
+    {
+      "game_id": "401809943",
+      "date": "2025-10-24",
+      "away": "ATL",
+      "home": "ORL",
+      "selection_reason": "different teams; opening-event coverage unverified",
+      "identity_evidence": "DunkAPI published example; response identity must match before plays request",
+      "opening_event_coverage": "unverified"
+    },
+    {
+      "game_id": "401809956",
+      "date": "2025-10-25",
+      "away": "OKC",
+      "home": "ATL",
+      "selection_reason": "shared-player identity consistency",
+      "identity_evidence": "DunkAPI published example; response identity must match before plays request",
+      "opening_event_coverage": "unverified"
+    },
+    {
+      "game_id": "401809970",
+      "date": "2025-10-27",
+      "away": "ATL",
+      "home": "CHI",
+      "selection_reason": "shared-player identity and different opponent",
+      "identity_evidence": "DunkAPI published example; response identity must match before plays request",
+      "opening_event_coverage": "unverified"
+    }
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "endpoint": "get_game",
+      "body": {
+        "game_id": "401809243"
+      },
+      "credits_reserved_before_request": 5
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_plays",
+      "body": {
+        "game_id": "401809243",
+        "limit": 1000,
+        "offset": 0
+      },
+      "credits_reserved_before_request": 10
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_game",
+      "body": {
+        "game_id": "401809236"
+      },
+      "credits_reserved_before_request": 5
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_plays",
+      "body": {
+        "game_id": "401809236",
+        "limit": 1000,
+        "offset": 0
+      },
+      "credits_reserved_before_request": 10
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_game",
+      "body": {
+        "game_id": "401809943"
+      },
+      "credits_reserved_before_request": 5
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_plays",
+      "body": {
+        "game_id": "401809943",
+        "limit": 1000,
+        "offset": 0
+      },
+      "credits_reserved_before_request": 10
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_game",
+      "body": {
+        "game_id": "401809956"
+      },
+      "credits_reserved_before_request": 5
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_plays",
+      "body": {
+        "game_id": "401809956",
+        "limit": 1000,
+        "offset": 0
+      },
+      "credits_reserved_before_request": 10
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_game",
+      "body": {
+        "game_id": "401809970"
+      },
+      "credits_reserved_before_request": 5
+    },
+    {
+      "method": "POST",
+      "endpoint": "get_plays",
+      "body": {
+        "game_id": "401809970",
+        "limit": 1000,
+        "offset": 0
+      },
+      "credits_reserved_before_request": 10
+    }
+  ],
+  "id_sources": [
+    "https://dunkapi.com/guides/nba-points-prop-history-python",
+    "https://dunkapi.com/guides/nba-steals-prop-history-python"
+  ],
+  "funding_source": "existing_wallet",
+  "pagination_authorized": false
+}

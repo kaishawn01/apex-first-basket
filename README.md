@@ -1,3 +1,69 @@
+APEX development V3.0.7 — Phase 8: data-access diagnostics. No live activation; production remains V2.44. See PHASE8_DATA_ACCESS.md and PHASE8_LIVE_OPERATIONS.md.
+
+APEX V3.0.6 Phase 7 — controlled live readiness; source permissions unresolved
+
+No live scheduling, public dashboard or paid service is enabled. Read PHASE7_LIVE.md and V3_REVIEW.md. V2.44 remains unchanged.
+
+APEX V3.0.5 Phase 6 — development research only
+
+Cloud fixture workflow and repository-native archive are prepared on the V3 branch. Live schedules and mobile deployment remain disabled. Read PHASE6_CLOUD.md and V3_REVIEW.md. V2.44 production is unchanged.
+
+## V3.0.4 Phase 5 development preview
+
+Draft PR #1 remains on `v3/hybrid-monte-carlo`; V2.44 production is unchanged. Phase 5 adds transaction receipts/reconciliation, provider evidence diagnostics, scheduled-checkpoint code, a PostgreSQL adapter, immutable successive forecasts, separate grading and a frozen prospective protocol. **No live scheduler or cloud database is configured.** See [PHASE5_OPERATIONS.md](PHASE5_OPERATIONS.md) for setup and [V3_REVIEW.md](V3_REVIEW.md) for actual observations, recovery incidents and validation limits. Do not merge/deploy this preview without an explicit decision.
+
+## V3.0.3 Phase 4 development preview
+
+Continue on `v3/hybrid-monte-carlo`, draft PR #1. Production stays V2.44; do not merge/deploy this preview. Phase 4 adds bounded historical collection, an append-only pre-tip evidence/forecast journal, manual background jobs, prospective grading and mobile research comparisons. See [V3_REVIEW.md](V3_REVIEW.md) for actual counts, reserved evaluation, January diagnostics and limitations. No unattended monitoring is configured. No validated betting edge is claimed.
+
+Manual CLI: `python phase4_forward.py capture`, then `python phase4_forward.py predict` within five minutes and before tip-off; after games finish use `python phase4_forward.py grade`. These commands use a separate `data/phase4` store and preserve existing history. The dashboard has equivalent research controls. API keys remain in existing settings/environment variables.
+
+APEX V3 Phase 3 — development preview 3.0.2
+
+Existing branch v3/hybrid-monte-carlo, draft PR #1. No merge or Streamlit deployment. V2.44 remains the production default.
+
+Adds a separate complete first-score ledger (starter/bench/unknown/ambiguous), explicit Other probability, simpler first-shot research selection, empirical ablations, pre-tip lineup archives, and mobile research cards. Existing features/settings remain available. The original 15.65% vs 20.00% first-shot result was reproduced; most lost hits appeared in input weighting before simulation. No replacement cleared both validation halves.
+
+342 validation games froze settings before the January 1–21, 2026 test (159 modeled games). Read V3_REVIEW.md for measured results, uncertainty, coverage and deployment limits. Do not interpret new complexity or the version number as proof of improved accuracy.
+
+To research locally: use a separate branch checkout, import complete outcomes for a prior date, run Phase 2 research, then expand Phase 3. Data stays separate from the legacy CSV. Pregame research runs append source-labeled lineup snapshots. No paid requests occur merely by opening these panels.
+
+Previous documentation follows:
+
+APEX V3 Phase 2 — development preview 3.0.1
+
+Continue on v3/hybrid-monte-carlo / draft PR #1. Do not merge or deploy yet.
+
+Phase 2 adds validated empirical opening sequences, separate first-shot/first-score estimates, typed shots, explicit tip evidence, team/opponent tendencies, second chances, stronger roster/injury diagnostics, mobile candidate cards, and chronological blend/calibration selection. V2.44 Baseline remains the default.
+
+Actual locked final test: 120 games, Baseline Top-1 15.00% vs Hybrid 12.50%; log loss 2.32969 vs 2.32021. The log-loss difference is inconclusive, Brier is slightly worse, and Uniform beats both on proper scores. First-shot accuracy is 15.65% vs 20.00% for the simpler proxy. V3 has NOT demonstrated superiority. No verified pre-tip historical lineup archives were available.
+
+Read V3_REVIEW.md for the complete experiment, limitations, 349 passing local tests and deployment gates. In the dashboard, use Enrich next 20 opening sequences, then the Phase 2 research panel. Backtest lab includes the Phase 2 chronological comparison. Existing API settings and features remain available. Model EV is hidden for HOLD matchups.
+
+The version number is for development compatibility, not approval to deploy. Old updater clients need a reviewed allowlist bridge for the new modules. Test in a separate checkout/folder.
+
+Previous documentation follows:
+
+APEX V3.0 development preview — separate review branch
+
+This branch adds an opt-in hybrid Monte Carlo first-score simulator and hardens NBA starting-lineup verification. It starts from the published V2.44.0 code and preserves the existing ranking models, odds, imports, research tools and journal. Main and your installed app have not been deployed or changed.
+
+Read V3_REVIEW.md before testing or merging. It documents the historical inputs, explicit possession assumptions, leakage controls, limitations, tests and deployment gates. The V2.44 updater needs a reviewed allowlist bridge before it can accept the new V3 modules; do not publish this manifest directly as a one-step automatic update.
+
+For a local preview, use a separate checkout/folder, install requirements.txt and run:
+python -m streamlit run app.py --server.address 127.0.0.1
+
+Load a slate, review/confirm both starting fives and run existing rankings. Open V3 hybrid Monte Carlo · possession simulation. Settings are in the sidebar. Backtest lab includes Backtest V3 hybrid vs baseline, using saved earlier-date history and identical evaluation games. Simulations are research-only; no automatic model promotion or claimed betting edge.
+
+Offline backtest:
+python simulation.py --history data/history_espn.csv --output data/v3_report.json --trials 2000 --min-training 100
+
+Run automated checks:
+python -m unittest discover -v
+python ui_smoke.py
+
+The V2.44 documentation below remains for existing features.
+
 APEX V2.44.0 — Recent opening-shot role inputs
 
 After Run rankings, expand Recent opening-shot role · prediction preview. This new experimental forecast uses each selected player's last five recorded starts on the same team, retaining only starts within 60 days before the prediction date. At least three of these starts must have an observed team opening shooter to activate the input. Unknown opening shooters do not count as misses, and the engine does not search farther back to replace unknown starts within the last-five set. These are recorded starts in the saved history, not a claim of complete appearance coverage.

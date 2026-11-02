@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "version": "3.0.8",
+  "reviewed_on": "2026-10-29",
+  "prior_head": "04e6015ee697b6f5728a99b178795907d2f4609e",
+  "production_sha": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "production_version": "2.44.0",
+  "status": "Diagnostics implemented; genuine acceptance blocked",
+  "acceptance": {
+    "A": "blocked \u2014 no authorized credential",
+    "B": "blocked \u2014 no verified compatible zero-new-cost event source",
+    "C": "not attempted \u2014 migration design only, no authorized sample",
+    "D": "blocked \u2014 training and current-game prerequisites incomplete",
+    "E": "not attempted \u2014 no genuine forecast"
+  },
+  "actual_account_verified": false,
+  "account_requests": 0,
+  "sports_api_requests": 0,
+  "new_historical_games": 0,
+  "genuine_forecasts": 0,
+  "genuine_results": 0,
+  "historical_games_preserved": 1110,
+  "resolved_first_scores_preserved": 1106,
+  "ledger_integrity": "ok",
+  "ledger_sha256": "8b789c55a83f501c4d0279d9529d3273d1b560db250466644eed81e99ad2c913",
+  "new_source_adapter_implemented": false,
+  "model_protocol": "apex-v3.0.6-live-01",
+  "model_source_changed": false,
+  "registered_settings_changed": false,
+  "dispatcher_changed": false,
+  "production_changed": false,
+  "new_spending_authorized": 0,
+  "paid_services_enabled": false,
+  "local_tests": {
+    "total": 601,
+    "passed": 593,
+    "skipped_postgres": 8,
+    "new_phase9_tests": 21,
+    "seconds": 6.245,
+    "python": "3.12.14",
+    "full_streamlit_smoke": "passed"
+  },
+  "ci": {
+    "status": "success",
+    "python": [
+      "3.11",
+      "3.14"
+    ],
+    "postgres": "passed in GitHub CI",
+    "runs": [
+      {
+        "id": 40913328519,
+        "jobs": [
+          {
+            "id": 123586845721,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "seconds": 78
+          },
+          {
+            "id": 123586846023,
+            "name": "test (3.14)",
+            "conclusion": "success",
+            "seconds": 74
+          }
+        ]
+      },
+      {
+        "id": 40913335824,
+        "jobs": [
+          {
+            "id": 123586870314,
+            "name": "test (3.14)",
+            "conclusion": "success",
+            "seconds": 83
+          },
+          {
+            "id": 123586870856,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "seconds": 76
+          }
+        ]
+      }
+    ]
+  },
+  "cloud_fixture": {
+    "status": "success",
+    "genuine": false,
+    "run": 40913328521,
+    "jobs": [
+      {
+        "id": 123586846115,
+        "name": "forecast",
+        "conclusion": "success",
+        "seconds": 30
+      },
+      {
+        "id": 123587157653,
+        "name": "reconcile",
+        "conclusion": "success",
+        "seconds": 28
+      },
+      {
+        "id": 123587453019,
+        "name": "verify",
+        "conclusion": "success",
+        "seconds": 26
+      }
+    ],
+    "runner_seconds": 84,
+    "forecasts": 1,
+    "outcomes": 1,
+    "archive_path": "fixtures/1b18443d1938e86685b4ba2e5e2186c94a80874e/journal.json",
+    "journal_head": "28e3efa780c9c312ffbc3ade987c7a0f020dc4bf605e94b804f7747b8607bfa0",
+    "prediction_hash": "032ca457240830d5201676c941edaf39f7fdc2b086015b655ff728ba37cde1fe",
+    "model_protocol_hash": "37d4144e8e5483c08c652be0032c8cae9a6036eb7238085f8e9b98a7b0e07134",
+    "prediction_timestamp": "2027-01-02T21:00:00+00:00",
+    "remote_receipts": {
+      "032ca457240830d5201676c941edaf39f7fdc2b086015b655ff728ba37cde1fe": {
+        "commit": "2812b18f6794eea79657c12292b5b2cc8b32afcd",
+        "committed_at": "2026-10-29T16:37:27Z",
+        "verified_remote_at": "2026-10-29T16:37:28.836593+00:00"
+      }
+    },
+    "independent_runner_read_and_dashboard_verified": true,
+    "prior_fixture_probability_hash_parity": true
+  },
+  "prospective_accuracy": null,
+  "limitations": [
+    "No secure account inspection occurred",
+    "Published subscription/endpoint coverage is not current account entitlement",
+    "BDL lineup endpoint is post-start only",
+    "No permitted compatible historical replacement or source-native migration validated",
+    "Prior eight-game discrepancy root cause remains unresolved"
+  ],
+  "next_action": "Run the trusted local read-only inspection; resolve permitted event history before one controlled genuine observation.",
+  "implementation_commit": "1b18443d1938e86685b4ba2e5e2186c94a80874e",
+  "frozen_model_hashes_match": true,
+  "previous_data_branch_files_preserved": true
+}

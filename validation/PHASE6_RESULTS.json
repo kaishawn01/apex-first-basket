@@ -1,0 +1,78 @@
+{
+  "version": "3.0.5",
+  "implementation_commit": "642b6fbc3d80c4d94bb983ceaab584b70fa8ecb6",
+  "production_main_unchanged": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "production_version": "2.44.0",
+  "tests": {
+    "discovered": 531,
+    "local_passed": 523,
+    "local_postgres_skipped": 8,
+    "ci_python": [
+      "3.11",
+      "3.14"
+    ],
+    "ci_all_passed": true,
+    "regression_runs": [
+      40809538736,
+      40809534316
+    ],
+    "streamlit_full_smoke": "passed",
+    "cloud_dashboard_smoke": "passed",
+    "manifest": "passed"
+  },
+  "cloud": {
+    "workflow_run": 40809534434,
+    "initial_trigger": "development branch push",
+    "manual_test": "forecast job manually rerun; dependent reconciliation and verification jobs also passed",
+    "attempts": 2,
+    "status": "success",
+    "runner": "ubuntu-24.04 standard GitHub-hosted; verified public repository",
+    "jobs": [
+      "forecast",
+      "reconcile",
+      "verify"
+    ],
+    "archive_branch": "apex-research-data",
+    "archive_path": "fixtures/642b6fbc3d80c4d94bb983ceaab584b70fa8ecb6/journal.json",
+    "forecast_count": 1,
+    "result_count": 1,
+    "test_only": true,
+    "forecast_hash": "a56b81baacc5698fdcf21ea0e9aa582d180e9677b5049ef2b1dbca849909983a",
+    "original_forecast_timestamp": "2026-10-29T02:59:36.313150+00:00",
+    "first_forecast_commit": "59688d0adaecd73703e5b3bd588861ca1a332005",
+    "remote_publication_verified_at": "2026-10-29T02:59:38.027197+00:00",
+    "final_journal_head": "76835a04c4aa206a36e39a0bc98f89d64b830b13c4e4ecda41df9cedfebc097c",
+    "duplicate_rerun_added": 0,
+    "separate_runner_reconciliation": true,
+    "original_forecast_preserved": true,
+    "external_provider_requests": 0
+  },
+  "live": {
+    "phase6_real_forecasts": 0,
+    "phase6_real_grades": 0,
+    "new_real_snapshots": 0,
+    "scheduled_production_enabled": false,
+    "streamlit_deployed": false,
+    "paid_api_access": false,
+    "paid_resources_created": false,
+    "account_quotas_verified": false,
+    "training_bundle_published": false,
+    "accuracy_claim": null
+  },
+  "preserved": {
+    "historical_games": 1110,
+    "validated_first_scores": 1106,
+    "phase5_protocol_source_hashes_unchanged": true,
+    "frozen_february_report_sha256": "ae2d19da96cb73f2d694686cc2b40e272ba0e5d211c78ff941e7fb7ad3ee240b",
+    "frozen_february_forecasts_sha256": "203c9235fca78027b06a79e29d07bd884331e14d77d2c854486e3d1989536496"
+  },
+  "blocking_live_activation": [
+    "Owner approval for default-branch scheduling/dispatcher",
+    "Reviewed training bundle and collection/publication rights",
+    "Independent API account/billing review before any paid provider integration",
+    "Reliable live pre-tip lineup verification",
+    "Original integrity incident causes remain unresolved",
+    "Separate authorization for mobile dashboard deployment"
+  ],
+  "technical_acceptance": "Isolated fixture cloud execution, durable publication, fresh-runner grading and dashboard display demonstrated; real autonomous NBA operation not activated"
+}

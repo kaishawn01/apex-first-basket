@@ -13,10 +13,10 @@ ROOT=Path(__file__).resolve().parent
 REPO='kaishawn01/apex-first-basket'
 BRANCH='main'
 MAX_FILE=2_000_000
-ALLOWED=frozenset(('app.py','dashboard_core.py','first_basket_engine.py','research_tools.py',
+ALLOWED=frozenset(('phase10_dunk.py','test_phase10.py','PHASE10_DUNK_PILOT.md','test_phase9.py','PHASE9_ENTITLEMENTS.md','PHASE9_HISTORICAL_SOURCES.md','PHASE9_DATA_MIGRATION.md','phase8_access.py','phase8_fixture.py','phase8_ui.py','test_phase8.py','PHASE8_DATA_ACCESS.md','PHASE8_LIVE_OPERATIONS.md','phase7_training.py','phase7_live.py','phase7_fixture.py','phase7_ui.py','test_phase7.py','PHASE7_LIVE.md','phase6_journal.py','phase6_cloud.py','phase6_metrics.py','phase6_fixture.py','phase6_git.py','phase6_cli.py','phase6_ui.py','phase6_smoke.py','test_phase6.py','PHASE6_CLOUD.md','app.py','dashboard_core.py','first_basket_engine.py','research_tools.py',
  'updater.py','launcher.py','START_APEX.bat','RESTORE_APEX.bat','requirements.txt','README.md',
  'START_HERE.txt','VERSION','test_engine.py','test_dashboard.py','test_research.py','test_updater.py',
- 'ui_smoke.py','espn_test_fixture.json','GITHUB_SETUP.txt','build_manifest.py','.gitignore'))
+ 'phase5_store.py','phase5_integrity.py','phase5_providers.py','phase5_protocol.py','phase5_runner.py','phase5_ui.py','test_phase5.py','test_phase5_postgres.py','PHASE5_OPERATIONS.md','phase4_data.py','phase4_forward.py','phase4_research.py','phase4_ui.py','test_phase4.py','phase3.py','outcome_data.py','test_phase3.py','phase2.py','opening_data.py','test_phase2.py','simulation.py','test_simulation.py','V3_REVIEW.md','ui_smoke.py','espn_test_fixture.json','GITHUB_SETUP.txt','build_manifest.py','.gitignore'))
 REQUIRED={'app.py','dashboard_core.py','first_basket_engine.py','research_tools.py','updater.py','launcher.py','START_APEX.bat','requirements.txt','VERSION'}
 
 
@@ -50,6 +50,14 @@ def validate_manifest(manifest):
     version(manifest.get('version'))
     files=manifest.get('files')
     if not isinstance(files,dict) or not REQUIRED.issubset(files): raise ValueError('Incomplete update manifest.')
+    if version(manifest['version'])>=(3,0,0) and 'simulation.py' not in files:raise ValueError('V3 update is missing the simulation module.')
+    if version(manifest['version'])>=(3,0,1) and not {'phase2.py','opening_data.py'}.issubset(files):raise ValueError('Phase 2 update is missing empirical research modules.')
+    if version(manifest['version'])>=(3,0,2) and not {'phase3.py','outcome_data.py'}.issubset(files):raise ValueError('Phase 3 update is missing complete-outcome research modules.')
+    if version(manifest['version'])>=(3,0,4) and not {'phase5_store.py','phase5_integrity.py','phase5_providers.py','phase5_protocol.py','phase5_runner.py','phase5_ui.py'}.issubset(files):raise ValueError('Phase 5 modules missing.')
+    if version(manifest['version'])>=(3,0,3) and not {'phase4_data.py','phase4_forward.py','phase4_research.py','phase4_ui.py'}.issubset(files):raise ValueError('Phase 4 modules missing.')
+    if version(manifest['version'])>=(3,0,5) and not {'phase6_journal.py','phase6_cloud.py','phase6_metrics.py','phase6_cli.py','phase6_ui.py','phase6_fixture.py','phase6_git.py'}.issubset(files):raise ValueError('Phase 6 modules missing.')
+    if version(manifest['version'])>=(3,0,6) and not {'phase7_training.py','phase7_live.py','phase7_fixture.py','phase7_ui.py'}.issubset(files):raise ValueError('Phase 7 modules missing.')
+    if version(manifest['version'])>=(3,0,7) and not {'phase8_access.py','phase8_fixture.py','phase8_ui.py'}.issubset(files):raise ValueError('Phase 8 modules missing.')
     if not set(files).issubset(ALLOWED): raise ValueError('Update contains an unexpected or protected filename.')
     for name,digest in files.items():
         if not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest): raise ValueError('Invalid file checksum.')

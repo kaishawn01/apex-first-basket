@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "version": "3.0.9",
+  "phase": 10,
+  "status": "Fixture-tested pilot preparation; live ingestion blocked",
+  "reviewed_on": "2026-10-29",
+  "prior_head": "df33733a9af40cc375c1f78a5c960411a085b0a1",
+  "production_version": "2.44.0",
+  "production_sha": "babec35666c3da1ccdbe2202c68fde2695a14e67",
+  "nba_upstream_permission_verified": false,
+  "actual_free_balance_verified": false,
+  "live_transport_enabled": false,
+  "provider_api_requests": 0,
+  "actual_credits_used": 0,
+  "actual_games_collected": 0,
+  "synthetic_games_audited": 5,
+  "synthetic_initial_credits_reserved": 75,
+  "hard_credit_ceiling": 100,
+  "one_request_complete_live_verified": false,
+  "model_compatibility_established": false,
+  "frozen_model_hashes_match": true,
+  "scheduling_enabled": false,
+  "new_subscriptions_or_trials": 0,
+  "tests": {
+    "total": 639,
+    "passed": 631,
+    "local_postgres_skipped": 8,
+    "phase10_tests": 38,
+    "seconds": 6.118,
+    "streamlit_smoke": "passed"
+  },
+  "ci": {
+    "status": "pending publication"
+  },
+  "fixture_scenarios": [
+    "five games and idempotent resume",
+    "one- and two-page responses",
+    "strict lifetime credit cap",
+    "lower free balance",
+    "HTTP failure and 429 cooldown",
+    "timeout/interruption reservation recovery",
+    "duplicate/invalid identities",
+    "free-throw first score",
+    "nonstarter and unknown scorer",
+    "score discontinuity",
+    "same-day leakage exclusion",
+    "derived-feature allowlist",
+    "independent crosswalk required",
+    "append-only source backup/recovery"
+  ],
+  "not_observed": [
+    "actual provider pagination termination",
+    "actual complete-game coverage",
+    "actual free balance or credit deductions",
+    "NBA-specific upstream clearance",
+    "real mapping or frozen-model probability parity"
+  ],
+  "blockers": [
+    "Applicable NBA upstream permission and terms version",
+    "Verified free-only balance with no wallet/subscription use",
+    "Permitted private storage and preselected five games",
+    "Full source-native game/team/player mapping and frozen-model adapter review"
+  ],
+  "credential_guidance": "Process-local DUNKAPI_API_KEY via hidden PowerShell prompt; never stored in repository",
+  "next_step": "Obtain scoped provider clarification before enabling or executing live transport"
+}

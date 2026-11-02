@@ -1,0 +1,72 @@
+{
+  "at": "2026-10-28T21:44:04.420307+00:00",
+  "phase5": {
+    "snapshots": 12,
+    "official_both_fives": 0,
+    "forecasts": 0,
+    "graded_games": 0,
+    "scheduled_invocation_receipts": 0,
+    "snapshot_times": [
+      "2026-10-28T21:35:25.470261+00:00",
+      "2026-10-28T21:37:06.652357+00:00"
+    ],
+    "upcoming_games": 12,
+    "manual_collection": {
+      "captured": 0,
+      "day": "2026-10-28",
+      "errors": [],
+      "finished_at": "2026-10-28T21:44:00.636817+00:00",
+      "missed": 0,
+      "mode": "manual",
+      "observe_only": false,
+      "predicted": 0,
+      "started_at": "2026-10-28T21:43:55.277427+00:00",
+      "status": "completed",
+      "storage": "local SQLite",
+      "upcoming": 12
+    },
+    "manual_grading": {
+      "at": "2026-10-28T21:44:00.782950+00:00",
+      "errors": [],
+      "games_requested": 0,
+      "graded": 0
+    }
+  },
+  "phase4_preserved": {
+    "snapshots": 24,
+    "forecasts": 12,
+    "graded_games": 0
+  },
+  "storage": {
+    "backend": "local SQLite",
+    "cloud_configured": false,
+    "integrity": "ok",
+    "verified_history_games": 1110,
+    "backup_restore": {
+      "restored_events": 1158,
+      "same_chain": true,
+      "head": "18f016a1639a317615bdcc2585dc6fd2ef86b87ba7a15279d2c2c483e9d62d5f"
+    },
+    "incident": "A separate damaged local store is preserved. Root cause not established; restored from intact sources before Phase 5 forecast creation."
+  },
+  "frozen_february_unchanged": true,
+  "credentials_available": {
+    "BALLDONTLIE": false,
+    "SportsDataIO": false,
+    "cloud_database": false
+  },
+  "prospective_accuracy": "No Phase 5 graded games; no comparative accuracy claim",
+  "protocol_hash": "4fa5b126d81497c82b2cc1acf20575c683903bf483f8073b16019d62c015fbf7",
+  "ci_initial_phase5": {
+    "commit": "5680173ad8cccb4eb8d5640a94af77546f94d7eb",
+    "runs": [
+      40772563428,
+      40772556769
+    ],
+    "python": [
+      "3.11",
+      "3.14"
+    ],
+    "status": "success; final revision checks recorded in PR"
+  }
+}

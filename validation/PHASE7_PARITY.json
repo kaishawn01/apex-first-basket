@@ -1,0 +1,11 @@
+{
+  "test": "Offline serialization parity only; not a genuine forecast",
+  "target_day": "2026-10-28",
+  "trials": 2000,
+  "seed": 3000,
+  "original_training_games": 780,
+  "compact_training_games": 780,
+  "maximum_probability_difference": 0.0,
+  "identical_first_shot": true,
+  "model_parameters_changed": false
+}
