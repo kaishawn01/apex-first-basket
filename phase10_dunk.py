@@ -727,6 +727,73 @@ def audit_event_payload(box,payload,target_day):
     return report
 
 
+# APEX-PHASE10-LOCAL-CANDIDATE-FIX-v1
+
+def _phase10_observed_label_class(kind, shot):
+    """Limited shape-checked labels seen locally; not provider-role verification."""
+    if not isinstance(kind, str):
+        return None
+    nonshot = {'Jumpball', 'Defensive Rebound', 'Offensive Rebound',
+               'Shooting Foul', 'Personal Foul', 'Loose Ball Foul', 'Full Timeout',
+               'Bad Pass\nTurnover', 'Lost Ball Turnover',
+               'Out of Bounds - Bad Pass Turnover'}
+    field_goals = {'Cutting Layup Shot', 'Driving Layup Shot',
+                   'Turnaround Fade Away Jump Shot', 'Step Back Jump Shot',
+                   'Driving Floating Jump Shot'}
+    if kind in nonshot:
+        return 'nonshot' if shot is None else 'conflict'
+    if kind in field_goals:
+        return ('field_goal' if isinstance(shot, dict)
+                and type(shot.get('points_attempted')) is int
+                and shot['points_attempted'] in (2, 3) else 'conflict')
+    if kind.startswith('Free Throw - '):
+        import re
+        match = re.fullmatch(r'Free Throw - ([1-3]) of ([1-3])', kind)
+        if (match and int(match.group(1)) <= int(match.group(2))
+                and isinstance(shot, dict)
+                and type(shot.get('points_attempted')) is int
+                and shot['points_attempted'] == 1):
+            return 'free_throw'
+        return 'conflict'
+    return None
+
+
+def _phase10_candidate_numeric_blockers(label, event, events, owners, teams):
+    """Candidate-local numeric checks; never certify actor semantics or possession."""
+    problems = []
+    matches = [(i, raw) for i, raw in enumerate(events) if raw.get('seq') == event['seq']]
+    if len(matches) != 1:
+        return ['candidate_sequence_unresolved']
+    index, raw = matches[0]
+    identity = event.get('player_id')
+    if identity not in owners or teams.get(owners.get(identity)) != event.get('team'):
+        problems.append('candidate_actor_or_team_unresolved')
+    shot = raw.get('shot')
+    category = event.get('kind')
+    if not isinstance(shot, dict):
+        problems.append('candidate_shot_missing')
+    else:
+        attempted = shot.get('points_attempted')
+        made = shot.get('made')
+        if (type(attempted) is not int or attempted not in (1, 2, 3)
+                or type(made) is not bool
+                or category != ('free_throw' if attempted == 1 else 'field_goal')
+                or event.get('made') is not made
+                or type(raw.get('points')) is not int
+                or raw['points'] != (attempted if made else 0)):
+            problems.append('candidate_shot_score_inconsistent')
+    if label == 'first_score':
+        if event.get('points', 0) <= 0 or any(
+                type(r.get('points')) is not int or r['points'] != 0
+                for r in events[:index]):
+            problems.append('earlier_scoring_not_excluded')
+    if label in ('first_fg_attempt', 'first_made_fg') and category != 'field_goal':
+        problems.append('candidate_not_field_goal')
+    if label == 'first_made_fg' and event.get('made') is not True:
+        problems.append('candidate_not_made')
+    return sorted(set(problems))
+
+
 def validate_event_semantics(box,payload,target_day):
     """Offline consistency verification, never a substitute for actor-role evidence.
 
@@ -765,11 +832,17 @@ def validate_event_semantics(box,payload,target_day):
     nonshot_types={'Jump Ball','Turnover','Violation','Substitution','Rebound','Foul','Start Period','End Period'}
     zones={'restricted_area':2,'paint':2,'midrange':2,'corner_3':3,'above_break_3':3,'free_throw':1}
     type_counts=Counter();zone_counts=Counter();categories=Counter();problems=Counter()
+    observed_labels=Counter()  # Shape-backed lexical classes, not actor-role evidence.
     ties=0;prev_clock=None
     for e in events:
-        kind=e.get('type');type_counts[kind if isinstance(kind,str) and kind in literal_types else 'unreviewed_or_missing']+=1
+        kind=e.get('type')
+        observed_class=_phase10_observed_label_class(kind,e.get('shot'))
+        if observed_class in ('nonshot','field_goal','free_throw'):
+            observed_labels[observed_class]+=1
+        type_counts[kind if isinstance(kind,str) and (kind in literal_types or observed_class in ('nonshot','field_goal','free_throw')) else 'unreviewed_or_missing']+=1
         if not isinstance(kind,str) or not kind:problems['missing_event_type']+=1
-        elif kind not in literal_types:problems['unreviewed_event_type']+=1
+        elif observed_class=='conflict':problems['observed_label_shape_conflict']+=1
+        elif kind not in literal_types and observed_class is None:problems['unreviewed_event_type']+=1
         if not isinstance(kind,str):kind=None
         pair=(e.get('period'),e.get('clock_seconds'))
         ties+=int(pair==prev_clock);prev_clock=pair
@@ -800,10 +873,11 @@ def validate_event_semantics(box,payload,target_day):
         if not known or team not in teams.values():problems['shot_actor_or_team_missing']+=1
         if kind in nonshot_types or (kind=='Free Throw' and category!='free_throw') or (kind in example_fg_types and category!='field_goal'):
             problems['type_shot_conflict']+=1
-        if category=='free_throw' and kind!='Free Throw':problems['free_throw_type_unreviewed']+=1
+        if category=='free_throw' and kind!='Free Throw' and observed_class!='free_throw':problems['free_throw_type_unreviewed']+=1
     report['aggregate']={'event_type_literal_counts':dict(type_counts),'shot_categories':dict(categories),
         'shot_zones':dict(zone_counts),'clock_ties':ties,'problems':dict(problems),
-        'type_dictionary_complete':False,'secondary_roles_verified':False}
+        'type_dictionary_complete':False,'secondary_roles_verified':False,
+        'observed_shape_checked_label_categories':dict(observed_labels)}
     blockers.extend(k for k,v in problems.items() if v)
     # Independent selections; do not equate first score with first made FG.
     if audit is not None:
@@ -811,8 +885,11 @@ def validate_event_semantics(box,payload,target_day):
         for label,event in selections.items():
             if event is None:report[label]={'status':'UNRESOLVED','reason':'Event not found'};continue
             identity=event['player_id']
+            local_issues=_phase10_candidate_numeric_blockers(label,event,events,owners,teams)
             report[label]={'status':'CANDIDATE_ONLY','kind':event['kind'],
-                'consistent_under_checked_fields':not blockers,
+                'consistent_under_checked_fields':not local_issues and not audit['issues'],
+                'candidate_specific_blockers':local_issues,
+                'candidate_check_scope':'numeric shot/actor/team and preceding scoring only',
                 'actor_matches_cached_roster':identity in owners,
                 'candidate_actor_is_historical_starter':identity in sum(starters.values(),[]) if identity in owners else None,
                 'credited_shooter_role':'UNVERIFIED: examples support role; universal guarantee absent'}
